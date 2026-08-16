@@ -125,7 +125,9 @@ func _monter_modele(height: float) -> void:
 		# personnage courrait un demi-pas puis se figerait.
 		for nom in [A_REPOS, A_COURSE, A_COURSE_TIR]:
 			if _anim.has_animation(nom):
-				_anim.get_animation(nom).loop_mode = Animation.LOOP_LINEAR
+				var clip := _anim.get_animation(nom)
+				clip.loop_mode = Animation.LOOP_LINEAR
+				_fixer_sur_place(clip, nom)
 		_jouer(A_REPOS, 0.0)
 
 	for maille in _mailles(_modele):
@@ -167,6 +169,58 @@ func _monter_modele(height: float) -> void:
 		# Le canon des armes pointe vers -Z ; l'avant du modèle est +Z.
 		_mount.rotation.y = PI
 		attache.add_child(_mount)
+
+
+## Seuil, en unités du modèle, au-delà duquel une dérive est considérée
+## comme un déplacement racine et non comme du ballant. Le modèle mesure
+## 190 unités de haut : 2 unités, c'est un centimètre à l'échelle du
+## personnage, donc largement en dessous de tout mouvement voulu.
+const DERIVE_MAX := 2.0
+
+
+## Supprime le DÉPLACEMENT RACINE d'un clip qui boucle.
+##
+## POURQUOI : certaines animations de la bibliothèque translatent
+## réellement le personnage. « Run_and_Shoot » avance de 158 unités —
+## 1,58 m — en 0,70 s. Comme le code du jeu déplace DÉJÀ le corps, les
+## deux s'additionnent ; puis la boucle repart de zéro et le personnage
+## est ramené d'un coup en arrière. À l'écran : il avance, il recule, il
+## avance, il recule.
+##
+## Mesuré sur les quatre clips, seul « course_tir » est concerné :
+## « course » et « repos » dérivent de moins d'un millième d'unité.
+##
+## CE QU'ON ENLÈVE : la seule composante qui PROGRESSE au fil du clip, et
+## uniquement à l'horizontale. Le balancement d'un pas reste intact, tout
+## comme le rebond vertical du bassin — c'est lui qui donne son poids à
+## la foulée, et l'écraser rendrait la course flottante.
+##
+## La correction est idempotente : après passage, la dérive vaut zéro,
+## donc un second appel ne fait rien. C'est nécessaire, la ressource
+## d'animation étant partagée entre tous les personnages.
+func _fixer_sur_place(clip: Animation, nom: String) -> void:
+	for t in clip.get_track_count():
+		if clip.track_get_type(t) != Animation.TYPE_POSITION_3D:
+			continue
+		if not str(clip.track_get_path(t)).ends_with(":Hips"):
+			continue
+		var n_cles := clip.track_get_key_count(t)
+		if n_cles < 2:
+			continue
+		var depart: Vector3 = clip.track_get_key_value(t, 0)
+		var arrivee: Vector3 = clip.track_get_key_value(t, n_cles - 1)
+		var derive := arrivee - depart
+		derive.y = 0.0
+		if derive.length() < DERIVE_MAX:
+			continue
+		var duree := maxf(clip.length, 0.0001)
+		for k in n_cles:
+			var instant := clip.track_get_key_time(t, k)
+			var v: Vector3 = clip.track_get_key_value(t, k)
+			# On retranche la part de dérive déjà parcourue à cet instant.
+			clip.track_set_key_value(t, k, v - derive * (instant / duree))
+		print("[CharacterVisual] « %s » : déplacement racine neutralisé "
+				% nom, derive)
 
 
 func _trouver(n: Node, classe: String) -> Node:

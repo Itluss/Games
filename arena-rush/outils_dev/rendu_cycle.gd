@@ -20,8 +20,13 @@ extends Node3D
 
 ## Nombre d'images pour UN cycle complet (deux foulées).
 const IMAGES := 24
-## Durée du clip de course, mesurée dans Godot sur le modèle riggé.
-const DUREE_COURSE := 0.50
+## Scénarios rendus, avec la durée RÉELLE de chaque clip. Le tir en
+## course a son propre clip, et c'est justement celui qui portait le
+## déplacement racine : il doit être vérifié à part.
+const SCENARIOS := [
+	{"prefixe": "course", "vise": false, "duree": 0.50},
+	{"prefixe": "course_tir", "vise": true, "duree": 0.70},
+]
 const LARGEUR := 320
 const HAUTEUR := 480
 
@@ -77,7 +82,20 @@ func _ready() -> void:
 	# On part d'une phase nulle et d'un régime établi : pas de montée en
 	# vitesse à filmer, on veut le cycle stabilisé.
 	_visuel.set_motion(Vector3(0, 0, -5.6), Vector3.ZERO)
+	_appliquer_scenario()
 	RenderingServer.frame_post_draw.connect(_capturer)
+
+
+var _scenario := 0
+
+func _appliquer_scenario() -> void:
+	var s: Dictionary = SCENARIOS[_scenario]
+	_prefixe = s["prefixe"]
+	_visuel.set_aiming(s["vise"])
+	# Une trame pour que le fondu vers le bon clip soit consommé avant la
+	# première capture : sinon la planche s'ouvrirait sur une transition.
+	for i in 12:
+		_visuel.update_visual(1.0 / 60.0, _regime)
 
 
 func _placer_camera() -> void:
@@ -86,6 +104,10 @@ func _placer_camera() -> void:
 
 
 func _process(delta: float) -> void:
+	# `quit()` ne prend effet qu'en fin de trame : ce rappel tourne encore
+	# une fois après le dernier scénario.
+	if _scenario >= SCENARIOS.size():
+		return
 	# Pas de temps IMPOSÉ, indépendant de la cadence réelle du rendu : une
 	# image = une fraction exacte du cycle, sinon les images ne seraient pas
 	# régulièrement réparties et la planche mentirait.
@@ -94,7 +116,8 @@ func _process(delta: float) -> void:
 	# montrerait un échantillonnage irrégulier et mentirait sur le cycle.
 	var cadence := lerpf(CharacterVisual.CADENCE_MIN,
 			CharacterVisual.CADENCE_MAX, _regime)
-	var pas := DUREE_COURSE / (cadence * float(IMAGES))
+	var duree: float = SCENARIOS[_scenario]["duree"]
+	var pas := duree / (cadence * float(IMAGES))
 	_visuel.update_visual(pas, _regime)
 
 
@@ -102,7 +125,7 @@ func _capturer() -> void:
 	# `quit()` ne prend effet qu'à la fin de la trame : le signal de fin de
 	# rendu se déclenche encore une fois après. Sans cette garde, on lit une
 	# vue qui n'existe plus.
-	if _vue >= _vues.size():
+	if _scenario >= SCENARIOS.size() or _vue >= _vues.size():
 		return
 	var img := get_viewport().get_texture().get_image()
 	var nom := "%s/%s_%s_%02d.png" % [_dossier, _prefixe, _vues[_vue]["nom"], _index]
@@ -114,5 +137,11 @@ func _capturer() -> void:
 	_vue += 1
 	if _vue < _vues.size():
 		_placer_camera()
+		return
+	_vue = 0
+	_placer_camera()
+	_scenario += 1
+	if _scenario < SCENARIOS.size():
+		_appliquer_scenario()
 		return
 	get_tree().quit()

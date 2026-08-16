@@ -1,10 +1,5 @@
 extends Node3D
-## Mesure de l'orientation RÉELLE, animation en cours — outil de dev.
-##
-## La pose de repos ne suffit pas : un clip peut faire pivoter le bassin
-## et retourner le personnage sans qu'aucune donnée statique ne le dise.
-## On mesure donc le regard À TRAVERS toute la chaîne — nœud, squelette,
-## animation — exactement comme le moteur le rendra.
+## Contrôle du déplacement racine APRÈS correction — outil de dev.
 
 var _visuel: CharacterVisual
 
@@ -12,29 +7,30 @@ func _ready() -> void:
 	_visuel = CharacterVisual.new()
 	add_child(_visuel)
 	_visuel.build(Color.WHITE, Color.WHITE, 1.7)
-	_visuel.set_motion(Vector3(0, 0, -5.6), Vector3.ZERO)
-	# Le personnage n'est pas tourné : on mesure l'orientation NUE.
-	for i in 40:
-		_visuel.update_visual(0.02, 1.0)
-		await get_tree().process_frame
-	_mesurer("course")
+	var ap := _premier(_visuel, "AnimationPlayer") as AnimationPlayer
+	for nom in ap.get_animation_list():
+		var a := ap.get_animation(nom)
+		for t in a.get_track_count():
+			if a.track_get_type(t) != Animation.TYPE_POSITION_3D:
+				continue
+			if not str(a.track_get_path(t)).ends_with(":Hips"):
+				continue
+			var n := a.track_get_key_count(t)
+			var p0: Vector3 = a.track_get_key_value(t, 0)
+			var pf: Vector3 = a.track_get_key_value(t, n - 1)
+			var d := pf - p0
+			# Amplitude conservée : on veut avoir ôté la DÉRIVE, pas le
+			# mouvement. Un clip aplati serait une régression silencieuse.
+			var mn := p0
+			var mx := p0
+			for k in n:
+				var v: Vector3 = a.track_get_key_value(t, k)
+				mn = Vector3(minf(mn.x, v.x), minf(mn.y, v.y), minf(mn.z, v.z))
+				mx = Vector3(maxf(mx.x, v.x), maxf(mx.y, v.y), maxf(mx.z, v.z))
+			print("%-12s boucle=%d  dérive horizontale=%.4f  amplitude X=%.2f Y=%.2f Z=%.2f"
+					% [nom, a.loop_mode, Vector2(d.x, d.z).length(),
+					mx.x - mn.x, mx.y - mn.y, mx.z - mn.z])
 	get_tree().quit()
-
-func _mesurer(libelle: String) -> void:
-	var sq := _premier(_visuel, "Skeleton3D") as Skeleton3D
-	var i_tete := sq.find_bone("Head")
-	var i_front := sq.find_bone("headfront")
-	# get_bone_global_pose tient compte de l'ANIMATION, à la différence
-	# de get_bone_global_rest.
-	var a := sq.get_bone_global_pose(i_tete).origin
-	var b := sq.get_bone_global_pose(i_front).origin
-	# Puis on remonte dans l'espace monde, ce qui intègre le demi-tour.
-	var m := sq.global_transform
-	var regard := (m * b - m * a).normalized()
-	print("[%s] regard monde = %s" % [libelle, regard])
-	print("  z=%.3f → %s" % [regard.z,
-			"AVANT Godot (-Z) : correct" if regard.z < -0.5
-			else ("ARRIÈRE (+Z) : INVERSÉ" if regard.z > 0.5 else "de côté")])
 
 func _premier(n: Node, classe: String) -> Node:
 	if n.is_class(classe):

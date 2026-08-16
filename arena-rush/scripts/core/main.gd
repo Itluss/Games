@@ -15,19 +15,39 @@ var _debug: Node = null
 var _last_mode: int = 0   # 0 = solo, 1 = hôte, 2 = client
 var _last_bots: int = 3
 
+## Arguments de lancement, des DEUX côtés du séparateur `--`.
+##
+## POURQUOI CETTE FONCTION EXISTE : Godot répartit les arguments entre
+## deux listes. Ce qui suit `--` va dans `get_cmdline_user_args()`, le
+## reste dans `get_cmdline_args()`. On ne lisait que la seconde, si bien
+## qu'un lancement de la forme
+##
+##     godot --path arena-rush --quit-after 900 -- --solo
+##
+## affichait le MENU au lieu de démarrer une partie, sans la moindre
+## erreur. Une validation automatisée finissait donc au vert sans avoir
+## rien joué. Ce faux succès a masqué un vrai bug pendant plusieurs
+## vérifications — il est toujours plus dangereux qu'un échec.
+func _arguments() -> PackedStringArray:
+	var tout := OS.get_cmdline_args()
+	tout.append_array(OS.get_cmdline_user_args())
+	return tout
+
+
 func _ready() -> void:
 	add_to_group(&"main")
+	var args := _arguments()
 	# Argument de ligne de commande : permet de lancer une seconde instance
 	# directement en client, sans passer par le menu à chaque test.
-	if "--join" in OS.get_cmdline_args():
+	if "--join" in args:
 		_start(2, 0)
 		return
-	if "--host" in OS.get_cmdline_args():
+	if "--host" in args:
 		_start(1, 0)
 		return
 	# Démarrage direct en solo : sert aux tests automatisés et à relancer
 	# une partie sans repasser par le menu pendant le développement.
-	if "--solo" in OS.get_cmdline_args():
+	if "--solo" in args:
 		_start(0, 3)
 		return
 	_show_menu()
