@@ -16,9 +16,15 @@ signal health_changed(current: float, maximum: float)
 signal died()
 
 const SPEED := 5.6
-const ACCELERATION := 46.0
-const FRICTION := 44.0
-const TURN_SPEED := 11.0
+## Constantes de TEMPS (secondes pour atteindre ~63 % de la cible), et
+## non des taux par image. Un lissage en `facteur * delta` change de
+## comportement avec la cadence d'affichage — donc le jeu ne réagit pas
+## pareil à 30 et à 120 FPS, ce qui se ressent immédiatement en navigateur
+## où la cadence varie. La forme exponentielle `1 - exp(-dt/tau)` est,
+## elle, rigoureusement identique à toute cadence.
+const ACCEL_TAU := 0.11
+const BRAKE_TAU := 0.15
+const TURN_TAU := 0.065
 const DASH_SPEED := 15.0
 const DASH_TIME := 0.16
 const DASH_COOLDOWN := 1.5
@@ -61,6 +67,8 @@ var _net_accum: float = 0.0
 var _target_pos: Vector3 = Vector3.ZERO
 var _target_yaw: float = 0.0
 var _zone_accum: float = 0.0
+## Accélération instantanée, transmise au visuel pour l'inclinaison.
+var _accel: Vector3 = Vector3.ZERO
 
 func get_peer_id() -> int:
 	return peer_id
@@ -141,6 +149,11 @@ func _physics_process(delta: float) -> void:
 
 	var speed_ratio := clampf(Vector2(velocity.x, velocity.z).length() / SPEED,
 			0.0, 1.0)
+	# L'inclinaison est calculée dans le repère du personnage : pencher
+	# « vers l'avant » n'a de sens que relativement à son orientation.
+	var local_v := Vector3(velocity.x, 0, velocity.z).rotated(Vector3.UP, -_facing)
+	var local_a := _accel.rotated(Vector3.UP, -_facing)
+	visual.set_motion(local_v / maxf(SPEED, 0.01), local_a / 40.0)
 	visual.update_visual(delta, speed_ratio)
 	_update_aim_visuals()
 
@@ -163,16 +176,28 @@ func _simulate(delta: float) -> void:
 		_dash_dir = wish if wish.length() > 0.1 \
 				else Vector3(sin(_facing), 0, cos(_facing))
 		Fx.shake(0.06)
+		# Étirement dans l'axe de l'esquive : sans déformation, une
+		# accélération brutale ne se lit pas, elle se subit.
+		visual.punch(Vector3(0.78, 0.9, 1.35), 0.18)
 
+	var flat := Vector3(velocity.x, 0.0, velocity.z)
+	var before := flat
 	if _dash_time > 0.0:
 		_dash_time -= delta
-		velocity.x = _dash_dir.x * DASH_SPEED
-		velocity.z = _dash_dir.z * DASH_SPEED
+		flat = _dash_dir * DASH_SPEED
 	else:
+		# Approche VECTORIELLE : on lisse le vecteur vitesse entier, pas
+		# X et Z séparément. Traiter les axes isolément donnait une
+		# accélération différente en diagonale et des trajectoires en
+		# escalier — la sensation « mécanique ».
 		var target := wish * SPEED
-		var rate := ACCELERATION if wish.length() > 0.05 else FRICTION
-		velocity.x = move_toward(velocity.x, target.x, rate * delta)
-		velocity.z = move_toward(velocity.z, target.z, rate * delta)
+		var tau := ACCEL_TAU if wish.length() > 0.05 else BRAKE_TAU
+		flat = flat.lerp(target, 1.0 - exp(-delta / tau))
+	velocity.x = flat.x
+	velocity.z = flat.z
+	# L'accélération réelle nourrit l'inclinaison du corps : c'est elle qui
+	# donne du POIDS au personnage.
+	_accel = (flat - before) / maxf(delta, 0.001)
 
 	if not is_on_floor():
 		velocity.y -= 24.0 * delta
@@ -193,7 +218,8 @@ func _simulate(delta: float) -> void:
 	if want_fire and aim_input.length() > 0.1:
 		face = aim_input
 	if face.length() > 0.1:
-		_facing = lerp_angle(_facing, atan2(face.x, face.z), TURN_SPEED * delta)
+		_facing = lerp_angle(_facing, atan2(face.x, face.z),
+				1.0 - exp(-delta / TURN_TAU))
 	# `_facing` est l'angle de TIR, mesuré depuis +Z. Or dans Godot l'avant
 	# d'un nœud est son axe -Z local : c'est vers -Z que regardent le
 	# modèle, le canon de l'arme, le chevron et le télémètre. Sans ce

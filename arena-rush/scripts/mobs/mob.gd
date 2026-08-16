@@ -173,7 +173,7 @@ func _face_movement(delta: float) -> void:
 		# Même demi-tour que le joueur : les silhouettes de mobs (cornes du
 		# Chargeur, œil du Tireur) sont modelées vers -Z.
 		rotation.y = lerp_angle(rotation.y, atan2(look.x, look.z) + PI,
-				9.0 * delta)
+				1.0 - exp(-delta / 0.11))
 
 func _acquire_target() -> void:
 	var best: Node3D = null
@@ -210,9 +210,12 @@ func _chase(delta: float) -> void:
 		else:
 			wish = dir.cross(Vector3.UP) * _strafe
 
-	var speed := data.speed
-	velocity.x = move_toward(velocity.x, wish.x * speed, 34.0 * delta)
-	velocity.z = move_toward(velocity.z, wish.z * speed, 34.0 * delta)
+	# Lissage vectoriel exponentiel, comme pour le joueur : un `move_toward`
+	# par axe donne des trajectoires en escalier et une allure d'automate.
+	var flat := Vector3(velocity.x, 0.0, velocity.z)
+	flat = flat.lerp(wish * data.speed, 1.0 - exp(-delta / 0.16))
+	velocity.x = flat.x
+	velocity.z = flat.z
 
 	if _cooldown <= 0.0 and dist <= data.attack_range:
 		_enter_telegraph()

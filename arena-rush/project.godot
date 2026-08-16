@@ -101,7 +101,11 @@ debug_panel={
 
 [physics]
 
-common/physics_ticks_per_second=60
+; 90 Hz plutôt que 60 : le corps est simulé par pas de physique, mais
+; affiché à une cadence variable — surtout en navigateur. Des pas plus
+; rapprochés réduisent d'autant l'escalier perceptible sur le mouvement.
+; Le coût est faible ici, la scène ne comptant qu'une vingtaine de corps.
+common/physics_ticks_per_second=90
 3d/default_gravity=24.0
 
 [rendering]

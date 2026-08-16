@@ -22,6 +22,12 @@ var _mount: Node3D
 var _weapon_model: Node3D = null
 
 var _time: float = 0.0
+## Mouvement reçu du corps, exprimé dans son repère et normalisé.
+var _vel: Vector3 = Vector3.ZERO
+var _acc: Vector3 = Vector3.ZERO
+var _lean: Vector2 = Vector2.ZERO     # x = tangage, y = roulis
+var _squash: Vector3 = Vector3.ONE
+var _squash_target: Vector3 = Vector3.ONE
 var _attack_t: float = 0.0
 var _hit_t: float = 0.0
 var _dead: bool = false
@@ -52,6 +58,25 @@ func attach_weapon(model: Node3D) -> void:
 	if model and _mount:
 		_mount.add_child(model)
 
+## Vitesse et accélération dans le repère du personnage, normalisées.
+## `z > 0` = vers l'avant, `x > 0` = vers la droite.
+func set_motion(vel: Vector3, acc: Vector3) -> void:
+	_vel = vel
+	_acc = acc
+
+## Déformation ponctuelle — écrasement ou étirement — qui revient d'elle
+## même. C'est l'ingrédient qui fait qu'un mouvement brutal se LIT au lieu
+## d'être subi : sans déformation, une accélération instantanée n'a aucune
+## expression visuelle.
+func punch(target: Vector3, duration: float = 0.16) -> void:
+	if _dead:
+		return
+	_squash_target = target
+	var tw := create_tween()
+	tw.tween_method(func(v: float):
+		_squash_target = Vector3.ONE.lerp(target, v), 1.0, 0.0, duration) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
 func set_state(s: State) -> void:
 	if _dead or state == s:
 		return
@@ -59,6 +84,7 @@ func set_state(s: State) -> void:
 	match s:
 		State.ATTACK:
 			_attack_t = 0.16
+			punch(Vector3(1.06, 0.96, 0.94), 0.12)
 		State.HIT:
 			_hit_t = 0.18
 		State.DEATH:
@@ -131,6 +157,29 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 		_rig.position.z = k * 0.14
 	else:
 		_rig.position.z = 0.0
+
+	# INCLINAISON — le corps penche dans le sens de la marche et s'incline
+	# dans les changements de direction. C'est ce qui distingue un
+	# personnage d'un objet qu'on translate : sans elle, il glisse à plat,
+	# sans poids ni intention.
+	#
+	# La vitesse donne l'assiette générale, l'accélération la réaction
+	# vive aux changements. Le lissage est exponentiel, donc identique à
+	# toute cadence d'affichage.
+	var target_lean := Vector2(
+			clampf(_vel.z * 0.16 + _acc.z * 0.10, -0.30, 0.30),
+			clampf(_vel.x * 0.20 + _acc.x * 0.14, -0.34, 0.34))
+	_lean = _lean.lerp(target_lean, 1.0 - exp(-delta / 0.09))
+	# L'avant du gabarit est -Z, d'où les signes : un tangage positif
+	# ferait basculer le buste en arrière.
+	_rig.rotation.x = -_lean.x
+	_rig.rotation.z = -_lean.y
+
+	# RESPIRATION à l'arrêt : une immobilité parfaitement figée est le
+	# signe le plus sûr d'un pantin.
+	var breathe := 1.0 + sin(_time * 1.9) * 0.018 * (1.0 - speed_ratio)
+	_squash = _squash.lerp(_squash_target, 1.0 - exp(-delta / 0.055))
+	_rig.scale = Vector3(_squash.x, _squash.y * breathe, _squash.z)
 
 func _offset(part: String, delta_pos: Vector3) -> void:
 	var node: MeshInstance3D = _parts.get(part)
