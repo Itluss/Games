@@ -78,6 +78,55 @@ func _verifier_texte(libelle: String, obtenu: String, attendu: String) -> void:
 			% ["OK" if ok else "ÉCHEC", libelle, obtenu, attendu])
 
 
+## Taille minimale, en mètres, sous laquelle une arme est invisible.
+const ARME_MIN := 0.08
+
+
+func _verifier_arme(j: Node) -> void:
+	var visuel = j.get(&"visual")
+	var accroche: Node3D = visuel.get_weapon_mount() if visuel else null
+	if accroche == null or accroche.get_child_count() == 0:
+		_verifier("une arme est accrochée à la main", false, true)
+		return
+	# Le premier enfant est le nœud Weapon lui-même, pas sa silhouette :
+	# on cherche le maillage, seul objet dont la taille se voie.
+	var modele := _chercher(accroche, "MeshInstance3D") as Node3D
+	if modele == null:
+		_verifier("un maillage d'arme est accroché", false, true)
+		return
+	var taille := modele.global_transform.basis.get_scale().x
+	_etapes += 1
+	var ok := taille > ARME_MIN
+	if not ok:
+		_echecs += 1
+	print("  [%s] %-46s échelle rendue=%.4f  minimum=%.2f"
+			% ["OK" if ok else "ÉCHEC", "l'arme est à une taille visible",
+			taille, ARME_MIN])
+
+
+func _verifier_cadence(j: Node) -> void:
+	var arme = j.get(&"weapon")
+	if arme == null or arme.data == null:
+		_verifier("arme équipée pour tester la cadence", false, true)
+		return
+	var cd: float = arme.data.cooldown()
+
+	# À mi-délai : refusé si l'on maintient, accordé si l'on tapote.
+	arme._cooldown = cd * 0.40
+	_verifier("à 40 % du délai, gâchette MAINTENUE → refus",
+			arme.can_fire(false), false)
+	arme._cooldown = cd * 0.40
+	_verifier("à 40 % du délai, appui NEUF → tir accordé",
+			arme.can_fire(true), true)
+
+	# Le gain est BORNÉ : tapoter n'autorise pas à tirer immédiatement,
+	# sans quoi un client modifié tirerait en continu.
+	arme._cooldown = cd * 0.90
+	_verifier("à 90 % du délai, appui NEUF → refus (gain borné)",
+			arme.can_fire(true), false)
+	arme._cooldown = 0.0
+
+
 func _executer() -> void:
 	var j := _joueur()
 	var h := _hud()
@@ -133,6 +182,20 @@ func _executer() -> void:
 			await get_tree().process_frame
 		_verifier_texte("gâchette relâchée → retour au repos",
 				ap.current_animation, "repos")
+
+	# 3 ter. L'ARME EST-ELLE VISIBLE DANS LA MAIN ?
+	#
+	# Retour de test : « il n'a pas l'arme entre les mains ». Elle y était
+	# pourtant, et au bon endroit — mais rendue à 7 mm. Le rig Meshy est
+	# exprimé en centimètres, et le point d'accroche héritait de son
+	# échelle de 0,01. On mesure donc la TAILLE RENDUE, seule chose qui
+	# décide si l'on voit l'arme ou non.
+	_verifier_arme(j)
+
+	# 3 quater. CADENCE. Maintenue, la gâchette tire au rythme de l'arme ;
+	# un appui NEUF peut écourter une part du délai. Test direct sur
+	# l'arme, donc déterministe — pas de dépendance à la vitesse du runner.
+	_verifier_cadence(j)
 
 	# 4. CLIC DANS LE VIDE, hors interface → tir souris au bureau.
 	await _clic(Vector2(640, 200), true)

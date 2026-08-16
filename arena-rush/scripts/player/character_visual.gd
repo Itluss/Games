@@ -89,7 +89,12 @@ var _parts: Dictionary = {}
 var _base_pos: Dictionary = {}
 var _materials: Array[StandardMaterial3D] = []
 var _mount: Node3D
+## Sonde posée sur l'os de la main. Elle ne PORTE rien : elle sert
+## uniquement à lire la position et l'orientation de la main.
+var _attache: BoneAttachment3D = null
 var _weapon_model: Node3D = null
+## Rapport entre le gabarit voulu et la taille native du modèle.
+var _facteur: float = 1.0
 
 var _time: float = 0.0
 var _vel: Vector3 = Vector3.ZERO
@@ -125,7 +130,8 @@ func build(color: Color, accent: Color, height: float = 1.7) -> void:
 func _monter_modele(height: float) -> void:
 	var scene: PackedScene = load(MODELE)
 	_modele = scene.instantiate()
-	_modele.scale = Vector3.ONE * (height / MODELE_HAUTEUR)
+	_facteur = height / MODELE_HAUTEUR
+	_modele.scale = Vector3.ONE * _facteur
 	_modele.rotation.y = MODELE_DEMI_TOUR
 	_rig.add_child(_modele)
 
@@ -170,18 +176,34 @@ func _monter_modele(height: float) -> void:
 			mi.set_surface_override_material(i, copie)
 			_materials.append(copie)
 
-	# ARME accrochée à l'OS de la main : elle suit le geste au lieu de
-	# flotter à côté du corps.
+	# ARME accrochée à la MAIN — mais hors du squelette.
+	#
+	# POURQUOI CE DÉTOUR : le rig Meshy est exprimé en CENTIMÈTRES (la
+	# hanche est à y=93,9 pour un maillage haut de 1,9), et l'armature
+	# porte donc une échelle voisine de 0,01. Un BoneAttachment3D en
+	# hérite, et tout ce qu'on y greffe avec : l'arme était bien dans la
+	# main, au bon endroit, mais rendue à SEPT MILLIMÈTRES — donc
+	# invisible. C'est le défaut rapporté sous la forme « il ne tient plus
+	# son arme ».
+	#
+	# Compenser cette échelle une fois pour toutes ne suffit PAS : les
+	# clips animent aussi la taille des os, si bien que le facteur hérité
+	# varie au fil de l'animation et que l'arme se mettrait à enfler et
+	# rétrécir au rythme du geste.
+	#
+	# La sonde reste donc sur l'os, mais elle ne porte rien : le support
+	# de l'arme vit dans le repère du PERSONNAGE, et se contente de
+	# recopier chaque trame la position et l'orientation de la main, sans
+	# son échelle.
 	if _squelette:
-		var attache := BoneAttachment3D.new()
-		attache.name = "AttacheMain"
-		attache.bone_name = OS_MAIN
-		_squelette.add_child(attache)
+		_attache = BoneAttachment3D.new()
+		_attache.name = "SondeMain"
+		_attache.bone_name = OS_MAIN
+		_squelette.add_child(_attache)
 		_mount = Node3D.new()
 		_mount.name = "WeaponMount"
-		# Le canon des armes pointe vers -Z ; l'avant du modèle est +Z.
-		_mount.rotation.y = PI
-		attache.add_child(_mount)
+		_rig.add_child(_mount)
+		_suivre_main()
 
 
 ## Seuil, en unités du modèle, au-delà duquel une dérive est considérée
@@ -311,9 +333,26 @@ func attach_weapon(model: Node3D) -> void:
 	if _weapon_model and is_instance_valid(_weapon_model):
 		_weapon_model.queue_free()
 	_weapon_model = model
-	if model and _mount:
-		model.scale = Vector3.ONE * ARME_ECHELLE
-		_mount.add_child(model)
+	if model == null or _mount == null:
+		return
+	model.scale = Vector3.ONE * ARME_ECHELLE
+	_mount.add_child(model)
+
+
+## Recopie la main sur le support d'arme, SANS son échelle.
+##
+## L'orientation est orthonormalisée : c'est précisément ce qui jette
+## l'échelle du squelette, y compris la part que l'animation fait varier
+## d'une trame à l'autre.
+func _suivre_main() -> void:
+	if _mount == null or _attache == null or not _attache.is_inside_tree():
+		return
+	var t := _attache.global_transform
+	var base := t.basis.orthonormalized()
+	# Le canon des armes pointe vers -Z, l'avant du modèle vers +Z.
+	base = base.rotated(base.y.normalized(), PI)
+	_mount.global_transform = Transform3D(base.scaled(Vector3.ONE * _facteur),
+			t.origin)
 
 
 ## Vitesse et accélération dans le repère du personnage, normalisées.
@@ -393,6 +432,8 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	if _rig == null:
 		return
 	_time += delta
+
+	_suivre_main()
 
 	if _dead:
 		return

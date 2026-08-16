@@ -47,15 +47,45 @@ func _process(delta: float) -> void:
 		_recoil_offset = move_toward(_recoil_offset, 0.0, delta * 2.4)
 		_model.position.z = _recoil_offset
 
-func can_fire() -> bool:
-	if data == null or _cooldown > 0.0:
+## Part de la cadence qu'un appui NEUF permet d'écourter.
+##
+## POURQUOI CE RÉGLAGE EXISTE : maintenu, le bouton tire à la cadence
+## propre de l'arme. Tapoté, il ne donnait rien de plus — l'appui tombait
+## dans le temps de recharge et était simplement ignoré, si bien que
+## marteler le bouton semblait sans effet.
+##
+## Un appui neuf peut désormais entamer les 45 % restants du délai, soit
+## au mieux un tir toutes les 55 % de la cadence : environ 1,8 fois plus
+## vite en tapotant, au prix des munitions, qui partent d'autant plus
+## vite. Le rythme devient une compétence, sans transformer l'arme en
+## mitrailleuse.
+const TAP_AVANCE := 0.45
+
+
+## `tap` : l'appel provient-il d'un appui NEUF sur la gâchette ?
+func can_fire(tap: bool = false) -> bool:
+	if data == null:
+		return false
+	if _cooldown > _seuil(tap):
 		return false
 	return data.is_infinite_ammo() or ammo > 0
 
+
+## Reste de temps de recharge au-delà duquel le tir est refusé.
+##
+## LE PLAFOND EST VOLONTAIRE. Le serveur ne peut pas savoir si un humain
+## a réellement tapoté : il ne reçoit qu'un drapeau, qu'un client modifié
+## pourrait toujours lever. Le gain est donc BORNÉ par construction — au
+## pire, un tricheur obtient la cadence d'un joueur qui tapote bien, et
+## rien de plus. C'est la seule façon d'offrir ce bonus sans faire
+## confiance au client.
+func _seuil(tap: bool) -> float:
+	return data.cooldown() * TAP_AVANCE if tap else 0.0
+
 ## Consomme le tir côté demandeur. Retourne false si le tir n'est pas dû —
 ## c'est aussi ce que le serveur appelle pour VALIDER une demande client.
-func consume() -> bool:
-	if not can_fire():
+func consume(tap: bool = false) -> bool:
+	if not can_fire(tap):
 		return false
 	_cooldown = data.cooldown()
 	if not data.is_infinite_ammo():

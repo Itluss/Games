@@ -76,6 +76,10 @@ func _ready() -> void:
 	_visuel = CharacterVisual.new()
 	add_child(_visuel)
 	_visuel.build(Color(0.30, 0.55, 0.95), Color(1.0, 0.75, 0.25), 1.7)
+	# UNE VRAIE ARME dans la main : sa taille et sa tenue font partie de ce
+	# qu'il faut juger. Un chiffre d'échelle ne dit pas si l'arme paraît
+	# proportionnée.
+	_visuel.attach_weapon(VisualKit.build_weapon("rifle", Color(1.0, 0.75, 0.25)))
 
 	# PROFIL d'abord : c'est l'angle où une foulée se lit vraiment. Le
 	# trois-quarts arrière ensuite, qui est l'angle du jeu.

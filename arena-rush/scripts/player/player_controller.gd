@@ -35,6 +35,11 @@ func _process(_delta: float) -> void:
 	player.move_input = _read_move()
 	player.aim_input = _compute_aim()
 	player.want_fire = _read_fire()
+	# Le front d'appui est LATCHÉ côté joueur : le contrôleur tourne dans
+	# _process et le tir dans _physics_process, deux cadences distinctes.
+	# Poser un booléen d'image serait perdu une fois sur deux.
+	if _read_tap():
+		player.want_tap = true
 
 	if _read_swap():
 		player.swap_weapon()
@@ -77,6 +82,14 @@ func _read_fire() -> bool:
 			and get_viewport().gui_get_hovered_control() == null:
 		return true
 	return false
+
+## Appui NEUF sur la gâchette, toutes sources confondues.
+func _read_tap() -> bool:
+	var neuf := Input.is_action_just_pressed(&"attack")
+	if _hud and _hud.has_method(&"consume_tap") and _hud.call(&"consume_tap"):
+		neuf = true
+	return neuf
+
 
 func _read_swap() -> bool:
 	if Input.is_action_just_pressed(&"swap_weapon"):

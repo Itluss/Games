@@ -42,6 +42,9 @@ var display_name: String = "Joueur"
 var move_input: Vector2 = Vector2.ZERO
 var aim_input: Vector3 = Vector3.FORWARD
 var want_fire: bool = false
+## Appui NEUF sur la gâchette, latché jusqu'à la prochaine tentative de
+## tir. C'est lui qui donne droit à la cadence accélérée au tapotement.
+var want_tap: bool = false
 var want_dash: bool = false
 
 var health: HealthComponent
@@ -260,26 +263,37 @@ func _simulate(delta: float) -> void:
 
 	if want_fire:
 		_try_fire()
+	elif want_tap:
+		# Gâchette relâchée avant même d'avoir tiré : on ne garde pas un
+		# front en réserve, il s'appliquerait à contretemps.
+		want_tap = false
 
 func _try_fire() -> void:
-	if weapon.data == null or not weapon.can_fire():
+	if weapon.data == null:
+		return
+	if not weapon.can_fire(want_tap):
+		want_tap = false
 		return
 	var dir := Vector3(sin(_facing), 0, cos(_facing))
 	if aim_input.length() > 0.1:
 		dir = aim_input.normalized()
+	# Le front est consommé qu'on tire ou non : le garder le ferait
+	# s'appliquer à un tir ultérieur, donc à contretemps.
+	var tap := want_tap
+	want_tap = false
 	# Le client DEMANDE, le serveur DISPOSE. Le tir part visuellement tout
 	# de suite chez le tireur (réactivité), mais aucun dégât n'est appliqué
 	# tant que le serveur n'a pas rediffusé l'ordre.
 	weapon.shake_local()
-	Net.to_server(self, &"server_request_fire", [dir])
+	Net.to_server(self, &"server_request_fire", [dir, tap])
 
 @rpc("any_peer", "call_local", "reliable")
-func server_request_fire(dir: Vector3) -> void:
+func server_request_fire(dir: Vector3, tap: bool = false) -> void:
 	if not Net.is_server() or is_eliminated:
 		return
 	# Le serveur revalide la cadence : un client modifié qui spammerait la
 	# demande n'obtient rien de plus qu'un joueur honnête.
-	if not weapon.consume():
+	if not weapon.consume(tap):
 		return
 	var origin := weapon.muzzle_position()
 	Net.broadcast(self, &"net_fire", [origin, dir.normalized()])

@@ -27,6 +27,9 @@ var _fire_button: Button
 ## Gâchette maintenue. Un booléen et non un compteur d'appuis : les armes
 ## automatiques se tiennent, elles ne se tapotent pas.
 var _fire_held: bool = false
+## Appui NEUF, à usage unique. Distinct de la gâchette maintenue : c'est
+## lui qui autorise le tir accéléré au tapotement.
+var _fire_tapped: bool = false
 var _swap_button: Button
 var _dash_button: Button
 var _alive_label: Label
@@ -243,7 +246,9 @@ func _build_controls() -> void:
 	# MAINTENU, et non pas « cliqué » : on lit l'appui et le relâchement.
 	# Le signal `pressed` ne se déclencherait qu'au relâchement, ce qui
 	# interdirait de tenir la gâchette d'une arme automatique.
-	_fire_button.button_down.connect(func(): _fire_held = true)
+	_fire_button.button_down.connect(func():
+		_fire_held = true
+		_fire_tapped = true)
 	_fire_button.button_up.connect(func(): _fire_held = false)
 	_root.add_child(_fire_button)
 
@@ -330,6 +335,13 @@ func aim_vector() -> Vector2:
 
 func is_firing() -> bool:
 	return _fire_held
+
+## Consommation à usage unique : sans cela un seul appui vaudrait un
+## bonus de cadence à chaque image.
+func consume_tap() -> bool:
+	var v := _fire_tapped
+	_fire_tapped = false
+	return v
 
 ## Consommation à usage unique : le contrôleur lit l'appui une seule fois,
 ## sinon un simple tap déclencherait un changement d'arme par image.
