@@ -22,6 +22,13 @@ static func mat(color: Color, emission: float = 0.0,
 	m.roughness = roughness
 	m.metallic = 0.0
 	m.metallic_specular = 0.35
+	# ÉCLAIRAGE CELLULÉ — c'est LUI qui fait le dessin animé. Au lieu d'un
+	# dégradé continu du clair au sombre, la lumière se casse en aplats
+	# francs : une zone éclairée, une zone d'ombre, une frontière nette.
+	# Godot le fournit nativement, donc aucun shader maison à maintenir et
+	# aucun risque en WebGL2.
+	m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	m.specular_mode = BaseMaterial3D.SPECULAR_TOON
 	m.rim_enabled = true
 	m.rim = 0.55
 	m.rim_tint = 0.3
@@ -44,6 +51,42 @@ static func glow_mat(color: Color, energy: float = 3.0) -> StandardMaterial3D:
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return m
 
+## CONTOUR — deuxième signal fort du dessin animé.
+##
+## Technique de la « coque inversée » : on redessine la même maille
+## légèrement dilatée, en noir, en n'affichant que ses faces ARRIÈRE. Le
+## résultat est un liseré sombre qui suit exactement la silhouette.
+##
+## Godot expose `grow` et `cull_mode`, donc là encore aucun shader maison.
+static func outline_mat(width: float = 0.05) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	# Pas un noir pur : un violet très sombre s'intègre mieux à une
+	# palette chaude qu'un trait de feutre.
+	m.albedo_color = Color(0.07, 0.05, 0.10)
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.cull_mode = BaseMaterial3D.CULL_FRONT
+	m.grow = true
+	m.grow_amount = width
+	m.disable_receive_shadows = true
+	return m
+
+## Greffe un contour sur une maille. Désactivé en qualité basse : c'est un
+## doublement des appels de rendu, donc le premier poste à sacrifier.
+##
+## RÉSERVÉ AUX FORMES RONDES. La dilatation se fait le long des normales ;
+## sur une sphère ou une capsule elle produit un liseré net, mais sur un
+## cube les trois normales d'un coin divergent et la coque se déchire aux
+## arêtes. Les blocs du décor s'en passent donc, et comptent sur leur
+## chapeau clair et l'éclairage cellulé pour se détacher.
+static func add_outline(mi: MeshInstance3D, width: float = 0.05) -> void:
+	if Cfg.quality == Cfg.Quality.LOW or mi.mesh == null:
+		return
+	var o := MeshInstance3D.new()
+	o.mesh = mi.mesh
+	o.material_override = outline_mat(width)
+	o.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.add_child(o)
+
 static func _mesh(mesh: Mesh, material: Material, pos: Vector3,
 		rot: Vector3 = Vector3.ZERO, scale: Vector3 = Vector3.ONE) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
@@ -55,6 +98,7 @@ static func _mesh(mesh: Mesh, material: Material, pos: Vector3,
 	# Les silhouettes projettent une ombre, jamais elles n'en reçoivent de
 	# leurs propres sous-parties : c'est ce qui garde un rendu net.
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	add_outline(mi)
 	return mi
 
 static func box(size: Vector3, material: Material, pos: Vector3,

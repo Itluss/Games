@@ -42,16 +42,24 @@ func _build_environment() -> void:
 	sky_mat.sky_horizon_color = Cfg.COL_SKY_HORIZON
 	sky_mat.ground_bottom_color = Cfg.COL_SAND_DARK
 	sky_mat.ground_horizon_color = Cfg.COL_SKY_HORIZON
-	sky_mat.sun_angle_max = 20.0
+	sky_mat.sky_curve = 0.25
+	sky_mat.ground_curve = 0.2
+	sky_mat.sun_angle_max = 30.0
+	sky_mat.sun_curve = 0.1
 	sky.sky_material = sky_mat
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	# Ambiante de COULEUR plutôt que du ciel : cela permet de la teinter en
+	# bleu. Les zones d'ombre virent alors au bleu froid au lieu d'un gris
+	# terne — c'est la signature chromatique du dessin animé, où l'ombre
+	# est une autre couleur, pas la même en plus sombre.
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color("5c7fb0")
 	# Ambiante VOLONTAIREMENT basse. Cumulée au soleil sur un sol sable
 	# déjà très clair, une ambiante forte lessivait toute la scène au blanc
 	# — le contraire de l'éclairage travaillé recherché. C'est le soleil
 	# directionnel qui doit sculpter les volumes, pas l'ambiante les noyer.
-	env.ambient_light_energy = 0.4
+	env.ambient_light_energy = 0.22
 
 	# Le halo lumineux est ce qui fait « lire » les projectiles et le loot
 	# comme des objets émissifs. Le seuil est haut pour ne toucher QUE ce
@@ -65,7 +73,14 @@ func _build_environment() -> void:
 	# Un point blanc bas écrase tout le haut de la plage dynamique ; à 1,6
 	# le sable saturait avant même d'être éclairé.
 	env.tonemap_white = 4.0
-	env.tonemap_exposure = 0.78
+	env.tonemap_exposure = 0.52
+
+	# Étalonnage : couleurs franches et contraste marqué. Un rendu cartoon
+	# assume la saturation, là où un rendu réaliste la fuit.
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 1.16
+	env.adjustment_contrast = 1.04
+	env.adjustment_brightness = 1.0
 	# Brume légère et lointaine : donne de la profondeur sans jamais voiler
 	# le combat, qui se déroule toujours près de la caméra.
 	env.fog_enabled = true
@@ -82,7 +97,7 @@ func _build_environment() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -46, 0)
 	sun.light_color = Cfg.COL_SUN
-	sun.light_energy = 1.0
+	sun.light_energy = 1.15
 	sun.shadow_enabled = Cfg.shadows_enabled()
 	sun.directional_shadow_mode = \
 			DirectionalLight3D.SHADOW_ORTHOGONAL

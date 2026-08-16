@@ -27,13 +27,13 @@ enum Team { PLAYER, MOB }
 # chaude. Les teintes vives sont réservées au GAMEPLAY (projectiles, loot,
 # télégraphes) ; le décor reste plus sourd pour ne jamais concurrencer la
 # lisibilité du combat.
-const COL_SAND := Color("e8c39e")
-const COL_SAND_DARK := Color("c9a077")
-const COL_ROCK := Color("8d7a6b")
-const COL_ROCK_DARK := Color("6b5a4d")
-const COL_GRASS := Color("7fb069")
-const COL_SKY_TOP := Color("4a7fb5")
-const COL_SKY_HORIZON := Color("f0c9a0")
+const COL_SAND := Color("e3b374")
+const COL_SAND_DARK := Color("c08a45")
+const COL_ROCK := Color("b0603a")
+const COL_ROCK_DARK := Color("8a4526")
+const COL_GRASS := Color("6cc24a")
+const COL_SKY_TOP := Color("2f7fd6")
+const COL_SKY_HORIZON := Color("ffdca8")
 const COL_SUN := Color("fff2d6")
 
 # Couleurs d'identité — une arme se reconnaît à sa couleur avant même
