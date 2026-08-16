@@ -1,0 +1,126 @@
+# GÉNÉRATION D'ASSETS 3D — Meshy.
+#
+# POURQUOI UN WORKFLOW ET PAS UN APPEL DIRECT : la clé d'API vit dans les
+# secrets du dépôt, qui sont EN ÉCRITURE SEULE. Leur valeur n'est
+# déchiffrée que par un runner Actions, jamais lisible depuis l'extérieur.
+# Le runner est donc le seul endroit d'où l'on peut appeler Meshy.
+#
+# PRÉREQUIS : Settings → Secrets and variables → Actions → New repository
+# secret, nommé MESHY_API_KEY.
+#
+# Lancement : onglet Actions → « Générer un asset 3D (Meshy) » → Run.
+name: Générer un asset 3D (Meshy)
+
+on:
+  workflow_dispatch:
+    inputs:
+      nom:
+        description: "Nom du fichier produit (sans extension)"
+        required: true
+        default: "heros"
+      mode:
+        description: "image = depuis une planche · texte = depuis une description · texture = retexturer un .glb existant"
+        required: true
+        default: "texte"
+        type: choice
+        options: [texte, image, texture]
+      prompt:
+        description: "Description du sujet (anglais de préférence)"
+        required: false
+        default: "stocky arena fighter with a visor helmet and shoulder pads"
+      image:
+        description: "Chemin d'une image de référence versionnée (mode image)"
+        required: false
+        default: ""
+      modele_url:
+        description: "URL publique du .glb à retexturer (mode texture)"
+        required: false
+        default: ""
+      polycount:
+        description: "Budget de triangles"
+        required: false
+        default: "30000"
+      branche:
+        description: "Branche où déposer l'asset produit"
+        required: false
+        default: "assets-3d"
+
+permissions:
+  contents: write
+
+jobs:
+  generer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Garde-fou explicite : sans clé, on échoue avec un message lisible
+      # plutôt qu'avec une erreur d'authentification obscure.
+      - name: Vérifier la clé d'API
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+        run: |
+          if [ -z "$MESHY_API_KEY" ]; then
+            echo "::error::Le secret MESHY_API_KEY est absent de ce dépôt."
+            echo "Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "Clé présente (${#MESHY_API_KEY} caractères)."
+
+      # Appel de LISTE, gratuit : valide la clé sans consommer de crédit.
+      # Découvrir une clé morte après une génération coûte un run entier.
+      - name: Préflight (gratuit)
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+        run: python3 outils/meshy.py --verifier
+
+      - name: Générer
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+        run: |
+          set -euo pipefail
+          ARGS=(--mode "${{ inputs.mode }}" --nom "${{ inputs.nom }}")
+          [ -n "${{ inputs.prompt }}" ] && ARGS+=(--prompt "${{ inputs.prompt }}")
+          [ -n "${{ inputs.image }}" ] && ARGS+=(--image "${{ inputs.image }}")
+          [ -n "${{ inputs.modele_url }}" ] && ARGS+=(--modele-url "${{ inputs.modele_url }}")
+          ARGS+=(--polycount "${{ inputs.polycount }}")
+          python3 outils/meshy.py "${ARGS[@]}"
+
+      - name: Inspecter le modèle produit
+        run: |
+          pip install --quiet trimesh numpy
+          python3 - <<'PY'
+          import glob, trimesh
+          for f in glob.glob("arena-rush/assets/models/*.glb"):
+              s = trimesh.load(f)
+              geoms = s.geometry.values() if hasattr(s, "geometry") else []
+              tris = sum(len(g.faces) for g in geoms)
+              b = s.bounds
+              print("%s : %d triangles, %d matériaux" % (f, tris, len(list(geoms))))
+              print("  dimensions %.2f x %.2f x %.2f" % tuple(b[1] - b[0]))
+          PY
+
+      # L'ARTEFACT D'ABORD : quoi qu'il arrive ensuite, le modèle produit
+      # est récupérable. Une génération PAYÉE ne doit jamais être perdue
+      # parce qu'une étape git a échoué — c'est arrivé sur un autre dépôt.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-3d-${{ inputs.nom }}
+          path: arena-rush/assets/models/
+          retention-days: 14
+
+      - name: Déposer l'asset sur la branche
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "${{ inputs.branche }}" || true
+          git checkout -B "${{ inputs.branche }}"
+          git add arena-rush/assets/models/
+          git commit -m "Asset 3D généré : ${{ inputs.nom }}" || {
+            echo "::warning::Aucun changement à commiter."; exit 0; }
+          git push -u origin "${{ inputs.branche }}" --force

@@ -1,0 +1,9 @@
+{
+  "_lisez_moi": "Direction artistique d'Arena Rush. Seul endroit ou l'identite visuelle est definie : meshy.py l'ajoute a chaque generation pour que tous les assets sortent du meme monde. Ecrit en anglais, Meshy y repond nettement mieux.",
+  "style_forme": "stylized mobile game character, chunky exaggerated proportions, oversized head, broad shoulders, short limbs, bold readable silhouette from above, hand-painted look, vibrant flat colors, no photorealism, single centered character, T-pose",
+  "style_texture": "hand-painted stylized game texture, clean flat colors, crisp edges, soft ambient shading, warm palette, no dirt, no wear, no text",
+  "negatif": "photorealistic, gritty, desaturated, blurry, noisy, text, watermark, multiple objects",
+  "art_style": "realistic",
+  "sujet_defaut": "arena fighter character",
+  "_note_art_style": "art_style est un champ de l'API Meshy pour le mode texte (valeurs usuelles : realistic, sculpture). Il ne decrit PAS ton jeu — le rendu stylise vient de style_forme, pas de ce champ."
+}
