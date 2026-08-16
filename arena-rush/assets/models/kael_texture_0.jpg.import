@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c6jirgh71s8em"
-path="res://.godot/imported/kael_metallic_roughness.jpg-884d73da9feb711c9d8137966419077e.ctex"
+uid="uid://dttshlnh1rw7i"
+path="res://.godot/imported/kael_texture_0.jpg-208a2e2b2e9e02e1c9546dddd060f95e.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "f72fc219637510aa99b3b08ff0099e03"
+"md5": "c378bdaf305d93223fd9d4e3fe281e23"
 }
 
 [deps]
 
-source_file="res://assets/models/kael_metallic_roughness.jpg"
-dest_files=["res://.godot/imported/kael_metallic_roughness.jpg-884d73da9feb711c9d8137966419077e.ctex"]
+source_file="res://assets/models/kael_texture_0.jpg"
+dest_files=["res://.godot/imported/kael_texture_0.jpg-208a2e2b2e9e02e1c9546dddd060f95e.ctex"]
 
 [params]
 

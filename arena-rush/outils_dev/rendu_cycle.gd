@@ -20,8 +20,8 @@ extends Node3D
 
 ## Nombre d'images pour UN cycle complet (deux foulées).
 const IMAGES := 24
-## Cadence de phase employée par l'animation du jeu, à pleine vitesse.
-const CADENCE := 9.5
+## Durée du clip de course, mesurée dans Godot sur le modèle riggé.
+const DUREE_COURSE := 0.50
 const LARGEUR := 320
 const HAUTEUR := 480
 
@@ -89,7 +89,12 @@ func _process(delta: float) -> void:
 	# Pas de temps IMPOSÉ, indépendant de la cadence réelle du rendu : une
 	# image = une fraction exacte du cycle, sinon les images ne seraient pas
 	# régulièrement réparties et la planche mentirait.
-	var pas := TAU / (CADENCE * IMAGES * maxf(_regime, 0.001))
+	# Le clip de course dure 0,50 s et tourne à `speed_scale`. On répartit
+	# donc exactement une période sur IMAGES captures, sinon la planche
+	# montrerait un échantillonnage irrégulier et mentirait sur le cycle.
+	var cadence := lerpf(CharacterVisual.CADENCE_MIN,
+			CharacterVisual.CADENCE_MAX, _regime)
+	var pas := DUREE_COURSE / (cadence * float(IMAGES))
 	_visuel.update_visual(pas, _regime)
 
 

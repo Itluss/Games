@@ -107,8 +107,35 @@ def _retirer_normale(gltf: dict) -> int:
     return retirees
 
 
+def _retirer_emissif(gltf: dict) -> int:
+    """Supprime l'émission des matériaux.
+
+    POURQUOI : le pipeline de rigging de Meshy renvoie le modèle avec sa
+    texture de couleur ÉGALEMENT branchée en émission, facteur plein. Le
+    personnage s'auto-éclaire alors intégralement : il ignore le soleil,
+    ignore l'ombre, et l'éclairage cellulé du jeu n'a plus aucune prise.
+    Il ne ressemble plus à un personnage dans une scène, mais à un
+    autocollant lumineux posé dessus.
+
+    Le modèle non riggé n'avait pas ce défaut, ce qui confirme qu'il est
+    introduit par le rigging et non voulu par la direction artistique.
+    """
+    retires = 0
+    for mat in gltf.get("materials", []):
+        touche = mat.pop("emissiveTexture", None) is not None
+        if mat.pop("emissiveFactor", None) is not None:
+            touche = True
+        ext = mat.get("extensions", {})
+        if ext.pop("KHR_materials_emissive_strength", None) is not None:
+            touche = True
+        if touche:
+            retires += 1
+    return retires
+
+
 def alleger(entree: str, sortie: str, taille: int = 1024,
-            garder_normale: bool = False, qualite: int = 88) -> None:
+            garder_normale: bool = False, qualite: int = 88,
+            garder_emissif: bool = False) -> None:
     gltf, binaire = lire_glb(entree)
     vues = gltf.get("bufferViews", [])
     images = gltf.get("images", [])
@@ -118,6 +145,12 @@ def alleger(entree: str, sortie: str, taille: int = 1024,
         n = _retirer_normale(gltf)
         if n:
             print("Carte normale retirée de %d matériau(x)." % n)
+
+    if not garder_emissif:
+        n = _retirer_emissif(gltf)
+        if n:
+            print("Émission retirée de %d matériau(x) — le personnage est "
+                  "de nouveau éclairé par la scène." % n)
 
     # Recalcul des rôles APRÈS suppression : une image devenue orpheline
     # ne sera plus référencée et pourra être réduite au minimum.
@@ -199,5 +232,7 @@ if __name__ == "__main__":
     p.add_argument("--taille", type=int, default=1024)
     p.add_argument("--garder-normale", action="store_true")
     p.add_argument("--qualite", type=int, default=88)
+    p.add_argument("--garder-emissif", action="store_true")
     a = p.parse_args()
-    alleger(a.entree, a.sortie, a.taille, a.garder_normale, a.qualite)
+    alleger(a.entree, a.sortie, a.taille, a.garder_normale, a.qualite,
+            a.garder_emissif)
