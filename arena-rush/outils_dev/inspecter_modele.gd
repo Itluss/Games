@@ -1,13 +1,10 @@
 extends Node3D
-## Contrôle du déplacement racine APRÈS correction — outil de dev.
-
-var _visuel: CharacterVisual
+## Mesure du déplacement racine de TOUS les clips — outil de dev.
 
 func _ready() -> void:
-	_visuel = CharacterVisual.new()
-	add_child(_visuel)
-	_visuel.build(Color.WHITE, Color.WHITE, 1.7)
-	var ap := _premier(_visuel, "AnimationPlayer") as AnimationPlayer
+	var n: Node3D = load("res://assets/models/kael.glb").instantiate()
+	add_child(n)
+	var ap := _premier(n, "AnimationPlayer") as AnimationPlayer
 	for nom in ap.get_animation_list():
 		var a := ap.get_animation(nom)
 		for t in a.get_track_count():
@@ -15,28 +12,19 @@ func _ready() -> void:
 				continue
 			if not str(a.track_get_path(t)).ends_with(":Hips"):
 				continue
-			var n := a.track_get_key_count(t)
+			var k := a.track_get_key_count(t)
 			var p0: Vector3 = a.track_get_key_value(t, 0)
-			var pf: Vector3 = a.track_get_key_value(t, n - 1)
+			var pf: Vector3 = a.track_get_key_value(t, k - 1)
 			var d := pf - p0
-			# Amplitude conservée : on veut avoir ôté la DÉRIVE, pas le
-			# mouvement. Un clip aplati serait une régression silencieuse.
-			var mn := p0
-			var mx := p0
-			for k in n:
-				var v: Vector3 = a.track_get_key_value(t, k)
-				mn = Vector3(minf(mn.x, v.x), minf(mn.y, v.y), minf(mn.z, v.z))
-				mx = Vector3(maxf(mx.x, v.x), maxf(mx.y, v.y), maxf(mx.z, v.z))
-			print("%-12s boucle=%d  dérive horizontale=%.4f  amplitude X=%.2f Y=%.2f Z=%.2f"
-					% [nom, a.loop_mode, Vector2(d.x, d.z).length(),
-					mx.x - mn.x, mx.y - mn.y, mx.z - mn.z])
+			print("%-12s %5.2f s  dérive horizontale = %8.2f   (x=%.2f z=%.2f)"
+					% [nom, a.length, Vector2(d.x, d.z).length(), d.x, d.z])
 	get_tree().quit()
 
-func _premier(n: Node, classe: String) -> Node:
-	if n.is_class(classe):
+func _premier(n: Node, c: String) -> Node:
+	if n.is_class(c):
 		return n
-	for c in n.get_children():
-		var r := _premier(c, classe)
+	for e in n.get_children():
+		var r := _premier(e, c)
 		if r:
 			return r
 	return null

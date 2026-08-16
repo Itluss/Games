@@ -55,6 +55,29 @@ func _verifier(libelle: String, obtenu: bool, attendu: bool) -> void:
 			% ["OK" if ok else "ÉCHEC", libelle, obtenu, attendu])
 
 
+func _animateur(j: Node) -> AnimationPlayer:
+	return _chercher(j, "AnimationPlayer") as AnimationPlayer
+
+
+func _chercher(n: Node, classe: String) -> Node:
+	if n.is_class(classe):
+		return n
+	for c in n.get_children():
+		var r := _chercher(c, classe)
+		if r:
+			return r
+	return null
+
+
+func _verifier_texte(libelle: String, obtenu: String, attendu: String) -> void:
+	_etapes += 1
+	var ok := obtenu == attendu
+	if not ok:
+		_echecs += 1
+	print("  [%s] %-46s obtenu=%s attendu=%s"
+			% ["OK" if ok else "ÉCHEC", libelle, obtenu, attendu])
+
+
 func _executer() -> void:
 	var j := _joueur()
 	var h := _hud()
@@ -87,6 +110,29 @@ func _executer() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_verifier("relâchement du bouton de tir", j.want_fire, false)
+
+	# 3 bis. CE QUE L'ON VOIT, et pas seulement ce que le jeu croit.
+	#
+	# Le retour de test était : « quand j'appuie sur tir, il ne prend pas
+	# la position de tir ». `want_fire` passait pourtant bien à vrai — le
+	# défaut était PLUS LOIN, dans le choix du clip, faute d'animation de
+	# tir à l'arrêt. Vérifier l'intention ne suffit donc pas : on lit
+	# l'animation réellement jouée.
+	var ap := _animateur(j)
+	if ap == null:
+		print("  [ÉCHEC] AnimationPlayer introuvable")
+		_echecs += 1
+	else:
+		await _clic(bouton.get_global_rect().get_center(), true)
+		for i in 30:
+			await get_tree().process_frame
+		_verifier_texte("à l'arrêt, gâchette pressée → posture de garde",
+				ap.current_animation, "garde")
+		await _clic(bouton.get_global_rect().get_center(), false)
+		for i in 30:
+			await get_tree().process_frame
+		_verifier_texte("gâchette relâchée → retour au repos",
+				ap.current_animation, "repos")
 
 	# 4. CLIC DANS LE VIDE, hors interface → tir souris au bureau.
 	await _clic(Vector2(640, 200), true)

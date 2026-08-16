@@ -24,8 +24,14 @@ const IMAGES := 24
 ## course a son propre clip, et c'est justement celui qui portait le
 ## déplacement racine : il doit être vérifié à part.
 const SCENARIOS := [
-	{"prefixe": "course", "vise": false, "duree": 0.50},
-	{"prefixe": "course_tir", "vise": true, "duree": 0.70},
+	{"prefixe": "course", "vise": false, "duree": 0.50, "regime": 1.0},
+	{"prefixe": "course_tir", "vise": true, "duree": 0.70, "regime": 1.0},
+	# À L'ARRÊT, gâchette pressée : c'est le cas qui n'avait aucune
+	# animation. On rend les deux candidats pour les départager.
+	{"prefixe": "tir", "vise": true, "duree": 4.03, "regime": 0.0,
+		"clip": "tir"},
+	{"prefixe": "garde", "vise": true, "duree": 1.70, "regime": 0.0,
+		"clip": "garde"},
 ]
 const LARGEUR := 320
 const HAUTEUR := 480
@@ -91,7 +97,13 @@ var _scenario := 0
 func _appliquer_scenario() -> void:
 	var s: Dictionary = SCENARIOS[_scenario]
 	_prefixe = s["prefixe"]
+	_regime = s.get("regime", 1.0)
 	_visuel.set_aiming(s["vise"])
+	# Certains scénarios visent un clip précis, que la machine à états ne
+	# choisirait pas encore : on la court-circuite pour pouvoir REGARDER
+	# le clip avant de décider comment le brancher.
+	if s.has("clip"):
+		_visuel.forcer_clip(s["clip"])
 	# Une trame pour que le fondu vers le bon clip soit consommé avant la
 	# première capture : sinon la planche s'ouvrirait sur une transition.
 	for i in 12:
@@ -114,9 +126,11 @@ func _process(delta: float) -> void:
 	# Le clip de course dure 0,50 s et tourne à `speed_scale`. On répartit
 	# donc exactement une période sur IMAGES captures, sinon la planche
 	# montrerait un échantillonnage irrégulier et mentirait sur le cycle.
-	var cadence := lerpf(CharacterVisual.CADENCE_MIN,
-			CharacterVisual.CADENCE_MAX, _regime)
 	var duree: float = SCENARIOS[_scenario]["duree"]
+	var cadence := 1.0
+	if SCENARIOS[_scenario].get("regime", 1.0) > 0.0:
+		cadence = lerpf(CharacterVisual.CADENCE_MIN,
+				CharacterVisual.CADENCE_MAX, _regime)
 	var pas := duree / (cadence * float(IMAGES))
 	_visuel.update_visual(pas, _regime)
 

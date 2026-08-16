@@ -50,6 +50,17 @@ const ARME_ECHELLE := 0.5
 const A_REPOS := "repos"
 const A_COURSE := "course"
 const A_COURSE_TIR := "course_tir"
+## Posture de combat, jouée À L'ARRÊT gâchette pressée.
+##
+## POURQUOI ELLE EXISTE : immobile, le jeu jouait « repos » quelle que
+## soit la gâchette — appuyer sur TIR ne changeait donc rien à l'écran.
+##
+## DEUX CANDIDATS ont été générés et rendus au banc avant de trancher,
+## parce que leurs noms ne disent pas ce qu'ils montrent : « Side_Shot »
+## s'est révélé être un tir plongé au sol, inutilisable debout.
+## « Combat_Stance » est une vraie garde — jambes ancrées, appui vers
+## l'avant, et elle boucle sur place.
+const A_GARDE := "garde"
 const A_MORT := "mort"
 
 ## Durée du fondu entre deux clips. Assez court pour rester réactif,
@@ -88,6 +99,8 @@ var _squash: Vector3 = Vector3.ONE
 var _squash_target: Vector3 = Vector3.ONE
 var _vise_cible: float = 0.0
 var _clip: String = ""
+## Verrou du banc de rendu : empêche la machine à états de rechoisir.
+var _clip_verrouille: bool = false
 var _court: bool = false
 var _attack_t: float = 0.0
 var _hit_t: float = 0.0
@@ -123,7 +136,7 @@ func _monter_modele(height: float) -> void:
 	else:
 		# Les clips arrivent en lecture unique. Sans mise en boucle, le
 		# personnage courrait un demi-pas puis se figerait.
-		for nom in [A_REPOS, A_COURSE, A_COURSE_TIR]:
+		for nom in [A_REPOS, A_COURSE, A_COURSE_TIR, A_GARDE]:
 			if _anim.has_animation(nom):
 				var clip := _anim.get_animation(nom)
 				clip.loop_mode = Animation.LOOP_LINEAR
@@ -221,6 +234,28 @@ func _fixer_sur_place(clip: Animation, nom: String) -> void:
 			clip.track_set_key_value(t, k, v - derive * (instant / duree))
 		print("[CharacterVisual] « %s » : déplacement racine neutralisé "
 				% nom, derive)
+
+
+## Force un clip, en court-circuitant la machine à états.
+##
+## RÉSERVÉ AU BANC DE RENDU : il faut pouvoir REGARDER une animation
+## avant de décider comment la brancher, et la machine à états ne la
+## choisirait pas encore.
+##
+## LE VERROU EST INDISPENSABLE. Sans lui, `update_visual` rechoisissait
+## un clip à la trame suivante et ramenait le personnage au repos : la
+## planche de contact montrait alors un fondu vers « repos » en croyant
+## montrer le clip demandé. Deux candidats différents y paraissaient
+## identiques — un banc qui ment est pire que pas de banc.
+func forcer_clip(nom: String) -> void:
+	if _anim == null or not _anim.has_animation(nom):
+		push_warning("Clip « %s » absent." % nom)
+		return
+	_anim.get_animation(nom).loop_mode = Animation.LOOP_LINEAR
+	_clip_verrouille = true
+	_clip = nom
+	_anim.play(nom, 0.0)
+	_anim.speed_scale = 1.0
 
 
 func _trouver(n: Node, classe: String) -> Node:
@@ -379,7 +414,9 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	elif not _court and a > SEUIL_COURSE:
 		_court = true
 
-	if _court:
+	if _clip_verrouille:
+		pass
+	elif _court:
 		state = State.RUN
 		_jouer(A_COURSE_TIR if _vise_cible > 0.5 else A_COURSE)
 		# La cadence suit l'allure réelle : sans cela le personnage garde
@@ -387,8 +424,11 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 		if _anim:
 			_anim.speed_scale = lerpf(CADENCE_MIN, CADENCE_MAX, a)
 	else:
-		state = State.IDLE
-		_jouer(A_REPOS)
+		# À L'ARRÊT, la gâchette change la posture : garde si l'on tire,
+		# repos sinon. C'est ce qui rendait le bouton de tir sans effet
+		# visible quand on ne bougeait pas.
+		state = State.ATTACK if _vise_cible > 0.5 else State.IDLE
+		_jouer(A_GARDE if _vise_cible > 0.5 else A_REPOS)
 		if _anim:
 			_anim.speed_scale = 1.0
 
