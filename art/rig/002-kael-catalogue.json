@@ -1,0 +1,8 @@
+{
+  "_pourquoi": "Deuxième run de DÉCOUVERTE, toujours gratuit. Le premier a montré que /v1/animations/library répond 400 et non 404 : l'endpoint EXISTE, il lui manque des paramètres. Mais le script n'affichait que la première ligne de l'erreur et jetait le message qui dit lequel. On réessaie donc en imprimant les réponses entières.",
+  "nom": "kael",
+  "tache": "01a00aa0-4ff9-78a9-8445-086d84a6a5d4",
+  "hauteur": 1.9,
+  "actions": "course,repos,marche,tir,mort",
+  "catalogue_seulement": true
+}

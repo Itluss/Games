@@ -50,12 +50,19 @@ SORTIE_TACHES = "arena-rush/assets/models/taches/"
 # Chemins candidats pour la bibliothèque d'animations. L'API a déjà changé
 # de surface par le passé ; on essaie les formes plausibles plutôt que de
 # parier sur une seule et d'échouer sans rien apprendre.
+# Le premier run de découverte a tranché : `/v1/animations/library` répond
+# 400 et non 404. L'endpoint EXISTE, il lui manque des paramètres — c'est
+# donc lui la bibliothèque, et c'est sur lui qu'il faut insister. Les 404
+# sont conservés en fin de liste à titre de témoins.
 CHEMINS_CATALOGUE = [
-    "/v1/animation-library",
+    "/v1/animations/library?page_num=1&page_size=200",
+    "/v1/animations/library?page_size=200",
+    "/v1/animations/library?limit=200",
+    "/v1/animations/library?page=1&page_size=200",
+    "/v1/animations/library?page_num=1&page_size=100&sort_by=-created_at",
     "/v1/animations/library",
-    "/v1/animation-library?page_num=1&page_size=200",
     "/v1/animations?page_num=1&page_size=200",
-    "/v1/actions",
+    "/v1/animation-library",
 ]
 
 # Ce que l'on cherche dans le catalogue, par ordre de préférence. Le
@@ -106,16 +113,25 @@ def _actions(donnees):
 def catalogue(cle):
     """Récupère la bibliothèque d'animations. Appel de LISTE : gratuit."""
     for chemin in CHEMINS_CATALOGUE:
+        print("\n--- %s" % chemin, flush=True)
         try:
             rep = meshy._requete(chemin, cle=cle)
         except SystemExit as e:
-            print("  %-42s → %s" % (chemin, str(e).splitlines()[0][:70]))
+            # ON IMPRIME L'ERREUR ENTIÈRE. Le premier run n'en gardait que
+            # la première ligne et jetait précisément la partie utile : un
+            # 400 dit d'ordinaire QUEL paramètre manque. Sans ce message,
+            # on en est réduit à deviner — ce qui, sur une API payante,
+            # est exactement ce qu'il faut éviter.
+            print(str(e)[:1200], flush=True)
             continue
         actes = _actions(rep)
         if actes:
-            print("Catalogue trouvé sur %s : %d action(s)." % (chemin, len(actes)))
+            print("CATALOGUE TROUVÉ : %d action(s)." % len(actes), flush=True)
             return actes, rep
-        print("  %-42s → 200 mais aucune action reconnue." % chemin)
+        # 200 sans action reconnue : la forme de la réponse nous échappe
+        # peut-être. On la montre pour pouvoir corriger l'extraction.
+        print("200, mais aucune action reconnue. Réponse brute :", flush=True)
+        print(json.dumps(rep, ensure_ascii=False)[:1200], flush=True)
     return {}, None
 
 
