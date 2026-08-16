@@ -1,0 +1,151 @@
+# AUTO-RIGGING ET ANIMATION D'UN PERSONNAGE — Meshy.
+#
+# POURQUOI CE WORKFLOW : Godot joue des animations, il n'en fabrique pas à
+# partir d'un maillage sans os. Le modèle livré par Meshy est un bloc
+# unique. Le rig procédural écrit en GDScript tenait pour un bras qui
+# balance, mais pas pour un pied qui doit rester plat — d'où les
+# chaussures vrillées. Meshy dispose d'un vrai auto-riggeur et d'une
+# bibliothèque d'animations : c'est la bonne réponse.
+#
+# Comme pour la génération d'assets, la clé d'API n'est déchiffrable que
+# par un runner Actions, et un push est le seul déclencheur dont on soit
+# sûr : l'API de dispatch exige un droit que le jeton n'a pas.
+#
+# BON DE COMMANDE — art/rig/<n>-<nom>.json :
+#   {
+#     "nom": "kael",
+#     "tache": "01a00aa0-...",        # tâche image-to-3d d'origine
+#     "hauteur": 1.9,
+#     "actions": "course,repos",
+#     "catalogue_seulement": true      # run GRATUIT de découverte
+#   }
+name: Rigger et animer un personnage (Meshy)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "art/rig/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rigger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Vérifier la clé d'API
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+        run: |
+          if [ -z "$MESHY_API_KEY" ]; then
+            echo "::error::Le secret MESHY_API_KEY est absent de ce dépôt."
+            exit 1
+          fi
+          echo "Clé présente (${#MESHY_API_KEY} caractères)."
+
+      - name: Relever les demandes ajoutées
+        id: demandes
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
+          # `--no-renames` : sans lui, remplacer une demande par une autre
+          # est vu comme un RENOMMAGE et le filtre « ajouté » l'exclut. Le
+          # workflow finissait alors en vert sans rien faire — un succès
+          # trompeur, bien pire qu'un échec.
+          if [ -n "$BASE" ]; then
+            FICHIERS=$(git diff --name-only --no-renames --diff-filter=A \
+              "$BASE" "${{ github.sha }}" -- 'art/rig/*.json' | tr '\n' ' ')
+          else
+            FICHIERS=""
+          fi
+          # En lancement manuel, on traite la demande la plus récente.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            FICHIERS=$(ls -1 art/rig/*.json 2>/dev/null | tail -1 | tr '\n' ' ')
+          fi
+          echo "Demandes : ${FICHIERS:-aucune}"
+          if [ -z "$FICHIERS" ]; then
+            echo "::warning::Aucune demande détectée alors que le push touche art/rig/."
+          fi
+          echo "fichiers=$FICHIERS" >> "$GITHUB_OUTPUT"
+
+      - name: Rigger et animer
+        if: steps.demandes.outputs.fichiers != ''
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+        run: |
+          set -euo pipefail
+          for f in ${{ steps.demandes.outputs.fichiers }}; do
+            echo "=============================================="
+            echo "DEMANDE $f"
+            echo "=============================================="
+            NOM=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('nom','kael'))" "$f")
+            TACHE=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('tache',''))" "$f")
+            HAUTEUR=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('hauteur',1.9))" "$f")
+            ACTIONS=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('actions','course,repos'))" "$f")
+            SEUL=$(python3 -c "import json,sys;print('1' if json.load(open(sys.argv[1])).get('catalogue_seulement') else '')" "$f")
+            if [ -n "$SEUL" ]; then
+              # Run de DÉCOUVERTE : appels de liste uniquement, donc
+              # gratuit. On apprend les identifiants d'action avant
+              # d'engager la moindre dépense.
+              python3 outils/meshy_rig.py --catalogue --actions "$ACTIONS"
+            else
+              python3 outils/meshy_rig.py --tache "$TACHE" --hauteur "$HAUTEUR" \
+                --nom "$NOM" --actions "$ACTIONS"
+            fi
+          done
+
+      # L'ARTEFACT D'ABORD : une génération PAYÉE ne doit jamais être
+      # perdue parce qu'une étape git a échoué.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: personnage-rigge
+          path: |
+            arena-rush/assets/models/*.glb
+            arena-rush/assets/models/taches/*.json
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Inspecter les modèles produits
+        if: always()
+        run: |
+          pip install --quiet trimesh numpy || exit 0
+          python3 - <<'PY'
+          import glob, trimesh
+          for f in sorted(glob.glob("arena-rush/assets/models/*_rig.glb")
+                          + glob.glob("arena-rush/assets/models/*_course.glb")
+                          + glob.glob("arena-rush/assets/models/*_repos.glb")):
+              try:
+                  s = trimesh.load(f)
+              except Exception as e:
+                  print("%s : illisible (%s)" % (f, e)); continue
+              geoms = list(s.geometry.values()) if hasattr(s, "geometry") else []
+              print("%s : %d triangles, %d maillage(s)"
+                    % (f, sum(len(g.faces) for g in geoms), len(geoms)))
+          PY
+
+      - name: Déposer les modèles sur une branche
+        if: always()
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin personnage-rigge || true
+          git checkout -B personnage-rigge
+          git add -f arena-rush/assets/models/ || true
+          git commit -m "Personnage riggé et animé par Meshy" || {
+            echo "::warning::Aucun changement à commiter."; exit 0; }
+          git push -u origin personnage-rigge --force

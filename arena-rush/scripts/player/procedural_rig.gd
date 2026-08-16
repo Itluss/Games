@@ -39,25 +39,25 @@ class_name ProceduralRig
 ## déformait à chaque foulée.
 const OSSATURE := [
 	# nom,       parent, position                      côté
-	["hanches",   -1,    Vector3(0.00, -0.20, 0.00),    0],
-	["buste",      0,    Vector3(0.00,  0.02, 0.00),    0],
-	["torse",      1,    Vector3(0.00,  0.24, 0.00),    0],
-	["tete",       2,    Vector3(0.00,  0.47, 0.00),    0],
-	["epaule_g",   2,    Vector3(0.17,  0.36, 0.00),    1],
-	["coude_g",    4,    Vector3(0.32,  0.09, 0.01),    1],
-	["main_g",     5,    Vector3(0.42, -0.17, 0.05),    1],
-	["epaule_d",   2,    Vector3(-0.17, 0.36, 0.00),   -1],
-	["coude_d",    7,    Vector3(-0.32, 0.09, 0.01),   -1],
-	["main_d",     8,    Vector3(-0.42, -0.17, 0.05),  -1],
+	["hanches",   -1,    Vector3(0.00, -0.20, 0.00),    0, "tronc"],
+	["buste",      0,    Vector3(0.00,  0.02, 0.00),    0, "tronc"],
+	["torse",      1,    Vector3(0.00,  0.24, 0.00),    0, "tronc"],
+	["tete",       2,    Vector3(0.00,  0.47, 0.00),    0, "tronc"],
+	["epaule_g",   2,    Vector3(0.17,  0.36, 0.00),    1, "bras"],
+	["coude_g",    4,    Vector3(0.32,  0.09, 0.01),    1, "bras"],
+	["main_g",     5,    Vector3(0.42, -0.17, 0.05),    1, "bras"],
+	["epaule_d",   2,    Vector3(-0.17, 0.36, 0.00),   -1, "bras"],
+	["coude_d",    7,    Vector3(-0.32, 0.09, 0.01),   -1, "bras"],
+	["main_d",     8,    Vector3(-0.42, -0.17, 0.05),  -1, "bras"],
 	# Tête de cuisse JUSTE au-dessus de l'entrejambe mesuré (-0,39).
-	["cuisse_g",   0,    Vector3(0.14, -0.34, 0.00),    1],
-	["genou_g",   10,    Vector3(0.145, -0.52, 0.00),   1],
-	["cheville_g",11,    Vector3(0.15, -0.70, 0.00),    1],
-	["pied_g",    12,    Vector3(0.15, -0.88, 0.04),    1],
-	["cuisse_d",   0,    Vector3(-0.14, -0.34, 0.00),  -1],
-	["genou_d",   14,    Vector3(-0.145, -0.52, 0.00), -1],
-	["cheville_d",15,    Vector3(-0.15, -0.70, 0.00),  -1],
-	["pied_d",    16,    Vector3(-0.15, -0.88, 0.04),  -1],
+	["cuisse_g",   0,    Vector3(0.14, -0.34, 0.00),    1, "jambe"],
+	["genou_g",   10,    Vector3(0.145, -0.52, 0.00),   1, "jambe"],
+	["cheville_g",11,    Vector3(0.15, -0.70, 0.00),    1, "jambe"],
+	["pied_g",    12,    Vector3(0.15, -0.88, 0.04),    1, "jambe"],
+	["cuisse_d",   0,    Vector3(-0.14, -0.34, 0.00),  -1, "jambe"],
+	["genou_d",   14,    Vector3(-0.145, -0.52, 0.00), -1, "jambe"],
+	["cheville_d",15,    Vector3(-0.15, -0.70, 0.00),  -1, "jambe"],
+	["pied_d",    16,    Vector3(-0.15, -0.88, 0.04),  -1, "jambe"],
 ]
 
 ## Index utiles, pour que l'animateur n'ait pas à compter.
@@ -80,25 +80,61 @@ const GENOU_D := 15
 const CHEVILLE_D := 16
 const PIED_D := 17
 
-## Nombre d'os influençant un sommet. Quatre est la limite du format et
-## largement assez : au-delà, les influences supplémentaires sont si
-## faibles qu'elles ne font que brouiller la déformation.
+## Nombre d'os influençant un sommet.
 const INFLUENCES := 4
-## Exposant de la décroissance. Plus il est élevé, plus l'os le plus
-## proche domine — donc plus les articulations sont nettes, au risque de
-## paraître cassantes. 3,0 donne un bon compromis sur un personnage trapu.
+## Décroissance de l'influence avec la distance.
 const NETTETE := 3.0
-## Pénalité appliquée quand un sommet et un os sont de côtés OPPOSÉS.
-##
-## Les faces internes des cuisses se touchent presque : sans cette
-## pénalité, un sommet de la jambe gauche subit l'os de la jambe droite,
-## et les deux jambes se déforment l'une dans l'autre dès qu'elles
-## partent en sens contraires. La géométrie seule ne peut pas distinguer
-## « proche » de « appartient à » ; le côté le peut.
-const PENALITE_COTE := 5.0
-## En deçà de cette distance à l'axe, un sommet est considéré central et
-## échappe à la pénalité — ceinture, bassin, torse.
-const SEUIL_AXE := 0.045
+
+# --- APPARTENANCE ANATOMIQUE ---------------------------------------------
+#
+# La première version pondérait par la SEULE distance. C'était son défaut
+# de fond : la distance ne sait pas à quoi un sommet APPARTIENT. Un mollet
+# est près de la cuisse opposée, une main près d'une hanche — et
+# l'influence fuyait d'un membre à l'autre. Il fallait alors brider les
+# angles pour éviter que la géométrie ne s'effondre, donc brider la
+# foulée elle-même.
+#
+# On pondère désormais la distance par une APPARTENANCE, calculée à partir
+# du plan du corps : sous l'entrejambe et du bon côté, c'est une jambe ;
+# assez latéral et à hauteur d'épaule, c'est un bras ; sinon c'est le
+# tronc. La transition est progressive, sans quoi une couture apparaîtrait
+# à chaque frontière.
+
+## Repères mesurés sur le maillage.
+const Y_ENTREJAMBE := -0.39
+const Y_EPAULE := 0.36
+const X_TRONC := 0.21
+
+## Plancher d'appartenance : jamais zéro, sinon un sommet mal classé
+## n'aurait plus aucune influence et partirait à l'origine.
+const APPARTENANCE_MIN := 0.05
+
+static func _lissage(bord0: float, bord1: float, x: float) -> float:
+	var t := clampf((x - bord0) / (bord1 - bord0), 0.0, 1.0)
+	return t * t * (3.0 - 2.0 * t)
+
+## À quel point l'os `b` a vocation à emporter le sommet `p`.
+static func _appartenance(p: Vector3, b: int) -> float:
+	var cote: int = OSSATURE[b][3]
+	var membre: String = OSSATURE[b][4]
+
+	if membre == "jambe":
+		# Sous l'entrejambe, et du bon côté.
+		var bas := _lissage(Y_ENTREJAMBE + 0.12, Y_ENTREJAMBE - 0.08, p.y)
+		var bon_cote := _lissage(-0.02, 0.07, p.x * float(cote))
+		return maxf(bas * bon_cote, APPARTENANCE_MIN)
+
+	if membre == "bras":
+		# Latéral, et au-dessus de la ceinture.
+		var lateral := _lissage(X_TRONC - 0.03, X_TRONC + 0.09, p.x * float(cote))
+		var haut := _lissage(-0.45, -0.25, p.y)
+		return maxf(lateral * haut, APPARTENANCE_MIN)
+
+	# TRONC : il perd du terrain là où un membre le revendique, ce qui
+	# évite qu'une épaule ou une cuisse reste happée par le buste.
+	var pris_jambe := _lissage(Y_ENTREJAMBE + 0.12, Y_ENTREJAMBE - 0.08, p.y)
+	var pris_bras := _lissage(X_TRONC - 0.03, X_TRONC + 0.12, absf(p.x))
+	return maxf(1.0 - maxf(pris_jambe, pris_bras) * 0.92, APPARTENANCE_MIN)
 
 ## Le maillage habillé est calculé UNE FOIS et partagé par tous les
 ## personnages : le calcul des poids coûte cher, et il donnerait le même
@@ -191,10 +227,10 @@ static func habiller(source: Mesh) -> ArrayMesh:
 			var classement := []
 			for b in segs.size():
 				var d := _distance_segment(p, segs[b][0], segs[b][1])
-				# Un membre n'emporte que la chair de SON côté.
-				var cote: int = OSSATURE[b][3]
-				if cote != 0 and absf(p.x) > SEUIL_AXE and signf(p.x) != float(cote):
-					d *= PENALITE_COTE
+				# La distance est divisée par l'appartenance : un os qui
+				# n'a pas vocation à emporter ce sommet se retrouve
+				# artificiellement éloigné.
+				d /= maxf(_appartenance(p, b), 0.001)
 				classement.append([d, b])
 			classement.sort_custom(func(x, y): return x[0] < y[0])
 

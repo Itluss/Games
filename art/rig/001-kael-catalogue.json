@@ -1,0 +1,8 @@
+{
+  "_pourquoi": "Run de DÉCOUVERTE, gratuit : appels de liste uniquement. Il sert à apprendre les identifiants d'action de la bibliothèque Meshy, que la documentation ne nous laisse pas lire depuis l'environnement d'assistance. Deviner un action_id coûterait un run payant pour rien.",
+  "nom": "kael",
+  "tache": "01a00aa0-4ff9-78a9-8445-086d84a6a5d4",
+  "hauteur": 1.9,
+  "actions": "course,repos,marche,tir,mort",
+  "catalogue_seulement": true
+}
