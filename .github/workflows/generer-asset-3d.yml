@@ -109,12 +109,23 @@ jobs:
             BASE=$(git rev-parse HEAD~1 2>/dev/null || echo "")
           fi
           if [ -n "$BASE" ]; then
-            FICHIERS=$(git diff --name-only --diff-filter=A "$BASE" "${{ github.sha }}" \
-              -- 'art/requests/*.json' | tr '\n' ' ')
+            # `--no-renames` est indispensable : sans lui, git voit le
+            # remplacement d'une demande par une autre comme un RENOMMAGE,
+            # que le filtre « ajouté » exclut. Le workflow réussissait
+            # alors sans rien générer — un succès trompeur, bien pire
+            # qu'un échec.
+            FICHIERS=$(git diff --name-only --no-renames --diff-filter=A \
+              "$BASE" "${{ github.sha }}" -- 'art/requests/*.json' | tr '\n' ' ')
           else
             FICHIERS=""
           fi
           echo "Demandes à traiter : ${FICHIERS:-aucune}"
+          # Un push qui touche art/requests/ sans qu'aucune demande ne soit
+          # retenue signale un problème de détection, pas une absence de
+          # travail. On le dit haut et fort plutôt que de finir en vert.
+          if [ -z "$FICHIERS" ]; then
+            echo "::warning::Aucune demande ajoutée détectée alors que le push touche art/requests/ — vérifier la détection avant de conclure."
+          fi
           echo "fichiers=$FICHIERS" >> "$GITHUB_OUTPUT"
 
       - name: Générer depuis les demandes

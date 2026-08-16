@@ -1,0 +1,10 @@
+{
+  "_pourquoi": "Personnage joueur de reference. Il fixe l'echelle et la charte artistique du jeu : mobs et armes devront s'accorder a lui, jamais l'inverse.",
+  "_historique": "001 : preflight casse, jamais atteint Meshy. 002 : detectee comme un renommage par git, donc ignoree par le filtre « ajoute » — le workflow a fini en vert sans rien generer. 003 : reprise apres correction de la detection. Aucun credit consomme jusqu'ici.",
+  "nom": "kael",
+  "mode": "image",
+  "image": "art/references/kael_apose_front.png",
+  "prompt": "young hero character, blue hooded jacket with white shoulder armor plates and gold star emblem, orange lining, black undershirt, utility belt, dark navy trousers with grey knee pads, oversized blue white and orange sneakers, brown spiky hair with a blue streak, fingerless tech gloves, A-pose, arms away from body, no weapon",
+  "polycount": 18000,
+  "texturer": true
+}
