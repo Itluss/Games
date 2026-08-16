@@ -1,5 +1,6 @@
 {
   "_pourquoi": "Personnage joueur de reference. Il fixe l'echelle et la charte artistique du jeu : mobs et armes devront s'accorder a lui, jamais l'inverse.",
+  "_historique": "La demande 001 n'a jamais atteint Meshy : le preflight plantait sur la lecture de la reponse, alors que la cle etait valide. Aucun credit consomme. Cette demande est la reprise.",
   "nom": "kael",
   "mode": "image",
   "image": "art/references/kael_apose_front.png",

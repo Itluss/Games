@@ -182,7 +182,16 @@ def verifier(cle):
             "        New repository secret, nomme MESHY_API_KEY.\n"
             "En local : definis-la dans ton shell avant de lancer ce script.")
     rep = _requete("/v1/image-to-3d?page_num=1&page_size=1", cle=cle)
-    n = len(rep.get("result", []) or []) if isinstance(rep.get("result"), list) else "?"
+    # L'endpoint de liste renvoie un TABLEAU JSON directement, quand les
+    # endpoints de creation renvoient un objet. Supposer une seule des deux
+    # formes faisait echouer le preflight sur une cle pourtant valide.
+    if isinstance(rep, list):
+        n = len(rep)
+    elif isinstance(rep, dict):
+        resultat = rep.get("result")
+        n = len(resultat) if isinstance(resultat, list) else "?"
+    else:
+        n = "?"
     print("Cle valide (HTTP 200, %s tache(s) listee(s))." % n, flush=True)
     return True
 
