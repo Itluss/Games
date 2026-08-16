@@ -1,5 +1,10 @@
 extends Node3D
-## Où est réellement l'arme par rapport aux mains — outil de dev.
+## Où POINTE l'arme par rapport à l'avant du personnage — outil de dev.
+##
+## L'arme est bien à la main (2,4 mm d'écart, mesuré). Reste à savoir si
+## elle pointe où le personnage tire : le canon suit l'orientation de l'OS
+## de la main, dont les axes n'ont aucune raison d'être alignés sur le
+## corps.
 
 var _visuel: CharacterVisual
 
@@ -13,26 +18,14 @@ func _ready() -> void:
 		_visuel.update_visual(1.0 / 60.0, 0.0)
 		await get_tree().process_frame
 
-	var sq := _chercher(_visuel, "Skeleton3D") as Skeleton3D
-	var m := sq.global_transform
-	for os_nom in ["RightHand", "LeftHand", "Hips", "Head"]:
-		var i := sq.find_bone(os_nom)
-		print("%-10s monde = %s" % [os_nom, m * sq.get_bone_global_pose(i).origin])
 	var mount := _visuel.get_weapon_mount()
-	print("ACCROCHE   monde = ", mount.global_position)
-	var maille := _chercher(mount, "MeshInstance3D") as Node3D
-	if maille:
-		print("MAILLE arme monde = ", maille.global_position)
-	print("ÉCART accroche↔RightHand = %.4f m"
-			% mount.global_position.distance_to(
-				m * sq.get_bone_global_pose(sq.find_bone("RightHand")).origin))
+	# Le canon des armes pointe vers -Z dans leur propre repère.
+	var canon := -mount.global_transform.basis.z.normalized()
+	# L'avant du personnage : le nœud n'est pas tourné ici, donc -Z monde.
+	var avant := Vector3(0, 0, -1)
+	print("CANON  direction monde = ", canon)
+	print("AVANT  du personnage   = ", avant)
+	print("ÉCART angulaire        = %.1f°" % rad_to_deg(canon.angle_to(avant)))
+	print("inclinaison verticale du canon = %.1f°"
+			% rad_to_deg(asin(clampf(canon.y, -1.0, 1.0))))
 	get_tree().quit()
-
-func _chercher(n: Node, c: String) -> Node:
-	if n.is_class(c):
-		return n
-	for e in n.get_children():
-		var r := _chercher(e, c)
-		if r:
-			return r
-	return null

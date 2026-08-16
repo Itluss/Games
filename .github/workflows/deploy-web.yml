@@ -115,6 +115,16 @@ jobs:
           xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
             --path arena-rush res://outils_dev/test_commandes.tscn \
             --rendering-driver opengl3 -- --solo 2>&1 | tee commandes.log || true
+          # UN TEST QUI NE COMPILE PAS N'EST PAS UN PROBLÈME
+          # D'ENVIRONNEMENT. Sans cette distinction, une erreur de syntaxe
+          # dans le test le rendait muet, donc « non exécutable », donc un
+          # simple avertissement — et la publication passait au vert sans
+          # que rien n'ait été vérifié. C'est arrivé.
+          if grep -qE "Parse Error|Failed to load script" commandes.log; then
+            echo "::error::Le test des commandes ne compile pas — publication interrompue."
+            grep -E "Parse Error|Failed to load script" -A2 commandes.log
+            exit 1
+          fi
           if ! grep -q "échec(s)" commandes.log; then
             echo "::warning::Le test des commandes n'a pas pu s'exécuter (rendu indisponible ?) — publication maintenue."
             exit 0

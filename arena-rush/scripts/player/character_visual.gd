@@ -339,20 +339,41 @@ func attach_weapon(model: Node3D) -> void:
 	_mount.add_child(model)
 
 
-## Recopie la main sur le support d'arme, SANS son échelle.
+## Place l'arme dans la main : POSITION de l'os, ORIENTATION du corps.
 ##
-## L'orientation est orthonormalisée : c'est précisément ce qui jette
-## l'échelle du squelette, y compris la part que l'animation fait varier
-## d'une trame à l'autre.
+## DEUX DÉFAUTS DISTINCTS, corrigés ici, et il a fallu les mesurer pour
+## les séparer.
+##
+## 1. L'ÉCHELLE. Le rig Meshy est exprimé en centimètres — la hanche est
+##    à y=93,9 pour un maillage haut de 1,9 — et l'armature porte donc une
+##    échelle voisine de 0,01. Tout ce qu'on greffe sous un
+##    BoneAttachment3D en hérite : l'arme était rendue à SEPT MILLIMÈTRES,
+##    donc invisible. Et la compenser une fois ne suffit pas, les clips
+##    animant aussi la taille des os.
+##
+## 2. L'ORIENTATION. Reprendre les axes de l'os de la main donnait un
+##    canon à 150,6° de l'avant du personnage : l'arme pointait vers
+##    l'arrière. Les axes d'un os n'ont aucune raison d'être alignés sur
+##    le corps — celui de la main suit l'avant-bras.
+##
+## On ne retient donc de l'os que sa POSITION, et l'on prend
+## l'orientation du personnage. C'est d'ailleurs la seule cohérente avec
+## le jeu : les projectiles partent dans l'axe du personnage, et une arme
+## qui viserait ailleurs mentirait sur la trajectoire.
+##
+## Le prix à payer est que l'arme ne pivote plus avec le poignet pendant
+## l'animation. Sur une vue de dessus, personne ne le remarquera ; une
+## arme qui tire de travers, si.
 func _suivre_main() -> void:
 	if _mount == null or _attache == null or not _attache.is_inside_tree():
 		return
-	var t := _attache.global_transform
-	var base := t.basis.orthonormalized()
-	# Le canon des armes pointe vers -Z, l'avant du modèle vers +Z.
-	base = base.rotated(base.y.normalized(), PI)
-	_mount.global_transform = Transform3D(base.scaled(Vector3.ONE * _facteur),
-			t.origin)
+	if not _mount.is_inside_tree():
+		return
+	_mount.global_position = _attache.global_position
+	# Le support vit sous `_rig`, dont l'orientation est celle du corps :
+	# une base identité suffit donc à aligner le canon sur l'avant.
+	_mount.rotation = Vector3.ZERO
+	_mount.scale = Vector3.ONE * _facteur
 
 
 ## Vitesse et accélération dans le repère du personnage, normalisées.

@@ -45,6 +45,30 @@ var want_fire: bool = false
 ## Appui NEUF sur la gâchette, latché jusqu'à la prochaine tentative de
 ## tir. C'est lui qui donne droit à la cadence accélérée au tapotement.
 var want_tap: bool = false
+## ENGAGEMENT AU COMBAT, lissé.
+##
+## POURQUOI CE LISSAGE EXISTE : maintenue, la gâchette rend `want_fire`
+## vrai en continu ; TAPOTÉE, elle ne le rend vrai que quelques trames par
+## appui. Or deux règles s'appuyaient dessus — l'orientation du corps et
+## le choix de l'animation. En tir à répétition, les deux basculaient donc
+## plusieurs fois par seconde : le personnage tressautait entre « je
+## regarde où je cours » et « je regarde ma cible », et la posture de tir
+## n'avait jamais le temps de s'installer.
+##
+## L'engagement monte vite et redescend lentement : tapoter au-delà de
+## deux fois par seconde le maintient au plafond, ce qui rend le
+## comportement IDENTIQUE à la gâchette maintenue. C'est ce que le joueur
+## attend — tirer plus vite ne doit pas changer la façon dont on bouge.
+var _combat: float = 0.0
+
+## Constantes de temps de l'engagement. La montée est quasi immédiate
+## pour que le premier tir réagisse ; la descente couvre largement
+## l'intervalle entre deux appuis d'un joueur qui martèle le bouton.
+const COMBAT_MONTEE := 0.05
+const COMBAT_DESCENTE := 0.55
+## Seuil de bascule. Volontairement bas : mieux vaut rester en posture de
+## tir un court instant de trop qu'en sortir entre deux appuis.
+const COMBAT_SEUIL := 0.35
 var want_dash: bool = false
 
 var health: HealthComponent
@@ -187,7 +211,11 @@ func _physics_process(delta: float) -> void:
 	# La mise en joue suit l'intention de tir, pas l'évènement de tir :
 	# le personnage épaule tant qu'on maintient, et non le temps d'une
 	# image à chaque projectile.
-	visual.set_aiming(want_fire and not is_eliminated)
+	# L'engagement suit l'intention de tir, mais LISSÉ : voir `_combat`.
+	var vise := 1.0 if want_fire else 0.0
+	var tau := COMBAT_MONTEE if want_fire else COMBAT_DESCENTE
+	_combat = lerpf(_combat, vise, 1.0 - exp(-delta / tau))
+	visual.set_aiming(en_combat() and not is_eliminated)
 	visual.update_visual(delta, speed_ratio)
 	_update_aim_visuals()
 
@@ -249,7 +277,7 @@ func _simulate(delta: float) -> void:
 	# reculer en tirant — le mouvement clé du genre — sans rendre les
 	# déplacements hors combat illisibles.
 	var face := Vector3(velocity.x, 0, velocity.z)
-	if want_fire and aim_input.length() > 0.1:
+	if en_combat() and aim_input.length() > 0.1:
 		face = aim_input
 	if face.length() > 0.1:
 		_facing = lerp_angle(_facing, atan2(face.x, face.z),
@@ -267,6 +295,12 @@ func _simulate(delta: float) -> void:
 		# Gâchette relâchée avant même d'avoir tiré : on ne garde pas un
 		# front en réserve, il s'appliquerait à contretemps.
 		want_tap = false
+
+## Le joueur est-il ENGAGÉ ? Sert à la fois à l'orientation du corps et
+## au choix de l'animation, pour que les deux restent d'accord.
+func en_combat() -> bool:
+	return _combat > COMBAT_SEUIL
+
 
 func _try_fire() -> void:
 	if weapon.data == null:

@@ -127,6 +127,54 @@ func _verifier_cadence(j: Node) -> void:
 	arme._cooldown = 0.0
 
 
+## Écart maximal toléré, en degrés, entre le canon et l'avant du corps.
+const CANON_ECART_MAX := 12.0
+
+
+func _verifier_canon(j: Node) -> void:
+	var visuel = j.get(&"visual")
+	var accroche: Node3D = visuel.get_weapon_mount() if visuel else null
+	if accroche == null:
+		_verifier("un point d'accroche existe", false, true)
+		return
+	var canon := -accroche.global_transform.basis.z.normalized()
+	# `j` est typé Node : sans transtypage explicite, GDScript ne sait pas
+	# inférer le type de `global_transform` et refuse de compiler.
+	var corps := j as Node3D
+	var avant := -corps.global_transform.basis.z.normalized()
+	var ecart := rad_to_deg(canon.angle_to(avant))
+	_etapes += 1
+	var ok := ecart < CANON_ECART_MAX
+	if not ok:
+		_echecs += 1
+	print("  [%s] %-46s écart=%.1f°  maximum=%.0f°"
+			% ["OK" if ok else "ÉCHEC", "le canon pointe vers l'avant du corps",
+			ecart, CANON_ECART_MAX])
+
+
+## Martèle le bouton et surveille l'animation entre les appuis.
+func _verifier_repetition(j: Node, ap: AnimationPlayer, bouton: Control) -> void:
+	var centre := bouton.get_global_rect().get_center()
+	print("  … martèlement en cours", " ")
+	var decroche := 0
+	var observees := {}
+	for cycle in 4:
+		await _clic(centre, true)
+		await get_tree().process_frame
+		await _clic(centre, false)
+		# Entre deux appuis : c'est LÀ que la posture décrochait.
+		for i in 5:
+			await get_tree().process_frame
+			var a := ap.current_animation
+			observees[a] = true
+			# Les deux premiers cycles servent à installer la posture.
+			if cycle >= 2 and a != "garde":
+				decroche += 1
+	print("      clips vus pendant le martèlement : ", observees.keys())
+	_verifier("tir à répétition → la posture ne décroche pas",
+			decroche == 0, true)
+
+
 func _executer() -> void:
 	var j := _joueur()
 	var h := _hud()
@@ -196,6 +244,22 @@ func _executer() -> void:
 	# un appui NEUF peut écourter une part du délai. Test direct sur
 	# l'arme, donc déterministe — pas de dépendance à la vitesse du runner.
 	_verifier_cadence(j)
+
+	# 3 quinquies. TIR À RÉPÉTITION. C'est le cas qui n'allait pas : en
+	# tapotant, l'intention de tir n'est vraie que quelques trames par
+	# appui, si bien que l'orientation du corps ET l'animation
+	# basculaient plusieurs fois par seconde. On simule un joueur qui
+	# martèle le bouton et on vérifie que la posture NE DÉCROCHE PAS.
+	if ap != null:
+		await _verifier_repetition(j, ap, bouton)
+
+	# 3 sexies. L'ARME POINTE-T-ELLE OÙ L'ON TIRE ?
+	#
+	# Elle était bien dans la main, mais son canon suivait les axes de
+	# l'OS, à 150,6° de l'avant du personnage : elle pointait vers
+	# l'arrière. Une arme qui vise ailleurs que la trajectoire ment sur
+	# le jeu.
+	_verifier_canon(j)
 
 	# 4. CLIC DANS LE VIDE, hors interface → tir souris au bureau.
 	await _clic(Vector2(640, 200), true)
