@@ -59,6 +59,42 @@ func _make_circle(r: float, fill: Color, border: Color) -> Control:
 		c.draw_arc(Vector2.ZERO, r, 0.0, TAU, 48, border, 3.0, true))
 	return c
 
+## RELÂCHEMENT GLOBAL — corrige un tir qui ne s'arrête plus.
+##
+## `_gui_input` ne reçoit que les évènements survenant DANS la zone du
+## contrôle. Un doigt posé sur le bouton de tir puis relevé en dehors ne
+## produisait donc aucun relâchement : `pressed` restait vrai et le
+## personnage tirait indéfiniment sans que le joueur touche quoi que ce
+## soit. On écoute donc la fin du geste au niveau global, où qu'elle ait
+## lieu, dès lors que ce joystick a capturé le doigt.
+func _input(event: InputEvent) -> void:
+	if _finger == -1:
+		return
+	if event is InputEventScreenTouch:
+		var t := event as InputEventScreenTouch
+		if not t.pressed and t.index == _finger:
+			_end()
+			get_viewport().set_input_as_handled()
+	elif event is InputEventScreenDrag:
+		var d := event as InputEventScreenDrag
+		if d.index == _finger:
+			# La position est globale : on la ramène dans le repère local,
+			# sinon la poignée saute dès que le doigt quitte la zone.
+			_update(d.position - global_position)
+	elif event is InputEventMouseButton and _finger == -2:
+		var mb := event as InputEventMouseButton
+		if not mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			_end()
+	elif event is InputEventMouseMotion and _finger == -2:
+		_update((event as InputEventMouseMotion).position - global_position)
+
+## Sécurité de dernier recours : si un relâchement se perdait malgré tout
+## (perte de focus de l'onglet, interruption système), on ne reste pas
+## bloqué en tir. Aucun bouton réellement pressé ne peut passer ici.
+func _process(_delta: float) -> void:
+	if _finger == -2 and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_end()
+
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed and _finger == -1:
@@ -68,9 +104,8 @@ func _gui_input(event: InputEvent) -> void:
 		elif not event.pressed and event.index == _finger:
 			_end()
 			accept_event()
-	elif event is InputEventScreenDrag and event.index == _finger:
-		_update(event.position)
-		accept_event()
+	# Le glissement et le relâchement sont traités dans `_input`, qui les
+	# reçoit même hors de la zone du contrôle.
 	# La souris permet de tester la disposition tactile sur ordinateur.
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed and _finger == -1:

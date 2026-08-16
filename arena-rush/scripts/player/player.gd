@@ -194,7 +194,11 @@ func _simulate(delta: float) -> void:
 		face = aim_input
 	if face.length() > 0.1:
 		_facing = lerp_angle(_facing, atan2(face.x, face.z), TURN_SPEED * delta)
-	rotation.y = _facing
+	# `_facing` est l'angle de TIR, mesuré depuis +Z. Or dans Godot l'avant
+	# d'un nœud est son axe -Z local : c'est vers -Z que regardent le
+	# modèle, le canon de l'arme, le chevron et le télémètre. Sans ce
+	# demi-tour, tout l'attirail visuel pointe à l'exact opposé du tir.
+	rotation.y = _facing + PI
 	visual.rotation.y = 0.0
 
 	if want_fire:
@@ -323,7 +327,7 @@ func _interpolate(delta: float) -> void:
 	var k := 1.0 - exp(-18.0 * delta)
 	global_position = global_position.lerp(_target_pos, k)
 	_facing = lerp_angle(_facing, _target_yaw, k)
-	rotation.y = _facing
+	rotation.y = _facing + PI
 	velocity = (_target_pos - global_position) / maxf(delta, 0.001)
 
 # --- INVENTAIRE ----------------------------------------------------------

@@ -170,7 +170,10 @@ func _face_movement(delta: float) -> void:
 			else Vector3(velocity.x, 0, velocity.z)
 	look.y = 0.0
 	if look.length() > 0.1:
-		rotation.y = lerp_angle(rotation.y, atan2(look.x, look.z), 9.0 * delta)
+		# Même demi-tour que le joueur : les silhouettes de mobs (cornes du
+		# Chargeur, œil du Tireur) sont modelées vers -Z.
+		rotation.y = lerp_angle(rotation.y, atan2(look.x, look.z) + PI,
+				9.0 * delta)
 
 func _acquire_target() -> void:
 	var best: Node3D = null
