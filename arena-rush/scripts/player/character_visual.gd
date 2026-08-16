@@ -31,6 +31,7 @@ var _squash_target: Vector3 = Vector3.ONE
 ## Phase de la foulée simulée. Elle n'avance qu'avec la vitesse réelle,
 ## sinon le personnage « courrait » sur place à l'arrêt.
 var _run_phase: float = 0.0
+var _squelette: Skeleton3D = null
 var _attack_t: float = 0.0
 var _hit_t: float = 0.0
 var _dead: bool = false
@@ -71,44 +72,69 @@ func build(color: Color, accent: Color, height: float = 1.7) -> void:
 func _monter_modele(height: float) -> void:
 	var scene: PackedScene = load(MODELE)
 	var modele: Node3D = scene.instantiate()
-	# L'échelle, le demi-tour et le relèvement vivent sur le MODÈLE, pas
-	# sur `_rig` : ce dernier porte les animations, qui écraseraient ces
-	# réglages à chaque image.
 	var facteur := height / MODELE_HAUTEUR
-	modele.scale = Vector3.ONE * facteur
-	modele.rotation.y = MODELE_DEMI_TOUR
-	# Relèvement : les pieds se posent exactement sur y = 0.
-	modele.position.y = MODELE_PIEDS * facteur
-	_rig.add_child(modele)
 
+	# Conteneur portant échelle, demi-tour et relèvement. Le squelette
+	# vit dedans, donc il en hérite : ses os restent exprimés dans le
+	# repère d'origine du maillage, ce qui évite d'avoir à convertir
+	# chaque position d'os.
+	var socle := Node3D.new()
+	socle.name = "Socle"
+	socle.scale = Vector3.ONE * facteur
+	socle.rotation.y = MODELE_DEMI_TOUR
+	socle.position.y = MODELE_PIEDS * facteur
+	_rig.add_child(socle)
+
+	_squelette = ProceduralRig.construire_squelette()
+	socle.add_child(_squelette)
+
+	# On récupère le maillage brut, on l'habille d'attaches osseuses, et
+	# on jette le nœud importé : il ne servait qu'à porter la géométrie.
+	var source: Mesh = null
 	for brut in _mailles(modele):
-		# Type explicite : `_mailles` renvoie un tableau non typé, donc
-		# GDScript ne peut rien inférer de ses éléments.
-		var noeud := brut as MeshInstance3D
-		for i in noeud.mesh.get_surface_count():
-			var src: Material = noeud.mesh.surface_get_material(i)
-			var copie: StandardMaterial3D = src.duplicate() if src is StandardMaterial3D \
-					else StandardMaterial3D.new()
-			# Même traitement cellulé que le reste du jeu, sinon le
-			# personnage jurerait avec son propre décor.
-			copie.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-			copie.specular_mode = BaseMaterial3D.SPECULAR_TOON
-			copie.rim_enabled = true
-			copie.rim = 0.4
-			noeud.set_surface_override_material(i, copie)
-			_materials.append(copie)
-		VisualKit.add_outline(noeud, 0.012 / maxf(facteur, 0.01))
+		source = (brut as MeshInstance3D).mesh
+		break
+	modele.queue_free()
+	if source == null:
+		push_warning("Maillage introuvable dans %s." % MODELE)
+		return
 
-	# ANCRAGE DE L'ARME, greffé SOUS le modèle et non sous `_rig` : il
-	# hérite ainsi automatiquement du demi-tour, du relèvement et de
-	# l'échelle. Les reproduire à la main était précisément la source de
-	# l'erreur précédente.
+	var habille := ProceduralRig.habiller(source)
+	var mi := MeshInstance3D.new()
+	mi.name = "Corps"
+	mi.mesh = habille
+	_squelette.add_child(mi)
+	# Le maillage habillé est PARTAGÉ entre tous les personnages ; seuls
+	# les squelettes diffèrent. C'est ce qui permet de ne payer le calcul
+	# des poids qu'une seule fois.
+	mi.skeleton = mi.get_path_to(_squelette)
+	mi.skin = _squelette.create_skin_from_rest_transforms()
+
+	for i in habille.get_surface_count():
+		var src: Material = habille.surface_get_material(i)
+		var copie: StandardMaterial3D = src.duplicate() if src is StandardMaterial3D \
+				else StandardMaterial3D.new()
+		copie.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		copie.specular_mode = BaseMaterial3D.SPECULAR_TOON
+		copie.rim_enabled = true
+		copie.rim = 0.4
+		# Indispensable sur un maillage habillé : sans cela le moteur
+		# calcule ses limites sur la pose de repos et fait disparaître le
+		# personnage dès qu'un membre en sort.
+		mi.set_surface_override_material(i, copie)
+		_materials.append(copie)
+
+	# ARME accrochée à l'OS de la main droite : elle suit désormais le
+	# balancement du bras au lieu de flotter à côté du corps.
+	var attache := BoneAttachment3D.new()
+	attache.name = "AttacheMain"
+	attache.bone_name = "main_d"
+	_squelette.add_child(attache)
 	_mount = Node3D.new()
 	_mount.name = "WeaponMount"
-	_mount.position = MODELE_MAIN
 	# Le canon des armes pointe vers -Z ; l'avant du modèle est +Z.
 	_mount.rotation.y = PI
-	modele.add_child(_mount)
+	attache.add_child(_mount)
 
 func _mailles(n: Node, out: Array = []) -> Array:
 	if n is MeshInstance3D and (n as MeshInstance3D).mesh != null:
@@ -254,23 +280,20 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	else:
 		_rig.position.z = 0.0
 
-	# FOULÉE SIMULÉE — le modèle est d'un seul tenant, aucun membre ne
-	# peut bouger. On suggère donc la course par le CORPS entier :
+	# FOULÉE. Avec un squelette, ce ne sont plus des artifices de corps
+	# entier : les membres bougent réellement.
 	#
-	#   • un rebond vertical à chaque appui (deux par cycle de foulée) ;
-	#   • un roulis latéral d'un appui à l'autre, à la moitié de cette
-	#     fréquence, puisqu'on bascule une fois par paire de pas ;
-	#   • un écrasement au moment du contact, qui donne le poids.
-	#
-	# Ce n'est pas un cycle de course — il faudrait un squelette pour
-	# cela. Mais à la distance de la caméra, un personnage qui rebondit
-	# et roule se lit comme un personnage qui court, là où un personnage
-	# rigide se lit comme un pion qu'on fait glisser.
-	_run_phase += delta * 13.0 * speed_ratio
-	var rebond := absf(sin(_run_phase)) * 0.11 * speed_ratio
-	var roulis := sin(_run_phase * 0.5) * 0.09 * speed_ratio
-	var appui := (1.0 - absf(sin(_run_phase))) * 0.08 * speed_ratio
+	# La phase n'avance qu'avec la vitesse, sinon le personnage courrait
+	# sur place à l'arrêt. Le rebond du bassin subsiste — un coureur monte
+	# et descend à chaque appui — mais il accompagne la foulée au lieu de
+	# la remplacer.
+	_run_phase += delta * 11.0 * speed_ratio
+	var rebond := absf(sin(_run_phase)) * 0.06 * speed_ratio
+	var roulis := sin(_run_phase * 0.5) * 0.05 * speed_ratio
+	var appui := (1.0 - absf(sin(_run_phase))) * 0.04 * speed_ratio
 	_rig.position.y = rebond
+	if _squelette:
+		_animer_os(speed_ratio)
 
 	# INCLINAISON — le corps penche dans le sens de la marche et s'incline
 	# dans les changements de direction. C'est ce qui distingue un
@@ -312,3 +335,60 @@ func revive() -> void:
 		_rig.rotation = Vector3.ZERO
 		_rig.scale = Vector3.ONE
 		_rig.position = Vector3.ZERO
+
+
+# --- ANIMATION DU SQUELETTE ---------------------------------------------
+#
+# Un cycle de course tient en peu de choses, mais toutes sont nécessaires :
+#
+#   • les jambes balancent en OPPOSITION de phase ;
+#   • le genou ne plie que sur la jambe qui recule — une jambe qui plie
+#     en avançant donne une démarche de pantin ;
+#   • les bras balancent en opposition aux jambes, c'est ce qui équilibre
+#     la course et la rend lisible ;
+#   • le buste contre-pivote légèrement, sinon le haut du corps paraît
+#     posé sur les jambes plutôt que solidaire d'elles.
+#
+# Tout est proportionnel à la vitesse : à l'arrêt, le cycle s'éteint et
+# le personnage revient à sa pose de repos.
+
+## Amplitudes du cycle, en radians à pleine vitesse.
+const CUISSE_AMPL := 0.62
+const GENOU_AMPL := 0.95
+const BRAS_AMPL := 0.55
+const COUDE_FLEX := 0.45
+## Le modèle est généré en pose A, bras écartés. On les ramène le long du
+## corps : un personnage qui court les bras en croix est ridicule.
+const BRAS_REPOS := 0.42
+
+func _animer_os(speed_ratio: float) -> void:
+	var a := clampf(speed_ratio, 0.0, 1.0)
+	var p := _run_phase
+
+	# JAMBES en opposition.
+	var balancier := sin(p)
+	_poser(ProceduralRig.CUISSE_G, Vector3(balancier * CUISSE_AMPL * a, 0, 0))
+	_poser(ProceduralRig.CUISSE_D, Vector3(-balancier * CUISSE_AMPL * a, 0, 0))
+	# Le genou ne plie QUE sur la jambe en retour : `max(0, ...)` isole
+	# la demi-période concernée.
+	_poser(ProceduralRig.GENOU_G,
+			Vector3(-maxf(0.0, balancier) * GENOU_AMPL * a, 0, 0))
+	_poser(ProceduralRig.GENOU_D,
+			Vector3(-maxf(0.0, -balancier) * GENOU_AMPL * a, 0, 0))
+
+	# BRAS en opposition aux jambes, plus le rappel au corps qui vaut
+	# aussi à l'arrêt.
+	_poser(ProceduralRig.EPAULE_G,
+			Vector3(-balancier * BRAS_AMPL * a, 0, -BRAS_REPOS))
+	_poser(ProceduralRig.EPAULE_D,
+			Vector3(balancier * BRAS_AMPL * a, 0, BRAS_REPOS))
+	_poser(ProceduralRig.COUDE_G, Vector3(-COUDE_FLEX * (0.4 + a * 0.6), 0, 0))
+	_poser(ProceduralRig.COUDE_D, Vector3(-COUDE_FLEX * (0.4 + a * 0.6), 0, 0))
+
+	# BUSTE et TÊTE : contre-pivot discret, et la tête reste droite.
+	var pivot := -balancier * 0.14 * a
+	_poser(ProceduralRig.TORSE, Vector3(0, pivot, 0))
+	_poser(ProceduralRig.TETE, Vector3(0, -pivot * 0.6, 0))
+
+func _poser(os: int, euler: Vector3) -> void:
+	_squelette.set_bone_pose_rotation(os, Quaternion.from_euler(euler))
