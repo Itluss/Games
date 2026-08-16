@@ -30,7 +30,7 @@ const DASH_TIME := 0.16
 const DASH_COOLDOWN := 1.5
 const NET_SEND_HZ := 20.0
 ## Hauteur d'affichage du personnage, distincte de sa boîte de collision.
-const VISUAL_HEIGHT := 2.15
+const VISUAL_HEIGHT := 2.5
 ## Dégâts par seconde hors de la zone sûre.
 const ZONE_DPS := 11.0
 
@@ -147,7 +147,7 @@ func _ready() -> void:
 	add_child(anneau)
 
 	health_bar = HealthBar3D.new()
-	health_bar.position = Vector3(0, 2.55, 0)
+	health_bar.position = Vector3(0, 2.9, 0)
 	add_child(health_bar)
 	health_bar.build(1.1)
 	# La barre du joueur local est superflue (le HUD la porte déjà) et

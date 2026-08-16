@@ -28,6 +28,9 @@ var _acc: Vector3 = Vector3.ZERO
 var _lean: Vector2 = Vector2.ZERO     # x = tangage, y = roulis
 var _squash: Vector3 = Vector3.ONE
 var _squash_target: Vector3 = Vector3.ONE
+## Phase de la foulée simulée. Elle n'avance qu'avec la vitesse réelle,
+## sinon le personnage « courrait » sur place à l'arrêt.
+var _run_phase: float = 0.0
 var _attack_t: float = 0.0
 var _hit_t: float = 0.0
 var _dead: bool = false
@@ -36,15 +39,18 @@ var _dead: bool = false
 ## Camille. Sa hauteur réelle est mesurée une fois pour toutes ici : le
 ## gabarit du jeu vise 1,70 m, le modèle en fait 1,90.
 const MODELE := "res://assets/models/kael.glb"
-const MODELE_HAUTEUR := 1.90
+const MODELE_HAUTEUR := 1.903
 ## Le modèle regarde vers +Z, alors que l'avant d'un nœud Godot est -Z.
 const MODELE_DEMI_TOUR := PI
-## Main droite du modèle, mesurée sur le maillage, en mètres et dans son
-## repère d'origine.
-const MODELE_MAIN := Vector3(-0.38, 0.72, 0.22)
-## Les modèles d'armes procéduraux ont été dessinés pour l'ancien gabarit :
-## 72 cm de canon, ce qui est énorme sur un personnage trapu et faisait
-## flotter l'arme au-dessus de sa tête. On les ramène à l'échelle du porteur.
+## MESURÉ sur le maillage : son origine est en son CENTRE, pas sous ses
+## pieds. Sans ce relèvement, la moitié du personnage passe sous le sol —
+## et tout repère placé en supposant une origine aux pieds se retrouve
+## décalé d'une hauteur d'homme, ce qui expliquait l'arme volante.
+const MODELE_PIEDS := 0.952
+## Main droite, mesurée dans le repère D'ORIGINE du modèle (centré).
+const MODELE_MAIN := Vector3(-0.40, -0.09, 0.06)
+## Les armes procédurales ont 72 cm de canon, dessinées pour l'ancien
+## gabarit. On les ramène à l'échelle du porteur.
 const ARME_ECHELLE := 0.5
 
 func build(color: Color, accent: Color, height: float = 1.7) -> void:
@@ -65,17 +71,16 @@ func build(color: Color, accent: Color, height: float = 1.7) -> void:
 func _monter_modele(height: float) -> void:
 	var scene: PackedScene = load(MODELE)
 	var modele: Node3D = scene.instantiate()
-	# L'échelle et le demi-tour vivent sur le MODÈLE, pas sur `_rig` :
-	# `_rig` porte les animations (inclinaison, déformation), qui
-	# écraseraient ces réglages à chaque image.
+	# L'échelle, le demi-tour et le relèvement vivent sur le MODÈLE, pas
+	# sur `_rig` : ce dernier porte les animations, qui écraseraient ces
+	# réglages à chaque image.
 	var facteur := height / MODELE_HAUTEUR
 	modele.scale = Vector3.ONE * facteur
 	modele.rotation.y = MODELE_DEMI_TOUR
+	# Relèvement : les pieds se posent exactement sur y = 0.
+	modele.position.y = MODELE_PIEDS * facteur
 	_rig.add_child(modele)
 
-	# Matériaux DUPLIQUÉS et posés en surcharge de surface : sans cette
-	# copie, teinter un personnage les teinterait tous, puisqu'ils
-	# partagent la ressource chargée.
 	for brut in _mailles(modele):
 		# Type explicite : `_mailles` renvoie un tableau non typé, donc
 		# GDScript ne peut rien inférer de ses éléments.
@@ -94,14 +99,16 @@ func _monter_modele(height: float) -> void:
 			_materials.append(copie)
 		VisualKit.add_outline(noeud, 0.012 / maxf(facteur, 0.01))
 
-	# Point d'ancrage de l'arme, greffé à la main : le maillage est d'un
-	# seul tenant, il n'expose aucun os ni aucun repère.
+	# ANCRAGE DE L'ARME, greffé SOUS le modèle et non sous `_rig` : il
+	# hérite ainsi automatiquement du demi-tour, du relèvement et de
+	# l'échelle. Les reproduire à la main était précisément la source de
+	# l'erreur précédente.
 	_mount = Node3D.new()
 	_mount.name = "WeaponMount"
-	var main := MODELE_MAIN * facteur
-	# Le demi-tour du modèle s'applique aussi à ce repère.
-	_mount.position = Vector3(-main.x, main.y, -main.z)
-	_rig.add_child(_mount)
+	_mount.position = MODELE_MAIN
+	# Le canon des armes pointe vers -Z ; l'avant du modèle est +Z.
+	_mount.rotation.y = PI
+	modele.add_child(_mount)
 
 func _mailles(n: Node, out: Array = []) -> Array:
 	if n is MeshInstance3D and (n as MeshInstance3D).mesh != null:
@@ -174,6 +181,14 @@ func set_state(s: State) -> void:
 
 ## Teinte brève de tout le personnage — c'est LE signal « tu as été
 ## touché », lisible même quand l'écran est chargé.
+## Intensité du flash de dégâts.
+##
+## Calibrée pour un modèle TEXTURÉ. La valeur d'origine (2,6), pensée pour
+## des aplats de couleur unie, noyait complètement les textures de Kael :
+## sa veste bleue virait au violet et ses cheveux à l'orange vif. Sur une
+## texture, le flash doit TEINTER, pas remplacer.
+const FLASH_ENERGIE := 0.9
+
 func flash(color: Color = Color.WHITE, duration: float = 0.12) -> void:
 	if _dead:
 		return
@@ -182,7 +197,7 @@ func flash(color: Color = Color.WHITE, duration: float = 0.12) -> void:
 		m.emission = color
 		var tw := create_tween()
 		tw.tween_property(m, "emission_energy_multiplier", 0.0, duration) \
-				.from(2.6)
+				.from(FLASH_ENERGIE)
 
 func _play_death() -> void:
 	# Bascule au sol + affaissement : une mort doit se LIRE d'un coup d'œil,
@@ -239,6 +254,24 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	else:
 		_rig.position.z = 0.0
 
+	# FOULÉE SIMULÉE — le modèle est d'un seul tenant, aucun membre ne
+	# peut bouger. On suggère donc la course par le CORPS entier :
+	#
+	#   • un rebond vertical à chaque appui (deux par cycle de foulée) ;
+	#   • un roulis latéral d'un appui à l'autre, à la moitié de cette
+	#     fréquence, puisqu'on bascule une fois par paire de pas ;
+	#   • un écrasement au moment du contact, qui donne le poids.
+	#
+	# Ce n'est pas un cycle de course — il faudrait un squelette pour
+	# cela. Mais à la distance de la caméra, un personnage qui rebondit
+	# et roule se lit comme un personnage qui court, là où un personnage
+	# rigide se lit comme un pion qu'on fait glisser.
+	_run_phase += delta * 13.0 * speed_ratio
+	var rebond := absf(sin(_run_phase)) * 0.11 * speed_ratio
+	var roulis := sin(_run_phase * 0.5) * 0.09 * speed_ratio
+	var appui := (1.0 - absf(sin(_run_phase))) * 0.08 * speed_ratio
+	_rig.position.y = rebond
+
 	# INCLINAISON — le corps penche dans le sens de la marche et s'incline
 	# dans les changements de direction. C'est ce qui distingue un
 	# personnage d'un objet qu'on translate : sans elle, il glisse à plat,
@@ -254,13 +287,16 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	# L'avant du gabarit est -Z, d'où les signes : un tangage positif
 	# ferait basculer le buste en arrière.
 	_rig.rotation.x = -_lean.x
-	_rig.rotation.z = -_lean.y
+	_rig.rotation.z = -_lean.y + roulis
 
 	# RESPIRATION à l'arrêt : une immobilité parfaitement figée est le
 	# signe le plus sûr d'un pantin.
 	var breathe := 1.0 + sin(_time * 1.9) * 0.018 * (1.0 - speed_ratio)
 	_squash = _squash.lerp(_squash_target, 1.0 - exp(-delta / 0.055))
-	_rig.scale = Vector3(_squash.x, _squash.y * breathe, _squash.z)
+	_rig.scale = Vector3(
+			_squash.x * (1.0 + appui * 0.5),
+			_squash.y * breathe * (1.0 - appui),
+			_squash.z * (1.0 + appui * 0.5))
 
 func _offset(part: String, delta_pos: Vector3) -> void:
 	var node: MeshInstance3D = _parts.get(part)
