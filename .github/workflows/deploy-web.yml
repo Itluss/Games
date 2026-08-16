@@ -41,15 +41,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # `enablement: true` active GitHub Pages via l'API s'il ne l'est pas
-      # déjà, ce qui évite d'avoir à le régler à la main dans Settings. Si
-      # le jeton n'a pas ce droit, l'étape échoue avec un message clair
-      # plutôt que de laisser le déploiement mourir plus loin sans raison
-      # compréhensible.
-      - name: Activer et configurer Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
+      # PAS de `enablement: true` ici. Le GITHUB_TOKEN d'Actions peut
+      # DÉPLOYER sur un site Pages existant, mais pas le CRÉER : l'API
+      # répond « Resource not accessible by integration ». L'activation
+      # reste donc un geste manuel et unique :
+      #   Settings → Pages → Source = GitHub Actions
+      # Tenter de l'automatiser faisait échouer la construction avant même
+      # qu'elle ne commence, ce qui est pire que de ne pas l'automatiser.
 
       # Le moteur et les templates viennent des releases officielles. Ils
       # sont mis en cache : sans cela, on retéléchargerait 1,1 Go à chaque
