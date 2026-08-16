@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 id = &"basic_blaster"
-display_name = "Basic Blaster"
+display_name = "Blaster Fusil"
 damage = 7.0
 fire_rate = 3.0
 range = 18.0
@@ -21,5 +21,5 @@ projectile_radius = 0.13
 trail_length = 0.0
 shake = 0.0
 recoil = 0.04
-silhouette = "pistol"
+silhouette = "rifle"
 max_ammo = -1

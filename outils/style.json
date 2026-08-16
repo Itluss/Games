@@ -1,9 +1,10 @@
 {
-  "_lisez_moi": "Direction artistique d'Arena Rush. Seul endroit ou l'identite visuelle est definie : meshy.py l'ajoute a chaque generation pour que tous les assets sortent du meme monde. Ecrit en anglais, Meshy y repond nettement mieux.",
-  "style_forme": "stylized mobile game character, chunky exaggerated proportions, oversized head, broad shoulders, short limbs, bold readable silhouette from above, hand-painted look, vibrant flat colors, no photorealism, single centered character, T-pose",
-  "style_texture": "hand-painted stylized game texture, clean flat colors, crisp edges, soft ambient shading, warm palette, no dirt, no wear, no text",
-  "negatif": "photorealistic, gritty, desaturated, blurry, noisy, text, watermark, multiple objects",
+  "_lisez_moi": "Direction artistique d'Arena Rush, calee sur la planche du personnage KAEL (art/references/). Seul endroit ou l'identite visuelle est definie : meshy.py l'ajoute a chaque generation pour que tous les assets sortent du meme monde. Ecrit en anglais, Meshy y repond mieux.",
+  "style_forme": "stylized mobile hero shooter character, chibi proportions about 3.5 heads tall, oversized head, large expressive eyes, chunky oversized sneakers, broad shoulders, short limbs, bold readable silhouette from above, glossy toy-like finish, clean flat colors, vibrant royal blue and orange accents, single centered character",
+  "style_texture": "hand-painted stylized game texture, clean flat colors, crisp edges, glossy toy plastic finish, royal blue jacket, white and light grey armor plates, orange trim, gold star emblem, dark navy trousers, no dirt, no wear, no text",
+  "negatif": "photorealistic, gritty, desaturated, blurry, noisy, text, watermark, multiple characters, weapon in hands, action pose, background scenery, UI panels",
   "art_style": "realistic",
-  "sujet_defaut": "arena fighter character",
-  "_note_art_style": "art_style est un champ de l'API Meshy pour le mode texte (valeurs usuelles : realistic, sculpture). Il ne decrit PAS ton jeu — le rendu stylise vient de style_forme, pas de ce champ."
+  "sujet_defaut": "young hero character in blue jacket with shoulder armor",
+  "_note_art_style": "art_style est un champ de l'API Meshy pour le mode texte (valeurs usuelles : realistic, sculpture). Il ne decrit PAS ton jeu — le rendu stylise vient de style_forme, pas de ce champ.",
+  "_note_kael": "Kael, personnage joueur de reference. Veste bleue a capuche, plastron d'epaule blanc, doublure orange, cheveux bruns en pics avec une meche bleue, etoile doree comme embleme, baskets surdimensionnees bleu/blanc/orange. Il fixe l'echelle et la charte : mobs et armes s'accordent a LUI, jamais l'inverse."
 }

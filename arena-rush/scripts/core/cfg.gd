@@ -38,7 +38,7 @@ const COL_SUN := Color("fff2d6")
 
 # Couleurs d'identité — une arme se reconnaît à sa couleur avant même
 # qu'on lise son nom.
-const COL_BASIC := Color("7fd4ff")
+const COL_BASIC := Color("5fc4ff")
 const COL_SHOTGUN := Color("ffb347")
 const COL_ENERGY := Color("b06bff")
 const COL_GRENADE := Color("6bff9e")
@@ -49,8 +49,10 @@ const COL_MOB_EXPLODER := Color("ffd75a")
 
 const COL_DANGER := Color("ff3b30")
 const COL_HEAL := Color("4cd964")
-const COL_LOCAL_PLAYER := Color("4ce0b3")
+const COL_LOCAL_PLAYER := Color("2a6fd6")
 const COL_ENEMY_PLAYER := Color("ff5a8a")
+## Accent orange de Kael — doublure, semelles, bouche du blaster.
+const COL_KAEL_ACCENT := Color("f2822a")
 
 # --- ARÈNE ---------------------------------------------------------------
 const ARENA_RADIUS := 34.0

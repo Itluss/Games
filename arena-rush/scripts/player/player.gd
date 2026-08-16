@@ -102,9 +102,12 @@ func _ready() -> void:
 	# est une information de survie, pas une coquetterie.
 	var is_me := (not is_bot) and peer_id == Net.local_id()
 	var body_col := Cfg.COL_LOCAL_PLAYER if is_me else Cfg.COL_ENEMY_PLAYER
+	# Accent orange pour Kael, éclairci pour les adversaires : la couleur
+	# secondaire porte l'identité autant que la principale.
+	var accent := Cfg.COL_KAEL_ACCENT if is_me else body_col.lightened(0.35)
 	visual = CharacterVisual.new()
 	add_child(visual)
-	visual.build(body_col, body_col.lightened(0.35))
+	visual.build(body_col, accent)
 
 	weapon = Weapon.new()
 	var mount := visual.get_weapon_mount()
