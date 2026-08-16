@@ -47,7 +47,14 @@ func _snap() -> void:
 	global_position = _desired + Vector3(0, height, distance)
 	look_at(_desired, Vector3.UP)
 
-func _physics_process(delta: float) -> void:
+## La caméra suit au rythme de l'AFFICHAGE, pas de la physique.
+##
+## Première cause de saccade : en `_physics_process`, la caméra ne bougeait
+## que 60 fois par seconde par paliers, pendant que l'écran affichait à une
+## cadence différente — surtout en navigateur, où elle est variable. Chaque
+## image intermédiaire réutilisait la même position, ce qui se voit
+## immédiatement sur un décor qui défile.
+func _process(delta: float) -> void:
 	if target == null or not is_instance_valid(target):
 		return
 	var focus: Vector3 = target.global_position

@@ -47,6 +47,12 @@ var active_slot: int = 0
 
 var is_eliminated: bool = false
 
+## Cible actuellement accrochée par la visée assistée, publiée par le
+## contrôleur. Sert uniquement à l'affichage de l'indicateur.
+var locked_target: Node3D = null
+var _aim_line: MeshInstance3D = null
+var _lock_ring: MeshInstance3D = null
+
 var _facing: float = 0.0
 var _dash_time: float = 0.0
 var _dash_cd: float = 0.0
@@ -113,6 +119,11 @@ func _ready() -> void:
 	# encombrerait le centre de l'écran.
 	health_bar.visible = not is_me
 
+	# INDICATEURS DE VISÉE — joueur local seulement. Une visée assistée
+	# qu'on ne voit pas donne l'impression que le personnage décide seul.
+	if is_me:
+		_build_aim_visuals()
+
 	_target_pos = global_position
 	equip_weapon_id(Registry.starting_weapon().id if Registry.starting_weapon() else &"basic_blaster", 0)
 
@@ -131,6 +142,7 @@ func _physics_process(delta: float) -> void:
 	var speed_ratio := clampf(Vector2(velocity.x, velocity.z).length() / SPEED,
 			0.0, 1.0)
 	visual.update_visual(delta, speed_ratio)
+	_update_aim_visuals()
 
 # --- SIMULATION ----------------------------------------------------------
 
@@ -169,10 +181,17 @@ func _simulate(delta: float) -> void:
 
 	move_and_slide()
 
-	# Orientation : on regarde là où on TIRE, pas là où on marche — c'est
-	# ce qui permet de reculer en tirant, mouvement clé du genre.
-	var face := aim_input if aim_input.length() > 0.1 \
-			else Vector3(velocity.x, 0, velocity.z)
+	# ORIENTATION — une seule règle, et elle doit être devinable :
+	#   on regarde où l'on MARCHE, sauf quand on TIRE.
+	#
+	# Auparavant le personnage s'orientait en permanence vers la cible
+	# auto-visée, donc il pivotait seul, sans cause visible pour le joueur.
+	# Ne verrouiller la visée que pendant le tir permet toujours de
+	# reculer en tirant — le mouvement clé du genre — sans rendre les
+	# déplacements hors combat illisibles.
+	var face := Vector3(velocity.x, 0, velocity.z)
+	if want_fire and aim_input.length() > 0.1:
+		face = aim_input
 	if face.length() > 0.1:
 		_facing = lerp_angle(_facing, atan2(face.x, face.z), TURN_SPEED * delta)
 	rotation.y = _facing
@@ -355,3 +374,57 @@ func swap_weapon() -> void:
 
 func dash_ready_ratio() -> float:
 	return 1.0 - clampf(_dash_cd / DASH_COOLDOWN, 0.0, 1.0)
+
+
+# --- INDICATEURS DE VISÉE ------------------------------------------------
+
+func _build_aim_visuals() -> void:
+	# Trait au sol devant le joueur : montre EXACTEMENT où partira le tir.
+	_aim_line = MeshInstance3D.new()
+	var beam := BoxMesh.new()
+	beam.size = Vector3(0.12, 0.02, 6.0)
+	_aim_line.mesh = beam
+	var lm := VisualKit.glow_mat(Cfg.COL_LOCAL_PLAYER, 1.6)
+	lm.albedo_color.a = 0.4
+	_aim_line.material_override = lm
+	# Décalé vers l'avant de la moitié de sa longueur pour partir des pieds.
+	_aim_line.position = Vector3(0, 0.05, -3.2)
+	_aim_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_aim_line.visible = false
+	add_child(_aim_line)
+
+	# Anneau sous la cible accrochée : dit QUI sera touché.
+	_lock_ring = MeshInstance3D.new()
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.62
+	ring.outer_radius = 0.82
+	ring.rings = 20
+	ring.ring_segments = 6
+	_lock_ring.mesh = ring
+	_lock_ring.material_override = VisualKit.glow_mat(Cfg.COL_SHOTGUN, 2.4)
+	_lock_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# `top_level` : l'anneau vit dans le monde, il ne doit hériter ni de la
+	# position ni de la rotation du joueur.
+	_lock_ring.top_level = true
+	_lock_ring.visible = false
+	add_child(_lock_ring)
+
+func _update_aim_visuals() -> void:
+	if _aim_line == null:
+		return
+	# Le trait n'apparaît QUE pendant le tir : le reste du temps il
+	# encombrerait l'écran sans rien apprendre.
+	_aim_line.visible = want_fire and not is_eliminated
+	if weapon and weapon.data:
+		var m := _aim_line.material_override as StandardMaterial3D
+		if m:
+			m.albedo_color = Color(weapon.data.color.r, weapon.data.color.g,
+					weapon.data.color.b, 0.4)
+			m.emission = weapon.data.color
+
+	var show_lock := locked_target != null and is_instance_valid(locked_target) \
+			and not is_eliminated
+	_lock_ring.visible = show_lock
+	if show_lock:
+		_lock_ring.global_position = locked_target.global_position \
+				+ Vector3(0, 0.08, 0)

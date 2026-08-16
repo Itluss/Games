@@ -21,6 +21,12 @@ var _shake_decay: float = 7.0
 var _noise_t: float = 0.0
 var _hit_stop_until: float = 0.0
 
+## Délai minimal entre deux arrêts sur image. Sans lui, chaque mort de mob
+## en déclenchait un : avec vingt mobs, le jeu se figeait par micro-coups
+## en continu et le joueur ressentait une saccade, pas de l'impact.
+const HIT_STOP_COOLDOWN := 0.45
+var _next_hit_stop_allowed: float = 0.0
+
 func _process(delta: float) -> void:
 	# L'arrêt sur image utilise le temps RÉEL : sinon il ne se terminerait
 	# jamais, puisqu'il ralentit précisément l'horloge qui le mesure.
@@ -52,8 +58,29 @@ func shake(amount: float) -> void:
 func hit_stop(duration: float = 0.05, scale: float = 0.05) -> void:
 	if Cfg.quality == Cfg.Quality.LOW:
 		return
+	var now := Time.get_ticks_msec() / 1000.0
+	# Un arrêt sur image n'a de valeur que s'il reste RARE.
+	if now < _next_hit_stop_allowed:
+		return
+	_next_hit_stop_allowed = now + HIT_STOP_COOLDOWN
 	Engine.time_scale = scale
-	_hit_stop_until = Time.get_ticks_msec() / 1000.0 + duration
+	_hit_stop_until = now + duration
+
+## Secousse ATTÉNUÉE PAR LA DISTANCE.
+##
+## Un mob qui meurt à l'autre bout de l'arène ne doit pas secouer l'écran.
+## Sans atténuation, une vague de vingt mobs faisait trembler la caméra en
+## permanence — ce qui se lit comme une saccade, jamais comme du punch.
+func shake_at(pos: Vector3, amount: float) -> void:
+	if camera == null:
+		shake(amount)
+		return
+	var d := camera.global_position.distance_to(pos)
+	# Pleine intensité sous 10 m, plus rien au-delà de 32 m.
+	var falloff := clampf(1.0 - (d - 10.0) / 22.0, 0.0, 1.0)
+	if falloff <= 0.02:
+		return
+	shake(amount * falloff)
 
 func _parent_for(node: Node) -> Node:
 	# Les effets vivent dans l'arbre courant : ils disparaissent donc
@@ -149,7 +176,7 @@ func impact(pos: Vector3, color: Color, power: float = 1.0) -> void:
 func hit(pos: Vector3, color: Color, power: float = 1.0) -> void:
 	var parent := _parent_for(self)
 	_emit_burst(parent, pos, color, int(14 * power), 7.0, 0.16, 0.4)
-	shake(0.09 * power)
+	shake_at(pos, 0.09 * power)
 	if power >= 1.5:
 		hit_stop(0.045, 0.08)
 
@@ -159,8 +186,10 @@ func death(pos: Vector3, color: Color) -> void:
 	var parent := _parent_for(self)
 	_emit_burst(parent, pos + Vector3(0, 0.6, 0), color, 30, 9.0, 0.3, 0.65)
 	_flash_light(parent, pos + Vector3(0, 0.8, 0), color, 4.0, 6.0, 0.25)
-	shake(0.2)
-	hit_stop(0.05, 0.06)
+	shake_at(pos, 0.2)
+	# Pas d'arrêt sur image sur une mort de mob ordinaire : c'est
+	# l'évènement le plus FRÉQUENT du jeu, donc le pire candidat.
+	
 
 ## Explosion de zone : lance-grenades et mob Exploder.
 func explosion(pos: Vector3, radius: float, color: Color) -> void:
@@ -168,8 +197,8 @@ func explosion(pos: Vector3, radius: float, color: Color) -> void:
 	_emit_burst(parent, pos, color, 44, 13.0 * (radius / 4.0), radius * 0.3, 0.8)
 	_emit_burst(parent, pos, Color("fff0c0"), 18, 4.0, radius * 0.15, 0.45, -2.0)
 	_flash_light(parent, pos + Vector3(0, 0.5, 0), color, 7.0, radius * 3.0, 0.32)
-	shake(0.55)
-	hit_stop(0.06, 0.05)
+	shake_at(pos, 0.55)
+	hit_stop(0.06, 0.06)
 	_shockwave(parent, pos, radius, color)
 
 ## Onde de choc : anneau plat qui s'étend au sol. Lit instantanément le
@@ -203,4 +232,4 @@ func pickup(pos: Vector3, color: Color) -> void:
 	var parent := _parent_for(self)
 	_emit_burst(parent, pos, color, 20, 5.0, 0.25, 0.4, 1.5)
 	_flash_light(parent, pos + Vector3(0, 0.5, 0), color, 3.0, 4.0, 0.2)
-	shake(0.05)
+	shake_at(pos, 0.05)

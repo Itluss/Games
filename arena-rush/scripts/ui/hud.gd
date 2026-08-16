@@ -39,6 +39,7 @@ var _overlay_sub: Label
 
 var _swap_queued: bool = false
 var _dash_queued: bool = false
+var _help: Control = null
 
 func _ready() -> void:
 	add_to_group(&"hud")
@@ -71,6 +72,7 @@ func _build() -> void:
 	_build_bottom()
 	_build_controls()
 	_build_overlay()
+	_build_help()
 
 func _label(text: String, size_px: int, color: Color = Color.WHITE) -> Label:
 	var l := Label.new()
@@ -371,6 +373,9 @@ func _on_alive_changed(count: int) -> void:
 	_alive_label.text = "%d VIVANT%s" % [count, "S" if count > 1 else ""]
 
 func _on_countdown(value: int) -> void:
+	# « GO » : la partie commence, la légende doit libérer l'écran.
+	if value == 0:
+		_hide_help()
 	_countdown.text = str(value) if value > 0 else "GO"
 	_countdown.modulate.a = 1.0
 	_countdown.scale = Vector2(1.6, 1.6)
@@ -418,3 +423,57 @@ func _on_replay() -> void:
 	var main := get_tree().get_first_node_in_group(&"main")
 	if main and main.has_method(&"restart_match"):
 		main.call(&"restart_match")
+
+
+# --- LÉGENDE DES COMMANDES ----------------------------------------------
+#
+# Affichée pendant le compte à rebours, puis effacée au « GO ».
+#
+# POURQUOI ELLE EST NÉCESSAIRE : quatre boutons sans explication, c'est
+# quatre boutons qu'on n'utilise pas. Un joueur qui ignore l'existence de
+# l'esquive ou du changement d'arme ne joue qu'à la moitié du jeu. La
+# légende ne coûte rien puisqu'elle occupe un temps mort — celui du
+# décompte, pendant lequel il n'y a de toute façon rien à faire.
+
+func _build_help() -> void:
+	_help = Control.new()
+	_help.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_help.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_help)
+
+	# Chaque encart est ancré PRÈS de la commande qu'il décrit : une
+	# légende déportée en liste obligerait à faire la correspondance
+	# soi-même, ce que personne ne fait sous la pression d'un décompte.
+	_help_note("SE DÉPLACER", Cfg.COL_LOCAL_PLAYER,
+			Control.PRESET_BOTTOM_LEFT, Vector2(MARGIN + 14, -(STICK_SIZE + 74)))
+	_help_note("MAINTENIR POUR TIRER\nGLISSER POUR VISER", Cfg.COL_SHOTGUN,
+			Control.PRESET_BOTTOM_RIGHT, Vector2(-320, -(FIRE_SIZE + 78)))
+	_help_note("CHANGER D'ARME", Cfg.COL_ENERGY,
+			Control.PRESET_BOTTOM_RIGHT, Vector2(-330, -(MARGIN + 132)))
+	_help_note("ESQUIVER", Cfg.COL_BASIC,
+			Control.PRESET_BOTTOM_RIGHT, Vector2(-330, -(MARGIN + FIRE_SIZE + 138)))
+
+	var goal := _label("TUEZ LES MOBS · RAMASSEZ LEURS ARMES · SOYEZ LE DERNIER",
+			24, Color(1, 1, 1, 0.92))
+	goal.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	goal.offset_top = 150
+	goal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	goal.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_help.add_child(goal)
+
+func _help_note(text: String, color: Color, preset: int, offset: Vector2) -> void:
+	var lbl := _label(text, 19, color)
+	lbl.set_anchors_preset(preset)
+	lbl.offset_left = offset.x
+	lbl.offset_top = offset.y
+	lbl.grow_horizontal = Control.GROW_DIRECTION_END
+	lbl.grow_vertical = Control.GROW_DIRECTION_END
+	_help.add_child(lbl)
+
+func _hide_help() -> void:
+	if _help == null or not is_instance_valid(_help):
+		return
+	var tw := create_tween()
+	tw.tween_property(_help, "modulate:a", 0.0, 0.45)
+	tw.tween_callback(_help.queue_free)
+	_help = null

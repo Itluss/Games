@@ -109,15 +109,21 @@ func _compute_aim() -> Vector3:
 				best_score = score
 				best = node
 
+	# La cible verrouillée est publiée pour que le joueur puisse
+	# l'AFFICHER : une visée automatique invisible donne l'impression que
+	# le personnage pivote tout seul sans raison.
+	player.locked_target = best
+
 	if best != null:
 		var aim: Vector3 = best.global_position - origin
-		# On vise le buste plutôt que les pieds : les projectiles passent
-		# ainsi au-dessus des petits reliefs du sol.
 		aim.y = 0.0
 		return aim.normalized()
 	if hint.length() > 0.1:
 		return hint.normalized()
-	return Vector3(sin(player.rotation.y), 0.0, cos(player.rotation.y))
+	# Aucune cible, aucune intention : on ne force AUCUNE direction. Le
+	# joueur s'orientera alors selon son déplacement, ce qui est la seule
+	# règle lisible. Renvoyer l'orientation courante la figeait.
+	return Vector3.ZERO
 
 ## Direction souhaitée par le joueur, avant accrochage.
 func _aim_hint() -> Vector3:
