@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="MobData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/mob_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"exploder"
+display_name = "Exploder"
+behavior = "exploder"
+health = 22.0
+speed = 4.6
+damage = 34.0
+attack_range = 2.6
+detection_range = 28.0
+attack_cooldown = 1.0
+telegraph_time = 1.1
+charge_speed = 0.0
+charge_duration = 0.0
+preferred_distance = 0.0
+projectile_speed = 0.0
+explosion_radius = 4.4
+loot_weapon_id = &"grenade_launcher"
+loot_chance = 0.34
+color = Color(1, 0.843, 0.353, 1)
+scale = 1.0
+score = 15

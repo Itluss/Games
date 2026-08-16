@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"shotgun"
+display_name = "Shotgun"
+damage = 9.0
+fire_rate = 1.1
+range = 11.0
+projectile_speed = 30.0
+projectile_count = 8
+spread_degrees = 26.0
+splash_radius = 0.0
+gravity = 0.0
+fuse_time = 0.0
+bounces = 0
+color = Color(1, 0.702, 0.278, 1)
+projectile_radius = 0.11
+trail_length = 0.0
+shake = 0.34
+recoil = 0.22
+silhouette = "shotgun"
+max_ammo = 24

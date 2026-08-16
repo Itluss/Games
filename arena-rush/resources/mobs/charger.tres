@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="MobData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/mob_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"charger"
+display_name = "Charger"
+behavior = "charger"
+health = 34.0
+speed = 3.6
+damage = 14.0
+attack_range = 9.0
+detection_range = 24.0
+attack_cooldown = 2.2
+telegraph_time = 0.65
+charge_speed = 19.0
+charge_duration = 0.75
+preferred_distance = 0.0
+projectile_speed = 0.0
+explosion_radius = 0.0
+loot_weapon_id = &"shotgun"
+loot_chance = 0.42
+color = Color(1, 0.42, 0.353, 1)
+scale = 1.05
+score = 10

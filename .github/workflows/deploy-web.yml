@@ -1,0 +1,119 @@
+# PUBLICATION WEB DU JEU — construit l'export WebAssembly et le déploie
+# sur GitHub Pages.
+#
+# POURQUOI CONSTRUIRE EN CI plutôt que commiter le build : l'export web
+# pèse 34 Mo, dont un seul fichier .wasm de 34 Mo. Le versionner
+# alourdirait le dépôt définitivement à chaque itération, alors qu'il est
+# entièrement reproductible depuis les sources en trois minutes.
+#
+# PRÉREQUIS CÔTÉ DÉPÔT : Settings → Pages → Source = « GitHub Actions ».
+# Sur un dépôt PRIVÉ, GitHub Pages demande un plan payant ; sur un dépôt
+# public, c'est gratuit.
+#
+# Lancement : onglet Actions → « Publier le jeu sur le web » → Run workflow.
+name: Publier le jeu sur le web
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+    paths:
+      - "arena-rush/**"
+      - ".github/workflows/deploy-web.yml"
+
+# Droits exigés par le déploiement Pages via Actions.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un seul déploiement à la fois ; on ne coupe pas celui en cours.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  GODOT_VERSION: "4.3"
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Le moteur et les templates viennent des releases officielles. Ils
+      # sont mis en cache : sans cela, on retéléchargerait 1,1 Go à chaque
+      # exécution pour un résultat identique.
+      - name: Cache du moteur et des templates
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot-bin
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-web
+
+      - name: Installer Godot ${{ env.GODOT_VERSION }}
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          mkdir -p ~/godot-bin ~/.local/share/godot/export_templates
+
+          curl -fsSL -o godot.zip \
+            "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" ~/godot-bin/godot
+          chmod +x ~/godot-bin/godot
+
+          curl -fsSL -o templates.tpz \
+            "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q templates.tpz
+          mv templates ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+      - name: Vérifier les scripts
+        run: |
+          set -euo pipefail
+          # Première ouverture : importe les ressources et compile tous les
+          # scripts. Une erreur GDScript doit faire échouer le déploiement
+          # ici, pas silencieusement produire une page blanche.
+          ~/godot-bin/godot --headless --path arena-rush --editor --quit 2>&1 \
+            | tee import.log || true
+          if grep -qE "SCRIPT ERROR|Parse Error" import.log; then
+            echo "::error::Erreurs GDScript — déploiement interrompu."
+            grep -E "SCRIPT ERROR|Parse Error" -A2 import.log
+            exit 1
+          fi
+
+      - name: Exporter en WebAssembly
+        run: |
+          set -euo pipefail
+          mkdir -p web
+          ~/godot-bin/godot --headless --path arena-rush --export-release "Web"
+          test -f web/index.wasm || { echo "::error::Export web absent."; exit 1; }
+          ls -lh web/
+
+      # Page d'attente : le .wasm fait 34 Mo, donc le premier chargement
+      # prend plusieurs secondes. Sans retour visuel, on croit à un bug.
+      - name: Ajouter un fichier .nojekyll
+        run: touch web/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  deployer:
+    needs: construire
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Afficher le lien
+        run: |
+          echo "### 🎮 Jeu publié" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY

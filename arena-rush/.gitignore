@@ -1,0 +1,3 @@
+# Godot 4 : cache d'import et fichiers générés localement.
+.godot/
+*.translation

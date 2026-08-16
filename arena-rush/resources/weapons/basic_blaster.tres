@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"basic_blaster"
+display_name = "Basic Blaster"
+damage = 7.0
+fire_rate = 4.0
+range = 20.0
+projectile_speed = 38.0
+projectile_count = 1
+spread_degrees = 3.0
+splash_radius = 0.0
+gravity = 0.0
+fuse_time = 0.0
+bounces = 0
+color = Color(0.498, 0.831, 1, 1)
+projectile_radius = 0.13
+trail_length = 0.0
+shake = 0.03
+recoil = 0.04
+silhouette = "pistol"
+max_ammo = -1
