@@ -277,7 +277,9 @@ func _act(delta: float) -> void:
 	# des outils défensifs plutôt que du décor.
 	if get_slide_collision_count() > 0:
 		Fx.impact(global_position + Vector3(0, 0.8, 0), data.color, 1.2)
-		Fx.shake(0.14)
+		# Atténuée : un Chargeur percutant un rocher à l'autre bout de
+		# l'arène n'a aucune raison de secouer l'écran du joueur.
+		Fx.shake_at(global_position, 0.14)
 		_end_action()
 		return
 

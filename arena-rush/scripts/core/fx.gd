@@ -17,7 +17,7 @@ extends Node
 var camera: Camera3D = null
 
 var _shake_strength: float = 0.0
-var _shake_decay: float = 7.0
+var _shake_decay: float = 16.0
 var _noise_t: float = 0.0
 var _hit_stop_until: float = 0.0
 
@@ -37,7 +37,16 @@ func _process(delta: float) -> void:
 	if _shake_strength <= 0.001 or camera == null:
 		return
 	_noise_t += delta * 34.0
-	_shake_strength = maxf(0.0, _shake_strength - _shake_decay * delta * _shake_strength)
+	# Décroissance EXPONENTIELLE franche, avec extinction nette. L'ancienne
+	# formule mettait près d'une seconde à retomber : à six tirs par
+	# seconde, la secousse ne s'éteignait jamais et laissait une
+	# oscillation permanente d'environ 5 Hz — un tremblement, pas du punch.
+	_shake_strength *= exp(-_shake_decay * delta)
+	if _shake_strength < 0.004:
+		_shake_strength = 0.0
+		camera.h_offset = 0.0
+		camera.v_offset = 0.0
+		return
 	var amp := _shake_strength
 	# Décalage de l'offset seulement : on ne touche jamais à la position de
 	# la caméra, que le suivi du joueur pilote déjà.
@@ -51,7 +60,9 @@ func _process(delta: float) -> void:
 func shake(amount: float) -> void:
 	if Cfg.quality == Cfg.Quality.LOW:
 		amount *= 0.5
-	_shake_strength = minf(1.2, _shake_strength + amount)
+	# Plafond bas : des secousses qui s'empilent produisent une vibration
+	# continue au lieu d'accents distincts.
+	_shake_strength = minf(0.55, _shake_strength + amount)
 
 ## Micro-suspension du temps sur un impact important. Très court par
 ## conception : au-delà de ~120 ms, ça ne donne plus du punch mais du lag.

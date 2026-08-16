@@ -99,7 +99,10 @@ func fire(origin: Vector3, dir: Vector3, team: int, owner_id: int,
 	if _model:
 		_model.position.z = _recoil_offset
 
-## Secousse réservée au tireur local : sentir SON arme, pas celle des autres.
+## Secousse réservée au tireur local : sentir SON arme, pas celle des
+## autres. Seules les armes LOURDES en déclenchent : une arme à cadence
+## rapide qui secoue à chaque tir produit une vibration continue, jamais
+## une sensation de puissance.
 func shake_local() -> void:
 	if data and data.shake > 0.0:
 		Fx.shake(data.shake)

@@ -27,6 +27,8 @@ var target: Node3D = null
 
 var _desired: Vector3 = Vector3.ZERO
 var _ahead: Vector3 = Vector3.ZERO
+## Point de visée lissé, distinct de la position du joueur.
+var _focus: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
 	# La caméra s'enregistre elle-même : les effets n'ont pas à la chercher
@@ -43,6 +45,7 @@ func set_target(node: Node3D) -> void:
 		_snap()
 
 func _snap() -> void:
+	_focus = target.global_position
 	_desired = target.global_position
 	global_position = _desired + Vector3(0, height, distance)
 	look_at(_desired, Vector3.UP)
@@ -66,7 +69,12 @@ func _process(delta: float) -> void:
 	else:
 		_ahead = _ahead.lerp(Vector3.ZERO, 1.0 - exp(-4.0 * delta))
 
-	_desired = focus + _ahead
+	# On lisse AUSSI la cible du regard. Amortir la position de la caméra
+	# sans amortir son point de visée laisse l'orientation copier la
+	# position brute du joueur, qui avance par pas de physique pendant que
+	# l'écran affiche à une autre cadence : l'image tremble.
+	_focus = _focus.lerp(focus, 1.0 - exp(-smoothing * delta))
+	_desired = _focus + _ahead
 	var goal := _desired + Vector3(0, height, distance)
 	# Lissage exponentiel : indépendant du framerate, contrairement à un
 	# lerp à facteur constant qui accélère quand les FPS montent.
