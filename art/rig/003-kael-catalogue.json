@@ -1,0 +1,8 @@
+{
+  "_pourquoi": "Troisième run de DÉCOUVERTE, gratuit. Le précédent a montré que /v1/animations/library répond « Invalid ID » : le routeur lit /v1/animations/{id} et prend « library » pour un identifiant. L'endpoint n'existe pas, la bibliothèque est une table de référence DOCUMENTÉE. docs.meshy.ai est bloqué depuis la session d'assistance mais pas depuis un runner : on lit la page ici.",
+  "nom": "kael",
+  "tache": "01a00aa0-4ff9-78a9-8445-086d84a6a5d4",
+  "hauteur": 1.9,
+  "actions": "course,repos,marche,tir,mort",
+  "catalogue_seulement": true
+}
