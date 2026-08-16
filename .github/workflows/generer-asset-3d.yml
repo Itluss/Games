@@ -12,6 +12,21 @@
 name: Générer un asset 3D (Meshy)
 
 on:
+  # Deux façons de lancer une génération.
+  #
+  # 1. À la main, depuis l'onglet Actions.
+  # 2. En déposant un « bon de commande » dans art/requests/. Déclencher un
+  #    workflow par l'API demande un droit que tous les jetons n'ont pas ;
+  #    un push, lui, passe toujours. Le fichier de demande sert alors à la
+  #    fois d'ordre et de trace des réglages employés.
+  #
+  # SEULES LES DEMANDES AJOUTÉES par le commit déclencheur sont traitées.
+  # Rejouer un ancien commit ne regénère donc rien, et ne consomme aucun
+  # crédit en double.
+  push:
+    branches: [main]
+    paths:
+      - "art/requests/**"
   workflow_dispatch:
     inputs:
       nom:
@@ -53,6 +68,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Deux commits sont nécessaires pour comparer et repérer les
+          # demandes réellement ajoutées.
+          fetch-depth: 2
 
       - uses: actions/setup-python@v5
         with:
@@ -78,7 +97,34 @@ jobs:
           MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
         run: python3 outils/meshy.py --verifier
 
+      - name: Relever les demandes ajoutées
+        id: demandes
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.before }}"
+          # Un premier push sur une branche neuve n'a pas de parent
+          # exploitable : on retombe alors sur le commit précédent.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
+          if [ -n "$BASE" ]; then
+            FICHIERS=$(git diff --name-only --diff-filter=A "$BASE" "${{ github.sha }}" \
+              -- 'art/requests/*.json' | tr '\n' ' ')
+          else
+            FICHIERS=""
+          fi
+          echo "Demandes à traiter : ${FICHIERS:-aucune}"
+          echo "fichiers=$FICHIERS" >> "$GITHUB_OUTPUT"
+
+      - name: Générer depuis les demandes
+        if: github.event_name == 'push' && steps.demandes.outputs.fichiers != ''
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+        run: python3 outils/lancer_generation.py ${{ steps.demandes.outputs.fichiers }}
+
       - name: Générer
+        if: github.event_name == 'workflow_dispatch'
         env:
           MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
         run: |
@@ -109,7 +155,7 @@ jobs:
       # parce qu'une étape git a échoué — c'est arrivé sur un autre dépôt.
       - uses: actions/upload-artifact@v4
         with:
-          name: asset-3d-${{ inputs.nom }}
+          name: asset-3d-${{ inputs.nom || 'lot' }}
           path: arena-rush/assets/models/
           retention-days: 14
 
@@ -118,9 +164,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin "${{ inputs.branche }}" || true
-          git checkout -B "${{ inputs.branche }}"
+          git fetch origin "${{ inputs.branche || 'assets-3d' }}" || true
+          git checkout -B "${{ inputs.branche || 'assets-3d' }}"
           git add arena-rush/assets/models/
-          git commit -m "Asset 3D généré : ${{ inputs.nom }}" || {
+          git commit -m "Assets 3D générés (${{ github.event_name }})" || {
             echo "::warning::Aucun changement à commiter."; exit 0; }
-          git push -u origin "${{ inputs.branche }}" --force
+          git push -u origin "${{ inputs.branche || 'assets-3d' }}" --force
