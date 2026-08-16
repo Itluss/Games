@@ -14,9 +14,9 @@ class_name ArenaCamera
 ## Hauteur au-dessus de la cible.
 ## Réglée d'après des captures réelles : à 17 m de haut le personnage ne
 ## faisait qu'une poignée de pixels sur un écran de téléphone.
-@export var height: float = 13.5
+@export var height: float = 15.0
 ## Recul derrière la cible.
-@export var distance: float = 10.0
+@export var distance: float = 11.5
 ## Vitesse de rattrapage. Assez élevée pour ne jamais « traîner », assez
 ## basse pour amortir les à-coups.
 @export var smoothing: float = 7.5
@@ -77,5 +77,5 @@ func _process(delta: float) -> void:
 ## joue dans un espace réduit, la caméra doit le montrer entièrement.
 func adapt_to_zone(zone_radius: float) -> void:
 	var t := clampf(zone_radius / Cfg.ARENA_RADIUS, 0.35, 1.0)
-	height = lerpf(11.0, 13.5, t)
-	distance = lerpf(8.0, 10.0, t)
+	height = lerpf(12.0, 15.0, t)
+	distance = lerpf(9.0, 11.5, t)

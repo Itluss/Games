@@ -15,11 +15,11 @@ signal inventory_changed(slots: Array, active: int)
 signal health_changed(current: float, maximum: float)
 signal died()
 
-const SPEED := 7.2
-const ACCELERATION := 70.0
-const FRICTION := 58.0
-const TURN_SPEED := 16.0
-const DASH_SPEED := 20.0
+const SPEED := 5.6
+const ACCELERATION := 46.0
+const FRICTION := 44.0
+const TURN_SPEED := 11.0
+const DASH_SPEED := 15.0
 const DASH_TIME := 0.16
 const DASH_COOLDOWN := 1.5
 const NET_SEND_HZ := 20.0
@@ -377,23 +377,48 @@ func dash_ready_ratio() -> float:
 
 
 # --- INDICATEURS DE VISÉE ------------------------------------------------
+#
+# Trois repères, parce que « je ne sais pas dans quel sens je suis ni où je
+# tire » est un défaut de LISIBILITÉ, pas de contrôle :
+#
+#   • un CHEVRON au sol, toujours visible, qui dit où le corps fait face ;
+#   • un TÉLÉMÈTRE dans l'axe de tir, ARRÊTÉ par le premier obstacle, donc
+#     qui montre aussi que les murs bloquent réellement les balles ;
+#   • un ANNEAU sous la cible accrochée par la visée assistée.
+
+## Longueur maximale du télémètre, faute d'arme équipée.
+const AIM_FALLBACK_RANGE := 14.0
 
 func _build_aim_visuals() -> void:
-	# Trait au sol devant le joueur : montre EXACTEMENT où partira le tir.
+	# CHEVRON d'orientation, aux pieds. Toujours affiché : c'est lui qui
+	# répond en permanence à « dans quel sens suis-je ? ».
+	var chevron := MeshInstance3D.new()
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.0
+	cone.bottom_radius = 0.34
+	cone.height = 0.5
+	cone.radial_segments = 3
+	chevron.mesh = cone
+	chevron.material_override = VisualKit.glow_mat(Cfg.COL_LOCAL_PLAYER, 1.8)
+	# Couché à plat, pointe vers l'avant (-Z).
+	chevron.rotation = Vector3(-PI / 2.0, 0, 0)
+	chevron.position = Vector3(0, 0.06, -0.72)
+	chevron.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(chevron)
+
+	# TÉLÉMÈTRE. Maille de longueur 1 sur Z, étirée par `scale.z` selon la
+	# distance réellement libre devant le joueur.
 	_aim_line = MeshInstance3D.new()
 	var beam := BoxMesh.new()
-	beam.size = Vector3(0.12, 0.02, 6.0)
+	beam.size = Vector3(0.1, 0.02, 1.0)
 	_aim_line.mesh = beam
-	var lm := VisualKit.glow_mat(Cfg.COL_LOCAL_PLAYER, 1.6)
-	lm.albedo_color.a = 0.4
+	var lm := VisualKit.glow_mat(Cfg.COL_LOCAL_PLAYER, 1.4)
+	lm.albedo_color.a = 0.3
 	_aim_line.material_override = lm
-	# Décalé vers l'avant de la moitié de sa longueur pour partir des pieds.
-	_aim_line.position = Vector3(0, 0.05, -3.2)
 	_aim_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_aim_line.visible = false
 	add_child(_aim_line)
 
-	# Anneau sous la cible accrochée : dit QUI sera touché.
+	# ANNEAU de cible.
 	_lock_ring = MeshInstance3D.new()
 	var ring := TorusMesh.new()
 	ring.inner_radius = 0.62
@@ -403,7 +428,7 @@ func _build_aim_visuals() -> void:
 	_lock_ring.mesh = ring
 	_lock_ring.material_override = VisualKit.glow_mat(Cfg.COL_SHOTGUN, 2.4)
 	_lock_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# `top_level` : l'anneau vit dans le monde, il ne doit hériter ni de la
+	# `top_level` : l'anneau vit dans le monde, il n'hérite ni de la
 	# position ni de la rotation du joueur.
 	_lock_ring.top_level = true
 	_lock_ring.visible = false
@@ -412,18 +437,40 @@ func _build_aim_visuals() -> void:
 func _update_aim_visuals() -> void:
 	if _aim_line == null:
 		return
-	# Le trait n'apparaît QUE pendant le tir : le reste du temps il
-	# encombrerait l'écran sans rien apprendre.
-	_aim_line.visible = want_fire and not is_eliminated
-	if weapon and weapon.data:
-		var m := _aim_line.material_override as StandardMaterial3D
-		if m:
-			m.albedo_color = Color(weapon.data.color.r, weapon.data.color.g,
-					weapon.data.color.b, 0.4)
-			m.emission = weapon.data.color
+	if is_eliminated:
+		_aim_line.visible = false
+		_lock_ring.visible = false
+		return
 
-	var show_lock := locked_target != null and is_instance_valid(locked_target) \
-			and not is_eliminated
+	var col := Cfg.COL_LOCAL_PLAYER
+	var reach := AIM_FALLBACK_RANGE
+	if weapon and weapon.data:
+		col = weapon.data.color
+		reach = weapon.data.range
+
+	# Le télémètre s'arrête au premier OBSTACLE — pas sur les créatures, on
+	# veut voir la portée utile, pas la première cible. C'est ce qui rend
+	# visible le fait qu'un mur coupe la ligne de tir.
+	var from := global_position + Vector3(0, 0.9, 0)
+	var dir := Vector3(sin(_facing), 0.0, cos(_facing))
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * reach)
+	q.collision_mask = Cfg.LAYER_WORLD
+	var hit := space.intersect_ray(q)
+	var length: float = reach
+	if hit:
+		length = maxf(0.6, from.distance_to(hit.position))
+
+	_aim_line.scale = Vector3(1.0, 1.0, length)
+	_aim_line.position = Vector3(0, 0.06, -length * 0.5)
+	var m := _aim_line.material_override as StandardMaterial3D
+	if m:
+		# Discret au repos, franc pendant le tir : présent sans encombrer.
+		m.albedo_color = Color(col.r, col.g, col.b, 0.5 if want_fire else 0.18)
+		m.emission = col
+		m.emission_energy_multiplier = 2.2 if want_fire else 0.7
+
+	var show_lock := locked_target != null and is_instance_valid(locked_target)
 	_lock_ring.visible = show_lock
 	if show_lock:
 		_lock_ring.global_position = locked_target.global_position \

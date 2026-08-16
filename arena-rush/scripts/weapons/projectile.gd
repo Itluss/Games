@@ -137,6 +137,33 @@ func _physics_process(delta: float) -> void:
 		_bounces_left -= 1
 		Fx.impact(next, data.color, 0.4)
 
+	# BALAYAGE PAR RAYON entre l'ancienne et la nouvelle position.
+	#
+	# La détection par Area3D est DISCRÈTE : elle ne teste que les
+	# chevauchements présents au pas de physique. Un projectile à 50 m/s
+	# parcourt près d'un mètre par pas et peut donc franchir un mur mince
+	# sans jamais le chevaucher au bon instant — d'où l'impression que les
+	# tirs traversent les obstacles. Un rayon couvre TOUT le trajet, ce qui
+	# rend le tunneling impossible quelle que soit la vitesse.
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(global_position, next)
+	q.collision_mask = collision_mask
+	q.collide_with_areas = false
+	q.collide_with_bodies = true
+	var hit := space.intersect_ray(q)
+	if hit:
+		var collider = hit.get("collider")
+		# Type explicite : une chaîne de `and` sur des valeurs non typées
+		# empêche GDScript d'inférer le type et refuse de compiler.
+		var same_shooter: bool = false
+		if collider != null and collider.has_method("get_peer_id") \
+				and shooter_team == Cfg.Team.PLAYER:
+			same_shooter = collider.call("get_peer_id") == shooter_id
+		if not same_shooter:
+			global_position = hit.position
+			_detonate(hit.position, collider)
+			return
+
 	global_position = next
 	# Rotation pour les projectiles lents : sans elle une grenade paraît
 	# glisser dans l'air.

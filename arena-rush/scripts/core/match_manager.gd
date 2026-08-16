@@ -30,7 +30,7 @@ var phase: Phase = Phase.LOBBY
 ## durée de référence dessus fait que la pression atteint réellement son
 ## maximum avant la fin — avec 210 s, elle plafonnait à 0,5 et les mobs les
 ## plus intéressants n'apparaissaient jamais.
-const MATCH_DURATION := 130.0
+const MATCH_DURATION := 175.0
 ## La zone ne commence à se fermer qu'après ce délai, pour laisser le temps
 ## de looter une première arme.
 const ZONE_START := 55.0
@@ -126,7 +126,7 @@ func _tick_zone(delta: float) -> void:
 	# planifier son repli, ce qu'un rétrécissement lisse ne permet pas.
 	_zone_tick -= delta
 	if _zone_tick <= 0.0:
-		_zone_tick = 22.0
+		_zone_tick = 26.0
 		zone_target = maxf(7.0, zone_target * 0.62)
 		announce.emit("ZONE — REPLIEZ-VOUS", Cfg.COL_DANGER)
 

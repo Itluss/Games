@@ -15,7 +15,7 @@ class_name MobSpawner
 ## difficulté.
 
 ## Plafond simultané — garde-fou de performance ET de lisibilité.
-const MAX_ALIVE := 22
+const MAX_ALIVE := 14
 
 var world: Node = null
 var _timer: float = 0.0
@@ -33,7 +33,7 @@ func _process(delta: float) -> void:
 
 	var pressure := MatchDirector.pressure
 	# Intervalle décroissant : 2,6 s au début, 0,55 s à pleine pression.
-	_timer = lerpf(2.6, 0.55, pressure)
+	_timer = lerpf(3.4, 1.1, pressure)
 
 	var alive := get_tree().get_nodes_in_group(&"mobs").size()
 	if alive >= MAX_ALIVE:
@@ -41,7 +41,7 @@ func _process(delta: float) -> void:
 
 	# Rafales croissantes : à la fin, les mobs arrivent par paquets, ce qui
 	# force les joueurs à bouger au lieu de camper.
-	var burst := 1 + int(pressure * 2.5)
+	var burst := 1 + int(pressure * 1.5)
 	for i in mini(burst, MAX_ALIVE - alive):
 		world.call(&"server_spawn_mob", _pick_type(pressure))
 
