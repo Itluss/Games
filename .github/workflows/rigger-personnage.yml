@@ -102,14 +102,20 @@ jobs:
             HAUTEUR=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('hauteur',1.9))" "$f")
             ACTIONS=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('actions','course,repos'))" "$f")
             SEUL=$(python3 -c "import json,sys;print('1' if json.load(open(sys.argv[1])).get('catalogue_seulement') else '')" "$f")
+            RIG=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('rig',''))" "$f")
             if [ -n "$SEUL" ]; then
               # Run de DÉCOUVERTE : appels de liste uniquement, donc
               # gratuit. On apprend les identifiants d'action avant
               # d'engager la moindre dépense.
               python3 outils/meshy_rig.py --catalogue --actions "$ACTIONS"
             else
-              python3 outils/meshy_rig.py --tache "$TACHE" --hauteur "$HAUTEUR" \
-                --nom "$NOM" --actions "$ACTIONS"
+              ARGS=(--nom "$NOM" --actions "$ACTIONS" --hauteur "$HAUTEUR")
+              if [ -n "$RIG" ]; then
+                ARGS+=(--rig "$RIG")
+              else
+                ARGS+=(--tache "$TACHE")
+              fi
+              python3 outils/meshy_rig.py "${ARGS[@]}"
             fi
           done
 

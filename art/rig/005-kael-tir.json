@@ -1,0 +1,9 @@
+{
+  "_pourquoi": "Le tir à l'arrêt n'avait aucune animation : immobile et gâchette pressée, le jeu jouait encore « repos ». On génère DEUX candidats pour la pose de tir stationnaire — leurs noms ne disent pas ce qu'ils montrent, et choisir à l'aveugle risquerait une seconde génération payante. Ils seront départagés au banc de rendu.",
+  "_economie": "Le rigging n'est PAS refait : on réutilise la tâche déjà payée. Seules les deux animations sont facturées.",
+  "nom": "kael",
+  "rig": "01a00af5-8cbd-73a9-a998-1aaa29b6e039",
+  "hauteur": 1.9,
+  "actions": "tir,garde",
+  "catalogue_seulement": false
+}

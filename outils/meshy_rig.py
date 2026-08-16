@@ -66,6 +66,7 @@ ROLES = {
     "course": (16, "RunFast"),
     "course_tir": (98, "Run_and_Shoot"),
     "tir": (104, "Side_Shot"),
+    "garde": (89, "Combat_Stance"),
     "mort": (8, "Dead"),
     "touche": (178, "Hit_Reaction"),
 }
@@ -164,6 +165,9 @@ if __name__ == "__main__":
     p.add_argument("--catalogue", action="store_true",
                    help="vérifie les identifiants retenus, sans rien dépenser")
     p.add_argument("--tache", default="")
+    p.add_argument("--rig", default="",
+                   help="réutiliser un rig DÉJÀ payé (saute l'étape de "
+                        "rigging, qui est la plus coûteuse)")
     p.add_argument("--hauteur", type=float, default=1.9)
     p.add_argument("--nom", default="kael")
     p.add_argument("--actions", default="repos,course,course_tir,mort")
@@ -188,15 +192,21 @@ if __name__ == "__main__":
     if not coherent:
         sys.exit("Le catalogue ne concorde pas avec les identifiants retenus — "
                  "on n'engage aucune dépense sur une table incertaine.")
-    if not a.tache:
-        sys.exit("--tache est requis pour rigger.")
+    if not a.rig and not a.tache:
+        sys.exit("--tache (nouveau rig) ou --rig (rig existant) est requis.")
 
     cle = os.environ.get("MESHY_API_KEY", "")
     if not cle:
         sys.exit("MESHY_API_KEY absente de l'environnement.")
 
-    tache_rig, fini_rig = rigger(cle, a.tache, a.hauteur, a.nom)
-    telecharger(fini_rig, os.path.join(SORTIE, a.nom + "_rig.glb"))
+    if a.rig:
+        # Le squelette ne change pas d'une animation à l'autre : le
+        # regénérer coûterait le prix fort pour un résultat identique.
+        tache_rig = a.rig
+        print("Rig existant réutilisé : %s" % tache_rig, flush=True)
+    else:
+        tache_rig, fini_rig = rigger(cle, a.tache, a.hauteur, a.nom)
+        telecharger(fini_rig, os.path.join(SORTIE, a.nom + "_rig.glb"))
 
     for role in roles:
         ident, nom_action = ROLES[role]
