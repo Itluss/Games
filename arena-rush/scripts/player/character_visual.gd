@@ -32,6 +32,10 @@ var _squash_target: Vector3 = Vector3.ONE
 ## sinon le personnage « courrait » sur place à l'arrêt.
 var _run_phase: float = 0.0
 var _squelette: Skeleton3D = null
+## Mise en joue, lissée : passer sec de « bras ballants » à « bras tendus »
+## produit un à-coup très laid à chaque pression sur la gâchette.
+var _vise: float = 0.0
+var _vise_cible: float = 0.0
 var _attack_t: float = 0.0
 var _hit_t: float = 0.0
 var _dead: bool = false
@@ -178,6 +182,10 @@ func set_motion(vel: Vector3, acc: Vector3) -> void:
 	_vel = vel
 	_acc = acc
 
+## Mise en joue. Appelé en continu par le joueur avec son intention de tir.
+func set_aiming(actif: bool) -> void:
+	_vise_cible = 1.0 if actif else 0.0
+
 ## Déformation ponctuelle — écrasement ou étirement — qui revient d'elle
 ## même. C'est l'ingrédient qui fait qu'un mouvement brutal se LIT au lieu
 ## d'être subi : sans déformation, une accélération instantanée n'a aucune
@@ -293,7 +301,7 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	var appui := (1.0 - absf(sin(_run_phase))) * 0.04 * speed_ratio
 	_rig.position.y = rebond
 	if _squelette:
-		_animer_os(speed_ratio)
+		_animer_os(speed_ratio, delta)
 
 	# INCLINAISON — le corps penche dans le sens de la marche et s'incline
 	# dans les changements de direction. C'est ce qui distingue un
@@ -361,11 +369,12 @@ const COUDE_FLEX := 0.45
 ## corps : un personnage qui court les bras en croix est ridicule.
 const BRAS_REPOS := 0.42
 
-func _animer_os(speed_ratio: float) -> void:
+func _animer_os(speed_ratio: float, delta: float) -> void:
 	var a := clampf(speed_ratio, 0.0, 1.0)
 	var p := _run_phase
+	_vise = lerpf(_vise, _vise_cible, 1.0 - exp(-delta / 0.09))
 
-	# JAMBES en opposition.
+	# JAMBES en opposition — inchangées par la visée : on court en tirant.
 	var balancier := sin(p)
 	_poser(ProceduralRig.CUISSE_G, Vector3(balancier * CUISSE_AMPL * a, 0, 0))
 	_poser(ProceduralRig.CUISSE_D, Vector3(-balancier * CUISSE_AMPL * a, 0, 0))
@@ -375,18 +384,43 @@ func _animer_os(speed_ratio: float) -> void:
 			Vector3(-maxf(0.0, balancier) * GENOU_AMPL * a, 0, 0))
 	_poser(ProceduralRig.GENOU_D,
 			Vector3(-maxf(0.0, -balancier) * GENOU_AMPL * a, 0, 0))
+	# La cheville amortit : un pied rigide donne une démarche d'échassier.
+	_poser(ProceduralRig.CHEVILLE_G,
+			Vector3(maxf(0.0, balancier) * 0.35 * a, 0, 0))
+	_poser(ProceduralRig.CHEVILLE_D,
+			Vector3(maxf(0.0, -balancier) * 0.35 * a, 0, 0))
 
-	# BRAS en opposition aux jambes, plus le rappel au corps qui vaut
-	# aussi à l'arrêt.
-	_poser(ProceduralRig.EPAULE_G,
-			Vector3(-balancier * BRAS_AMPL * a, 0, -BRAS_REPOS))
-	_poser(ProceduralRig.EPAULE_D,
-			Vector3(balancier * BRAS_AMPL * a, 0, BRAS_REPOS))
-	_poser(ProceduralRig.COUDE_G, Vector3(-COUDE_FLEX * (0.4 + a * 0.6), 0, 0))
-	_poser(ProceduralRig.COUDE_D, Vector3(-COUDE_FLEX * (0.4 + a * 0.6), 0, 0))
+	# BRAS — mélange entre le balancement de course et la mise en joue.
+	#
+	# Une rotation NÉGATIVE autour de X lève le bras vers l'avant : le
+	# membre pend vers -Y, et cette rotation l'amène vers +Z, qui est
+	# l'avant du modèle.
+	var libre_g := -balancier * BRAS_AMPL * a
+	var libre_d := balancier * BRAS_AMPL * a
 
-	# BUSTE et TÊTE : contre-pivot discret, et la tête reste droite.
-	var pivot := -balancier * 0.14 * a
+	# Bras armé : tendu vers l'avant, ramené vers l'axe du corps.
+	var tir_epaule_d := -1.28
+	var tir_coude_d := -0.30
+	# Bras d'appui : plus plié, ramené en travers pour soutenir l'arme.
+	var tir_epaule_g := -1.05
+	var tir_coude_g := -1.15
+
+	_poser(ProceduralRig.EPAULE_D, Vector3(
+			lerpf(libre_d, tir_epaule_d, _vise),
+			lerpf(0.0, 0.28, _vise),
+			lerpf(BRAS_REPOS, 0.30, _vise)))
+	_poser(ProceduralRig.COUDE_D, Vector3(
+			lerpf(-COUDE_FLEX * (0.4 + a * 0.6), tir_coude_d, _vise), 0, 0))
+	_poser(ProceduralRig.EPAULE_G, Vector3(
+			lerpf(libre_g, tir_epaule_g, _vise),
+			lerpf(0.0, -0.55, _vise),
+			lerpf(-BRAS_REPOS, -0.34, _vise)))
+	_poser(ProceduralRig.COUDE_G, Vector3(
+			lerpf(-COUDE_FLEX * (0.4 + a * 0.6), tir_coude_g, _vise), 0, 0))
+
+	# BUSTE : contre-pivot de course, effacé quand on met en joue — un
+	# tireur stabilise son torse, il ne se tortille pas.
+	var pivot := -balancier * 0.14 * a * (1.0 - _vise * 0.75)
 	_poser(ProceduralRig.TORSE, Vector3(0, pivot, 0))
 	_poser(ProceduralRig.TETE, Vector3(0, -pivot * 0.6, 0))
 

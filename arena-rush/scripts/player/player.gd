@@ -181,6 +181,10 @@ func _physics_process(delta: float) -> void:
 	var local_v := Vector3(velocity.x, 0, velocity.z).rotated(Vector3.UP, -_facing)
 	var local_a := _accel.rotated(Vector3.UP, -_facing)
 	visual.set_motion(local_v / maxf(SPEED, 0.01), local_a / 40.0)
+	# La mise en joue suit l'intention de tir, pas l'évènement de tir :
+	# le personnage épaule tant qu'on maintient, et non le temps d'une
+	# image à chaque projectile.
+	visual.set_aiming(want_fire and not is_eliminated)
 	visual.update_visual(delta, speed_ratio)
 	_update_aim_visuals()
 

@@ -22,26 +22,42 @@ class_name ProceduralRig
 ## de la jambe. Sur un personnage trapu aux membres bien écartés — ce qui
 ## est exactement le cas de Kael — l'approximation tient.
 
-## Un os : nom, parent, et position de SA TÊTE dans le repère du maillage.
-## La queue d'un os est la tête de son enfant, d'où l'ordre imposé.
+## Un os : nom, parent, position de SA TÊTE, et CÔTÉ (+1 gauche, -1
+## droite, 0 axial).
+##
+## Les positions ne sont pas estimées à l'œil mais MESURÉES sur le
+## maillage, par tranches horizontales :
+##   • les jambes se séparent de y=-0,93 à y=-0,41 → entrejambe à -0,39 ;
+##   • un renflement de largeur vers -0,52 → les genouillères ;
+##   • les baskets s'arrêtent vers -0,70 → la cheville ;
+##   • l'envergure est maximale vers -0,20 → les mains ;
+##   • la largeur chute au-dessus de +0,42 → les épaules.
+##
+## L'erreur de la première version était de poser la tête des cuisses à
+## -0,16, soit BIEN AU-DESSUS de l'entrejambe. Le bassin, masse unique,
+## se retrouvait tiraillé entre deux os partant en sens opposés, et se
+## déformait à chaque foulée.
 const OSSATURE := [
-	# nom,        parent,        position (repère d'origine du modèle)
-	["hanches",   -1,            Vector3(0.00, -0.10, 0.00)],
-	["buste",      0,            Vector3(0.00,  0.14, 0.00)],
-	["torse",      1,            Vector3(0.00,  0.30, 0.00)],
-	["tete",       2,            Vector3(0.00,  0.44, 0.00)],
-	["epaule_g",   2,            Vector3(0.19,  0.33, 0.00)],
-	["coude_g",    4,            Vector3(0.31,  0.13, 0.01)],
-	["main_g",     5,            Vector3(0.40, -0.09, 0.06)],
-	["epaule_d",   2,            Vector3(-0.19, 0.33, 0.00)],
-	["coude_d",    7,            Vector3(-0.31, 0.13, 0.01)],
-	["main_d",     8,            Vector3(-0.40, -0.09, 0.06)],
-	["cuisse_g",   0,            Vector3(0.13, -0.16, 0.00)],
-	["genou_g",   10,            Vector3(0.14, -0.52, 0.00)],
-	["pied_g",    11,            Vector3(0.15, -0.88, 0.02)],
-	["cuisse_d",   0,            Vector3(-0.13, -0.16, 0.00)],
-	["genou_d",   13,            Vector3(-0.14, -0.52, 0.00)],
-	["pied_d",    14,            Vector3(-0.15, -0.88, 0.02)],
+	# nom,       parent, position                      côté
+	["hanches",   -1,    Vector3(0.00, -0.20, 0.00),    0],
+	["buste",      0,    Vector3(0.00,  0.02, 0.00),    0],
+	["torse",      1,    Vector3(0.00,  0.24, 0.00),    0],
+	["tete",       2,    Vector3(0.00,  0.47, 0.00),    0],
+	["epaule_g",   2,    Vector3(0.17,  0.36, 0.00),    1],
+	["coude_g",    4,    Vector3(0.32,  0.09, 0.01),    1],
+	["main_g",     5,    Vector3(0.42, -0.17, 0.05),    1],
+	["epaule_d",   2,    Vector3(-0.17, 0.36, 0.00),   -1],
+	["coude_d",    7,    Vector3(-0.32, 0.09, 0.01),   -1],
+	["main_d",     8,    Vector3(-0.42, -0.17, 0.05),  -1],
+	# Tête de cuisse JUSTE au-dessus de l'entrejambe mesuré (-0,39).
+	["cuisse_g",   0,    Vector3(0.14, -0.34, 0.00),    1],
+	["genou_g",   10,    Vector3(0.145, -0.52, 0.00),   1],
+	["cheville_g",11,    Vector3(0.15, -0.70, 0.00),    1],
+	["pied_g",    12,    Vector3(0.15, -0.88, 0.04),    1],
+	["cuisse_d",   0,    Vector3(-0.14, -0.34, 0.00),  -1],
+	["genou_d",   14,    Vector3(-0.145, -0.52, 0.00), -1],
+	["cheville_d",15,    Vector3(-0.15, -0.70, 0.00),  -1],
+	["pied_d",    16,    Vector3(-0.15, -0.88, 0.04),  -1],
 ]
 
 ## Index utiles, pour que l'animateur n'ait pas à compter.
@@ -57,10 +73,12 @@ const COUDE_D := 8
 const MAIN_D := 9
 const CUISSE_G := 10
 const GENOU_G := 11
-const PIED_G := 12
-const CUISSE_D := 13
-const GENOU_D := 14
-const PIED_D := 15
+const CHEVILLE_G := 12
+const PIED_G := 13
+const CUISSE_D := 14
+const GENOU_D := 15
+const CHEVILLE_D := 16
+const PIED_D := 17
 
 ## Nombre d'os influençant un sommet. Quatre est la limite du format et
 ## largement assez : au-delà, les influences supplémentaires sont si
@@ -70,6 +88,17 @@ const INFLUENCES := 4
 ## proche domine — donc plus les articulations sont nettes, au risque de
 ## paraître cassantes. 3,0 donne un bon compromis sur un personnage trapu.
 const NETTETE := 3.0
+## Pénalité appliquée quand un sommet et un os sont de côtés OPPOSÉS.
+##
+## Les faces internes des cuisses se touchent presque : sans cette
+## pénalité, un sommet de la jambe gauche subit l'os de la jambe droite,
+## et les deux jambes se déforment l'une dans l'autre dès qu'elles
+## partent en sens contraires. La géométrie seule ne peut pas distinguer
+## « proche » de « appartient à » ; le côté le peut.
+const PENALITE_COTE := 5.0
+## En deçà de cette distance à l'axe, un sommet est considéré central et
+## échappe à la pénalité — ceinture, bassin, torse.
+const SEUIL_AXE := 0.045
 
 ## Le maillage habillé est calculé UNE FOIS et partagé par tous les
 ## personnages : le calcul des poids coûte cher, et il donnerait le même
@@ -162,6 +191,10 @@ static func habiller(source: Mesh) -> ArrayMesh:
 			var classement := []
 			for b in segs.size():
 				var d := _distance_segment(p, segs[b][0], segs[b][1])
+				# Un membre n'emporte que la chair de SON côté.
+				var cote: int = OSSATURE[b][3]
+				if cote != 0 and absf(p.x) > SEUIL_AXE and signf(p.x) != float(cote):
+					d *= PENALITE_COTE
 				classement.append([d, b])
 			classement.sort_custom(func(x, y): return x[0] < y[0])
 
