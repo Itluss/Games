@@ -295,10 +295,13 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	# sur place à l'arrêt. Le rebond du bassin subsiste — un coureur monte
 	# et descend à chaque appui — mais il accompagne la foulée au lieu de
 	# la remplacer.
-	_run_phase += delta * 11.0 * speed_ratio
-	var rebond := absf(sin(_run_phase)) * 0.06 * speed_ratio
-	var roulis := sin(_run_phase * 0.5) * 0.05 * speed_ratio
-	var appui := (1.0 - absf(sin(_run_phase))) * 0.04 * speed_ratio
+	# Cadence proportionnelle à la vitesse. Le corps est au plus HAUT en
+	# suspension et au plus BAS au contact : deux appuis par cycle, donc
+	# un rebond de fréquence double.
+	_run_phase += delta * 9.5 * speed_ratio
+	var rebond := pow(sin(_run_phase), 2.0) * REBOND * speed_ratio
+	var roulis := sin(_run_phase * 0.5) * 0.04 * speed_ratio
+	var appui := maxf(0.0, -sin(_run_phase)) * 0.03 * speed_ratio
 	_rig.position.y = rebond
 	if _squelette:
 		_animer_os(speed_ratio, delta)
@@ -360,48 +363,82 @@ func revive() -> void:
 # Tout est proportionnel à la vitesse : à l'arrêt, le cycle s'éteint et
 # le personnage revient à sa pose de repos.
 
-## Amplitudes du cycle, en radians à pleine vitesse.
-const CUISSE_AMPL := 0.62
-const GENOU_AMPL := 0.95
-const BRAS_AMPL := 0.55
-const COUDE_FLEX := 0.45
-## Le modèle est généré en pose A, bras écartés. On les ramène le long du
-## corps : un personnage qui court les bras en croix est ridicule.
-const BRAS_REPOS := 0.42
+# --- CYCLE DE COURSE -----------------------------------------------------
+#
+# Une foulée n'est PAS un pendule symétrique — c'était le défaut de la
+# version précédente, et il se voyait immédiatement. Les traits qui font
+# qu'une course se lit comme une course :
+#
+#   1. LE GENOU SE PLIE AU RETOUR, pas à l'appui. Juste après la poussée,
+#      le talon remonte vers la fesse pendant que la cuisse revient vers
+#      l'avant, puis la jambe se détend pour aller chercher le sol. Plier
+#      le genou quand la jambe est en arrière donne une démarche de
+#      pantin.
+#   2. LA FLEXION EST FORTE — jusqu'à 90° et au-delà. Une jambe qui reste
+#      quasi tendue donne une course de figurine.
+#   3. LE CORPS MONTE ET DESCEND, au plus bas au contact du pied, au plus
+#      haut en suspension. Deux contacts par cycle, donc deux rebonds.
+#   4. LES BRAS SONT PLIÉS, autour de 80°, et balancent depuis l'épaule
+#      en opposition à la jambe du même côté.
+#   5. LE BUSTE PENCHE VERS L'AVANT. On ne court pas droit comme un i.
+#
+# La phase avance avec la vitesse ; à l'arrêt elle est ramenée vers une
+# station debout au lieu de se figer où elle se trouvait.
+
+## Amplitude de balancement de la cuisse, en radians.
+const CUISSE_AMPL := 0.60
+## Flexion maximale du genou au retour.
+##
+## Bornée à ~57° et non aux 90° d'une vraie foulée : au-delà, mes poids
+## d'influence lâchent et le mollet s'enfonce dans la cuisse. C'est la
+## limite d'un rigging par distance, qui ignore la topologie — un rig
+## fait à la main tiendrait une flexion complète.
+const GENOU_RETOUR := 1.0
+## Flexion d'amorti à l'appui, bien plus discrète.
+const GENOU_APPUI := 0.32
+## Décalage de phase entre le balancement de cuisse et le pic de flexion.
+## C'est LUI qui distingue une course d'un pantin articulé.
+const GENOU_DECALAGE := 0.35
+## Balancement de l'épaule.
+const BRAS_AMPL := 0.62
+## Flexion permanente du coude pendant la course.
+const COUDE_COURSE := 1.35
+## Flexion du coude au repos, bras le long du corps.
+const COUDE_REPOS := 0.28
+## Rappel des bras vers le corps — le modèle est généré bras écartés.
+const BRAS_REPOS := 0.40
+## Inclinaison du buste vers l'avant à pleine vitesse.
+const BUSTE_PENCHE := 0.20
+## Rebond vertical du bassin, en mètres de repère modèle.
+const REBOND := 0.055
 
 func _animer_os(speed_ratio: float, delta: float) -> void:
 	var a := clampf(speed_ratio, 0.0, 1.0)
-	var p := _run_phase
 	_vise = lerpf(_vise, _vise_cible, 1.0 - exp(-delta / 0.09))
 
-	# JAMBES en opposition — inchangées par la visée : on court en tirant.
-	var balancier := sin(p)
-	_poser(ProceduralRig.CUISSE_G, Vector3(balancier * CUISSE_AMPL * a, 0, 0))
-	_poser(ProceduralRig.CUISSE_D, Vector3(-balancier * CUISSE_AMPL * a, 0, 0))
-	# Le genou ne plie QUE sur la jambe en retour : `max(0, ...)` isole
-	# la demi-période concernée.
-	_poser(ProceduralRig.GENOU_G,
-			Vector3(-maxf(0.0, balancier) * GENOU_AMPL * a, 0, 0))
-	_poser(ProceduralRig.GENOU_D,
-			Vector3(-maxf(0.0, -balancier) * GENOU_AMPL * a, 0, 0))
-	# La cheville amortit : un pied rigide donne une démarche d'échassier.
-	_poser(ProceduralRig.CHEVILLE_G,
-			Vector3(maxf(0.0, balancier) * 0.35 * a, 0, 0))
-	_poser(ProceduralRig.CHEVILLE_D,
-			Vector3(maxf(0.0, -balancier) * 0.35 * a, 0, 0))
+	# ARRÊT : plutôt que de laisser la phase se figer n'importe où, on la
+	# ramène vers le multiple de PI le plus proche — l'instant où les deux
+	# jambes passent sous le corps. Le personnage POSE ses pieds au lieu
+	# de rester suspendu en plein pas.
+	if a < 0.12:
+		var cible: float = round(_run_phase / PI) * PI
+		_run_phase = lerpf(_run_phase, cible, 1.0 - exp(-delta / 0.11))
 
-	# BRAS — mélange entre le balancement de course et la mise en joue.
-	#
-	# Une rotation NÉGATIVE autour de X lève le bras vers l'avant : le
-	# membre pend vers -Y, et cette rotation l'amène vers +Z, qui est
-	# l'avant du modèle.
-	var libre_g := -balancier * BRAS_AMPL * a
-	var libre_d := balancier * BRAS_AMPL * a
+	var phi := _run_phase
+	_jambe(ProceduralRig.CUISSE_G, ProceduralRig.GENOU_G,
+			ProceduralRig.CHEVILLE_G, phi, a)
+	_jambe(ProceduralRig.CUISSE_D, ProceduralRig.GENOU_D,
+			ProceduralRig.CHEVILLE_D, phi + PI, a)
 
-	# Bras armé : tendu vers l'avant, ramené vers l'axe du corps.
+	# BRAS — en opposition à la jambe du MÊME côté, et pliés en
+	# permanence pendant la course.
+	var oscillation := sin(phi)
+	var coude := lerpf(COUDE_REPOS, COUDE_COURSE, a)
+	var libre_g := oscillation * BRAS_AMPL * a
+	var libre_d := -oscillation * BRAS_AMPL * a
+
 	var tir_epaule_d := -1.28
 	var tir_coude_d := -0.30
-	# Bras d'appui : plus plié, ramené en travers pour soutenir l'arme.
 	var tir_epaule_g := -1.05
 	var tir_coude_g := -1.15
 
@@ -410,19 +447,45 @@ func _animer_os(speed_ratio: float, delta: float) -> void:
 			lerpf(0.0, 0.28, _vise),
 			lerpf(BRAS_REPOS, 0.30, _vise)))
 	_poser(ProceduralRig.COUDE_D, Vector3(
-			lerpf(-COUDE_FLEX * (0.4 + a * 0.6), tir_coude_d, _vise), 0, 0))
+			lerpf(-coude, tir_coude_d, _vise), 0, 0))
 	_poser(ProceduralRig.EPAULE_G, Vector3(
 			lerpf(libre_g, tir_epaule_g, _vise),
 			lerpf(0.0, -0.55, _vise),
 			lerpf(-BRAS_REPOS, -0.34, _vise)))
 	_poser(ProceduralRig.COUDE_G, Vector3(
-			lerpf(-COUDE_FLEX * (0.4 + a * 0.6), tir_coude_g, _vise), 0, 0))
+			lerpf(-coude, tir_coude_g, _vise), 0, 0))
 
-	# BUSTE : contre-pivot de course, effacé quand on met en joue — un
-	# tireur stabilise son torse, il ne se tortille pas.
-	var pivot := -balancier * 0.14 * a * (1.0 - _vise * 0.75)
-	_poser(ProceduralRig.TORSE, Vector3(0, pivot, 0))
-	_poser(ProceduralRig.TETE, Vector3(0, -pivot * 0.6, 0))
+	# BUSTE : penché vers l'avant pendant la course, redressé en visée,
+	# avec un léger contre-pivot qui accompagne le balancement des bras.
+	var penche := -BUSTE_PENCHE * a * (1.0 - _vise * 0.6)
+	var pivot := -oscillation * 0.11 * a * (1.0 - _vise * 0.8)
+	_poser(ProceduralRig.BUSTE, Vector3(penche * 0.45, 0, 0))
+	_poser(ProceduralRig.TORSE, Vector3(penche * 0.55, pivot, 0))
+	# La tête reste droite : le regard ne suit pas le buste.
+	_poser(ProceduralRig.TETE, Vector3(-penche * 0.75, -pivot * 0.6, 0))
 
+## Une jambe complète. `phi` est sa phase propre ; les deux jambes sont
+## décalées d'une demi-période.
+func _jambe(cuisse: int, genou: int, cheville: int, phi: float, a: float) -> void:
+	# La cuisse balance en pendule : phi=0 sous le corps, +PI/2 en
+	# arrière au moment de la poussée, -PI/2 en avant à la recherche du sol.
+	var balancier := sin(phi)
+	_poser(cuisse, Vector3(balancier * CUISSE_AMPL * a, 0, 0))
+
+	# Le genou plie surtout au RETOUR, avec un pic décalé après la
+	# poussée. L'exposant rend la flexion brève et marquée plutôt
+	# qu'étalée sur toute la période.
+	var retour := maxf(0.0, sin(phi - GENOU_DECALAGE))
+	var flexion := GENOU_RETOUR * pow(retour, 1.4)
+	# Amorti discret au contact, quand la jambe passe devant.
+	flexion += GENOU_APPUI * maxf(0.0, -sin(phi))
+	_poser(genou, Vector3(-flexion * a, 0, 0))
+
+	# La cheville se relève au retour et pousse à la fin de l'appui.
+	var pousse := maxf(0.0, sin(phi)) * 0.30 - maxf(0.0, -sin(phi)) * 0.18
+	_poser(cheville, Vector3(pousse * a, 0, 0))
+
+
+## Applique une rotation d'os, exprimée en angles d'Euler.
 func _poser(os: int, euler: Vector3) -> void:
 	_squelette.set_bone_pose_rotation(os, Quaternion.from_euler(euler))
