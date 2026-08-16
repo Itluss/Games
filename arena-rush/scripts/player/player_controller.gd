@@ -51,11 +51,31 @@ func _read_move() -> Vector2:
 		return _hud.call(&"move_vector")
 	return Vector2.ZERO
 
+## Intention de tir.
+##
+## LE DÉFAUT QUE CETTE FONCTION CORRIGE : l'action « attack » était liée
+## au CLIC GAUCHE, et Godot traduit tout appui tactile en clic souris.
+## Poser le pouce sur le joystick de déplacement tirait donc une rafale.
+## Le personnage semblait tirer tout seul dès qu'on le faisait avancer,
+## et le bouton de tir paraissait inutile.
+##
+## Le tir a désormais des sources EXPLICITES, et le stick de déplacement
+## n'en fait pas partie.
 func _read_fire() -> bool:
+	# Bouton de tir du HUD : la source principale, au doigt comme à la
+	# souris.
+	if _hud and _hud.has_method(&"is_firing") and _hud.call(&"is_firing"):
+		return true
+	# Clavier : indispensable pour tester au bureau sans viser à la souris.
 	if Input.is_action_pressed(&"attack"):
 		return true
-	if _hud and _hud.has_method(&"is_firing"):
-		return _hud.call(&"is_firing")
+	# Souris, hors tactile UNIQUEMENT, et seulement si le curseur ne
+	# survole aucun élément d'interface — sans quoi on retomberait sur le
+	# défaut d'origine dès qu'on clique le joystick.
+	if not Cfg.is_touch_platform() \
+			and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
+			and get_viewport().gui_get_hovered_control() == null:
+		return true
 	return false
 
 func _read_swap() -> bool:
@@ -146,4 +166,15 @@ func _aim_hint() -> Vector3:
 					to.y = 0.0
 					if to.length() > 0.4:
 						return to
-	return Vector3(player.move_input.x, 0.0, player.move_input.y)
+	# AUCUN indice de visée issu du déplacement.
+	#
+	# On renvoyait ici la direction du joystick gauche, ce qui revenait à
+	# viser avec le pouce qui dirige : le cône d'accrochage suivait la
+	# marche, si bien qu'un ennemi sur le côté restait ignoré tant qu'on
+	# ne se tournait pas vers lui.
+	#
+	# Sans indice, l'accrochage retient simplement l'ennemi le plus
+	# proche, où qu'il soit. C'est la règle du genre, et c'est ce qui
+	# permet au stick gauche de ne servir qu'à DIRIGER. Faute de cible,
+	# le tir part droit devant, dans l'axe du personnage.
+	return Vector3.ZERO

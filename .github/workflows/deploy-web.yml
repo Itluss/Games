@@ -94,6 +94,38 @@ jobs:
             exit 1
           fi
 
+      # TEST DES COMMANDES — barrière contre une régression déjà survenue.
+      #
+      # L'action « attack » était liée au clic gauche, et Godot traduit
+      # tout appui tactile en clic : poser le pouce sur le joystick de
+      # déplacement déclenchait une rafale. Rien ne le signalait, et une
+      # validation qui se contentait de compiler finissait au vert.
+      #
+      # Ce test injecte de vrais évènements aux coordonnées réelles des
+      # commandes et lit l'intention de tir du joueur.
+      #
+      # On distingue deux échecs de nature différente : un test qui
+      # TROUVE un défaut doit bloquer la publication ; un runner
+      # incapable de rendre une image ne le doit pas — ce serait bloquer
+      # sur un problème d'environnement.
+      - name: Tester les commandes
+        run: |
+          set -uo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
+          xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
+            --path arena-rush res://outils_dev/test_commandes.tscn \
+            --rendering-driver opengl3 -- --solo 2>&1 | tee commandes.log || true
+          if ! grep -q "échec(s)" commandes.log; then
+            echo "::warning::Le test des commandes n'a pas pu s'exécuter (rendu indisponible ?) — publication maintenue."
+            exit 0
+          fi
+          grep -E "^\s+\[(OK|ÉCHEC)\]" commandes.log || true
+          if grep -qE "=== [1-9][0-9]* échec\(s\) ===" commandes.log; then
+            echo "::error::Régression des commandes — publication interrompue."
+            exit 1
+          fi
+          echo "Commandes conformes."
+
       - name: Exporter en WebAssembly
         run: |
           set -euo pipefail

@@ -10,9 +10,10 @@ class_name HUD
 ## positionné en absolu. Un iPhone très allongé et un iPad presque carré
 ## gardent donc des commandes sous les pouces, au même écart des bords.
 ##
-## LE BOUTON DE TIR EST UN MINI-JOYSTICK : maintenir tire (avec visée
-## assistée), glisser oriente. C'est la convention du genre sur mobile, et
-## elle évite d'occuper un troisième doigt.
+## RÉPARTITION DES POUCES : le gauche DIRIGE, le droit TIRE. Le joystick
+## de gauche ne sert qu'au déplacement, et le tir est un bouton que l'on
+## maintient. La visée est automatique et accroche l'ennemi le plus
+## proche — viser au doigt une cible mobile n'amuse personne.
 
 const MARGIN := 26
 const STICK_SIZE := 210
@@ -22,7 +23,10 @@ var player: Player = null
 
 var _root: Control
 var _move_stick: VirtualJoystick
-var _fire_stick: VirtualJoystick
+var _fire_button: Button
+## Gâchette maintenue. Un booléen et non un compteur d'appuis : les armes
+## automatiques se tiennent, elles ne se tapotent pas.
+var _fire_held: bool = false
 var _swap_button: Button
 var _dash_button: Button
 var _alive_label: Label
@@ -202,25 +206,46 @@ func _build_controls() -> void:
 	_move_stick.offset_bottom = -MARGIN
 	_root.add_child(_move_stick)
 
-	_fire_stick = VirtualJoystick.new()
-	_fire_stick.radius = FIRE_SIZE * 0.42
-	# Origine FIXE à droite : le bouton de tir doit rester là où le pouce
-	# l'attend, contrairement au joystick de déplacement.
-	_fire_stick.dynamic_origin = false
-	_fire_stick.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_fire_stick.custom_minimum_size = Vector2(FIRE_SIZE, FIRE_SIZE)
-	_fire_stick.size = Vector2(FIRE_SIZE, FIRE_SIZE)
-	_fire_stick.offset_left = -(FIRE_SIZE + MARGIN)
-	_fire_stick.offset_top = -(FIRE_SIZE + MARGIN)
-	_fire_stick.offset_right = -MARGIN
-	_fire_stick.offset_bottom = -MARGIN
-	_root.add_child(_fire_stick)
-
-	var fire_label := _label("TIR", 22, Color(1, 1, 1, 0.9))
-	fire_label.set_anchors_preset(Control.PRESET_CENTER)
-	fire_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	fire_label.grow_vertical = Control.GROW_DIRECTION_BOTH
-	_fire_stick.add_child(fire_label)
+	# BOUTON DE TIR — un vrai bouton, maintenu, et non plus un second
+	# joystick.
+	#
+	# POURQUOI CE CHANGEMENT : le tir était porté par un joystick, qui
+	# donnait à la fois la direction et l'ordre de tirer. Deux
+	# conséquences fâcheuses. La première est qu'on ne savait pas à quoi
+	# il servait — un cercle se manipule, il ne se presse pas. La seconde
+	# est qu'il fallait viser ET tirer du même pouce, alors que le genre
+	# repose sur une visée automatique.
+	#
+	# La règle est désormais celle de tout jeu d'arène tactile : le pouce
+	# gauche DIRIGE, le pouce droit TIRE, et le jeu accroche la cible.
+	_fire_button = Button.new()
+	_fire_button.text = "TIR"
+	_fire_button.add_theme_font_size_override(&"font_size", 26)
+	_fire_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_fire_button.custom_minimum_size = Vector2(FIRE_SIZE, FIRE_SIZE)
+	_fire_button.size = Vector2(FIRE_SIZE, FIRE_SIZE)
+	_fire_button.offset_left = -(FIRE_SIZE + MARGIN)
+	_fire_button.offset_top = -(FIRE_SIZE + MARGIN)
+	_fire_button.offset_right = -MARGIN
+	_fire_button.offset_bottom = -MARGIN
+	var tir_style := StyleBoxFlat.new()
+	tir_style.bg_color = Color(Cfg.COL_DANGER.r, Cfg.COL_DANGER.g,
+			Cfg.COL_DANGER.b, 0.32)
+	tir_style.set_corner_radius_all(int(FIRE_SIZE * 0.5))
+	tir_style.set_border_width_all(4)
+	tir_style.border_color = Cfg.COL_DANGER
+	_fire_button.add_theme_stylebox_override(&"normal", tir_style)
+	var tir_appui := tir_style.duplicate()
+	tir_appui.bg_color = Color(Cfg.COL_DANGER.r, Cfg.COL_DANGER.g,
+			Cfg.COL_DANGER.b, 0.62)
+	_fire_button.add_theme_stylebox_override(&"pressed", tir_appui)
+	_fire_button.add_theme_stylebox_override(&"hover", tir_appui)
+	# MAINTENU, et non pas « cliqué » : on lit l'appui et le relâchement.
+	# Le signal `pressed` ne se déclencherait qu'au relâchement, ce qui
+	# interdirait de tenir la gâchette d'une arme automatique.
+	_fire_button.button_down.connect(func(): _fire_held = true)
+	_fire_button.button_up.connect(func(): _fire_held = false)
+	_root.add_child(_fire_button)
 
 	_swap_button = _round_button("ARME", Cfg.COL_ENERGY)
 	_swap_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -296,11 +321,15 @@ func _build_overlay() -> void:
 func move_vector() -> Vector2:
 	return _move_stick.value if _move_stick else Vector2.ZERO
 
+## Le tactile ne fournit PLUS de direction de visée : le joystick droit a
+## laissé la place à un bouton. Le pouce gauche dirige, la visée est
+## automatique. La fonction subsiste pour que le contrôleur reste
+## indifférent au périphérique.
 func aim_vector() -> Vector2:
-	return _fire_stick.value if _fire_stick else Vector2.ZERO
+	return Vector2.ZERO
 
 func is_firing() -> bool:
-	return _fire_stick.pressed if _fire_stick else false
+	return _fire_held
 
 ## Consommation à usage unique : le contrôleur lit l'appui une seule fois,
 ## sinon un simple tap déclencherait un changement d'arme par image.
@@ -444,9 +473,9 @@ func _build_help() -> void:
 	# Chaque encart est ancré PRÈS de la commande qu'il décrit : une
 	# légende déportée en liste obligerait à faire la correspondance
 	# soi-même, ce que personne ne fait sous la pression d'un décompte.
-	_help_note("SE DÉPLACER", Cfg.COL_LOCAL_PLAYER,
+	_help_note("SE DÉPLACER\nUNIQUEMENT", Cfg.COL_LOCAL_PLAYER,
 			Control.PRESET_BOTTOM_LEFT, Vector2(MARGIN + 14, -(STICK_SIZE + 74)))
-	_help_note("MAINTENIR POUR TIRER\nGLISSER POUR VISER", Cfg.COL_SHOTGUN,
+	_help_note("MAINTENIR POUR TIRER\nVISÉE AUTOMATIQUE", Cfg.COL_SHOTGUN,
 			Control.PRESET_BOTTOM_RIGHT, Vector2(-320, -(FIRE_SIZE + 78)))
 	_help_note("CHANGER D'ARME", Cfg.COL_ENERGY,
 			Control.PRESET_BOTTOM_RIGHT, Vector2(-330, -(MARGIN + 132)))
