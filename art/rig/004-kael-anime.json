@@ -1,0 +1,9 @@
+{
+  "_pourquoi": "PREMIER RUN PAYANT. Les trois précédents, tous gratuits, ont servi à établir que la bibliothèque d'animations est une table documentée et non une ressource d'API, puis à la figer dans outils/animations_meshy.json. Les identifiants sont désormais explicites et vérifiés localement.",
+  "_produit": "un squelette humanoïde greffé sur Kael, plus quatre animations : Idle, RunFast, Run_and_Shoot, Dead.",
+  "nom": "kael",
+  "tache": "01a00aa0-4ff9-78a9-8445-086d84a6a5d4",
+  "hauteur": 1.9,
+  "actions": "repos,course,course_tir,mort",
+  "catalogue_seulement": false
+}

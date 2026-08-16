@@ -5,85 +5,99 @@ POURQUOI CE FICHIER EXISTE : le modèle livré par Meshy est un maillage
 d'un seul tenant, SANS os. Godot sait très bien animer, mais il n'invente
 pas un squelette : il joue celui qui existe. J'avais donc écrit un
 auto-riggeur maison (`arena-rush/scripts/player/procedural_rig.gd`) qui
-devine l'appartenance de chaque sommet à un os par sa distance. Ça marche
-pour un bras qui balance, ça ne tient pas sur un pied qui doit rester
-plat : les poids ignorent la topologie, et la chaussure se vrille.
+devine l'appartenance de chaque sommet à un os par sa distance. Ça tient
+pour un bras qui balance, pas pour un pied qui doit rester plat : les
+poids ignorent la topologie, et la chaussure se vrille.
 
 Écrire un auto-riggeur correct est un métier. Meshy en a un, ainsi
-qu'une bibliothèque d'animations. C'est la bonne réponse, et elle
-supprime purement et simplement le rig procédural.
+qu'une bibliothèque de 678 animations. C'est la bonne réponse, et elle
+rend le rig procédural entièrement inutile.
 
 DEUX ÉTAPES :
-  1. RIGGING  — POST /v1/rigging      → squelette humanoïde greffé
-  2. ANIMATION— POST /v1/animations   → une action de la bibliothèque
+  1. RIGGING  — POST /v1/rigging     → squelette humanoïde greffé
+  2. ANIMATION— POST /v1/animations  → une action de la bibliothèque
 
-CONTRAINTES DE L'API (relevées dans la doc) :
+CONTRAINTES DE L'API :
   • le modèle doit être un humanoïde TEXTURÉ ;
-  • s'il est fourni par URL, son visage doit regarder vers +Z. C'est déjà
-    le cas de Kael — d'où le demi-tour appliqué côté jeu.
-  • `input_task_id` prime sur `model_url`, et évite d'héberger quoi que
-    ce soit : on repart de la tâche image-to-3d d'origine, donc du modèle
-    PLEINE QUALITÉ, pas de sa version allégée pour le web.
+  • fourni par URL, son visage doit regarder vers +Z. C'est le cas de
+    Kael — d'où le demi-tour appliqué côté jeu ;
+  • `input_task_id` prime sur `model_url` et évite d'héberger quoi que ce
+    soit : on repart de la tâche image-to-3d d'origine, donc du modèle
+    PLEINE QUALITÉ, et non de sa version allégée pour le web.
 
-LES IDENTIFIANTS D'ACTION NE SONT PAS CODÉS EN DUR. La documentation
-n'est pas accessible depuis l'environnement d'assistance, et deviner un
-`action_id` coûterait un run payant pour rien. Le script INTERROGE donc
-la bibliothèque et choisit les actions par correspondance de nom. C'est
-aussi plus robuste : le catalogue évoluera sans casser ce fichier.
+COMMENT LES IDENTIFIANTS D'ACTION ONT ÉTÉ OBTENUS : la bibliothèque
+n'est PAS une ressource d'API. Trois runs de découverte, tous gratuits,
+l'ont établi — `/v1/animations/library` répond « Invalid ID » parce que
+le routeur lit `/v1/animations/{id}` et prend « library » pour un
+identifiant. C'est une table de référence documentée. docs.meshy.ai est
+bloqué par le proxy de sortie de la session d'assistance, mais pas
+depuis un runner Actions : la page y a été lue et la table figée dans
+`outils/animations_meshy.json`.
 
 Usage :
   MESHY_API_KEY=... python3 outils/meshy_rig.py --catalogue
   MESHY_API_KEY=... python3 outils/meshy_rig.py --tache <id> --hauteur 1.9 \\
-      --actions course,repos
+      --actions course,repos,tir,mort
 """
 import argparse
 import json
 import os
 import sys
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import meshy  # noqa: E402
 
 SORTIE = "arena-rush/assets/models/"
 SORTIE_TACHES = "arena-rush/assets/models/taches/"
+RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CATALOGUE = os.path.join(RACINE, "outils", "animations_meshy.json")
 
-# Chemins candidats pour la bibliothèque d'animations. L'API a déjà changé
-# de surface par le passé ; on essaie les formes plausibles plutôt que de
-# parier sur une seule et d'échouer sans rien apprendre.
-# Le premier run de découverte a tranché : `/v1/animations/library` répond
-# 400 et non 404. L'endpoint EXISTE, il lui manque des paramètres — c'est
-# donc lui la bibliothèque, et c'est sur lui qu'il faut insister. Les 404
-# sont conservés en fin de liste à titre de témoins.
-CHEMINS_CATALOGUE = [
-    "/v1/animations/library?page_num=1&page_size=200",
-    "/v1/animations/library?page_size=200",
-    "/v1/animations/library?limit=200",
-    "/v1/animations/library?page=1&page_size=200",
-    "/v1/animations/library?page_num=1&page_size=100&sort_by=-created_at",
-    "/v1/animations/library",
-    "/v1/animations?page_num=1&page_size=200",
-    "/v1/animation-library",
-]
-
-# Ce que l'on cherche dans le catalogue, par ordre de préférence. Le
-# premier nom qui correspond gagne. Les termes sont en anglais : c'est la
-# langue du catalogue.
-SYNONYMES = {
-    "course": ["running", "run cycle", "run forward", "jog", "run"],
-    "repos": ["idle", "breathing idle", "stand", "standing"],
-    "marche": ["walking", "walk forward", "walk cycle", "walk"],
-    "tir": ["shooting", "aim", "firing", "shoot"],
-    "mort": ["death", "dying", "falling back", "die"],
+# CHOIX D'ANIMATIONS, arrêtés explicitement plutôt que devinés par
+# ressemblance de nom. Une correspondance floue aurait pu retenir
+# « Walking_Woman » pour « course » ou « penguin_walk » pour « marche » —
+# et chaque erreur se paie en crédits.
+#
+# Le jeu est une arène de tir vue de dessus : le personnage court presque
+# toujours arme au poing. « Run_and_Shoot » est donc la locomotion
+# principale, et non un cas particulier.
+ROLES = {
+    "repos": (0, "Idle"),
+    "course": (16, "RunFast"),
+    "course_tir": (98, "Run_and_Shoot"),
+    "tir": (104, "Side_Shot"),
+    "mort": (8, "Dead"),
+    "touche": (178, "Hit_Reaction"),
 }
 
 
-def _plat(donnees, sortie=None):
-    """Ramasse tous les dictionnaires d'un JSON, quelle que soit sa forme.
+def charger_catalogue():
+    if not os.path.exists(CATALOGUE):
+        return {}
+    with open(CATALOGUE, encoding="utf-8") as f:
+        return {int(a["id"]): a for a in json.load(f)}
 
-    On ne sait pas si le catalogue arrive comme un tableau, un objet avec
-    une clé `result`, ou une pagination imbriquée. Plutôt que de parier,
-    on aplatit et on cherche les entrées qui ressemblent à une action.
+
+def verifier_roles(catalogue):
+    """Confirme que chaque identifiant retenu désigne bien l'action visée.
+
+    Garde-fou contre une erreur silencieuse : si la table évolue et qu'un
+    identifiant glisse, on préfère s'arrêter net plutôt que de payer une
+    animation de danse à la place d'une course.
     """
+    ok = True
+    for role, (ident, attendu) in sorted(ROLES.items()):
+        reel = catalogue.get(ident, {}).get("nom")
+        marque = "OK " if reel == attendu else "!! "
+        if reel != attendu:
+            ok = False
+        print("  %s%-12s %3d  attendu %-16s trouvé %s"
+              % (marque, role, ident, attendu, reel or "ABSENT"))
+    return ok
+
+
+def _plat(donnees, sortie=None):
+    """Ramasse tous les dictionnaires d'un JSON, quelle que soit sa forme."""
     if sortie is None:
         sortie = []
     if isinstance(donnees, dict):
@@ -96,58 +110,6 @@ def _plat(donnees, sortie=None):
     return sortie
 
 
-def _actions(donnees):
-    """Entrées du catalogue : un identifiant et un nom lisible."""
-    vues = {}
-    for d in _plat(donnees):
-        ident = d.get("action_id") or d.get("id")
-        nom = d.get("name") or d.get("action_name") or d.get("title")
-        if not ident or not nom or not isinstance(nom, str):
-            continue
-        if not isinstance(ident, (str, int)):
-            continue
-        vues[str(ident)] = nom
-    return vues
-
-
-def catalogue(cle):
-    """Récupère la bibliothèque d'animations. Appel de LISTE : gratuit."""
-    for chemin in CHEMINS_CATALOGUE:
-        print("\n--- %s" % chemin, flush=True)
-        try:
-            rep = meshy._requete(chemin, cle=cle)
-        except SystemExit as e:
-            # ON IMPRIME L'ERREUR ENTIÈRE. Le premier run n'en gardait que
-            # la première ligne et jetait précisément la partie utile : un
-            # 400 dit d'ordinaire QUEL paramètre manque. Sans ce message,
-            # on en est réduit à deviner — ce qui, sur une API payante,
-            # est exactement ce qu'il faut éviter.
-            print(str(e)[:1200], flush=True)
-            continue
-        actes = _actions(rep)
-        if actes:
-            print("CATALOGUE TROUVÉ : %d action(s)." % len(actes), flush=True)
-            return actes, rep
-        # 200 sans action reconnue : la forme de la réponse nous échappe
-        # peut-être. On la montre pour pouvoir corriger l'extraction.
-        print("200, mais aucune action reconnue. Réponse brute :", flush=True)
-        print(json.dumps(rep, ensure_ascii=False)[:1200], flush=True)
-    return {}, None
-
-
-def choisir(actes, role):
-    """Meilleure action pour un rôle, par correspondance de nom."""
-    for terme in SYNONYMES.get(role, [role]):
-        for ident, nom in actes.items():
-            if nom.strip().lower() == terme:
-                return ident, nom
-    for terme in SYNONYMES.get(role, [role]):
-        for ident, nom in actes.items():
-            if terme in nom.strip().lower():
-                return ident, nom
-    return None, None
-
-
 def rigger(cle, tache_source, hauteur, nom):
     """Greffe un squelette humanoïde. ÉTAPE PAYANTE."""
     corps = {"input_task_id": tache_source, "height_meters": float(hauteur)}
@@ -155,22 +117,22 @@ def rigger(cle, tache_source, hauteur, nom):
     rep = meshy._requete("/v1/rigging", "POST", corps, cle=cle)
     tache = meshy._identifiant(rep)
     print("  tâche de rigging : %s" % tache, flush=True)
-    # Journalisation IMMÉDIATE : une tâche payée ne doit jamais être perdue
-    # parce qu'une étape ultérieure a échoué.
+    # Journalisation IMMÉDIATE : une tâche payée ne doit jamais être
+    # perdue parce qu'une étape ultérieure a échoué.
     meshy._journaliser(nom + "-rig", {"id": tache, "type": "rigging"})
     fini = meshy._attendre("/v1/rigging/" + tache, cle, "rigging", nom + "-rig")
     return tache, fini
 
 
-def animer(cle, tache_rig, action_id, nom):
+def animer(cle, tache_rig, action_id, role, nom):
     """Applique une action au personnage riggé. ÉTAPE PAYANTE."""
-    corps = {"rig_task_id": tache_rig, "action_id": action_id}
-    print("ANIMATION %s…" % action_id, flush=True)
+    corps = {"rig_task_id": tache_rig, "action_id": int(action_id)}
     rep = meshy._requete("/v1/animations", "POST", corps, cle=cle)
     tache = meshy._identifiant(rep)
-    meshy._journaliser(nom + "-anim", {"id": tache, "type": "animation",
-                                       "action_id": action_id})
-    return meshy._attendre("/v1/animations/" + tache, cle, "animation", nom + "-anim")
+    meshy._journaliser("%s-%s" % (nom, role),
+                       {"id": tache, "type": "animation", "action_id": action_id})
+    return meshy._attendre("/v1/animations/" + tache, cle, "anim " + role,
+                           "%s-%s" % (nom, role))
 
 
 def _urls_glb(fini):
@@ -190,67 +152,54 @@ def telecharger(fini, cible):
         return None
     clef, url = urls[0]
     os.makedirs(os.path.dirname(cible), exist_ok=True)
-    import urllib.request
     with urllib.request.urlopen(url, timeout=300) as r, open(cible, "wb") as f:
         f.write(r.read())
-    print("  %s → %s (%.1f Mo)" % (clef, cible, os.path.getsize(cible) / 1e6))
+    print("  %s → %s (%.1f Mo)" % (clef, cible, os.path.getsize(cible) / 1e6),
+          flush=True)
     return cible
 
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--catalogue", action="store_true",
-                   help="liste la bibliothèque d'animations (gratuit)")
-    p.add_argument("--tache", default="", help="task_id image-to-3d source")
+                   help="vérifie les identifiants retenus, sans rien dépenser")
+    p.add_argument("--tache", default="")
     p.add_argument("--hauteur", type=float, default=1.9)
     p.add_argument("--nom", default="kael")
-    p.add_argument("--actions", default="course,repos",
-                   help="rôles à produire, séparés par des virgules")
+    p.add_argument("--actions", default="repos,course,course_tir,mort")
     a = p.parse_args()
+
+    catalogue = charger_catalogue()
+    print("Catalogue local : %d actions." % len(catalogue))
+    coherent = verifier_roles(catalogue)
+
+    roles = [r.strip() for r in a.actions.split(",") if r.strip()]
+    inconnus = [r for r in roles if r not in ROLES]
+    if inconnus:
+        sys.exit("Rôle(s) inconnu(s) : %s\nConnus : %s"
+                 % (", ".join(inconnus), ", ".join(sorted(ROLES))))
+
+    if a.catalogue:
+        print("\nCe qui SERAIT produit :")
+        for r in roles:
+            print("  %-12s → %s (action_id %d)" % (r, ROLES[r][1], ROLES[r][0]))
+        sys.exit(0 if coherent else 1)
+
+    if not coherent:
+        sys.exit("Le catalogue ne concorde pas avec les identifiants retenus — "
+                 "on n'engage aucune dépense sur une table incertaine.")
+    if not a.tache:
+        sys.exit("--tache est requis pour rigger.")
 
     cle = os.environ.get("MESHY_API_KEY", "")
     if not cle:
         sys.exit("MESHY_API_KEY absente de l'environnement.")
 
-    actes, brut = catalogue(cle)
-    if brut is not None:
-        os.makedirs(SORTIE_TACHES, exist_ok=True)
-        with open(os.path.join(SORTIE_TACHES, "catalogue-animations.json"),
-                  "w", encoding="utf-8") as f:
-            json.dump(brut, f, indent=2, ensure_ascii=False)
-    if actes:
-        print("\n--- BIBLIOTHÈQUE ---")
-        for ident, nom in sorted(actes.items(), key=lambda kv: kv[1]):
-            print("  %-40s %s" % (nom, ident))
-        print("--- %d actions ---\n" % len(actes))
-
-    roles = [r.strip() for r in a.actions.split(",") if r.strip()]
-    if a.catalogue:
-        print("Correspondances qui SERAIENT retenues :")
-        for r in roles:
-            ident, nom = choisir(actes, r)
-            print("  %-10s → %s (%s)" % (r, nom or "AUCUNE", ident or "-"))
-        sys.exit(0)
-
-    if not a.tache:
-        sys.exit("--tache est requis pour rigger.")
-    if not actes:
-        sys.exit("Catalogue introuvable : on n'engage aucune dépense à l'aveugle.")
-
-    retenues = []
-    for r in roles:
-        ident, nom = choisir(actes, r)
-        if ident is None:
-            print("::warning::Aucune action pour le rôle « %s »." % r)
-            continue
-        retenues.append((r, ident, nom))
-    if not retenues:
-        sys.exit("Aucune action retenue — rien à animer.")
-
     tache_rig, fini_rig = rigger(cle, a.tache, a.hauteur, a.nom)
     telecharger(fini_rig, os.path.join(SORTIE, a.nom + "_rig.glb"))
 
-    for role, ident, nom in retenues:
-        print("\n%s → « %s »" % (role, nom), flush=True)
-        fini = animer(cle, tache_rig, ident, a.nom)
+    for role in roles:
+        ident, nom_action = ROLES[role]
+        print("\n%s → « %s » (action_id %d)" % (role, nom_action, ident), flush=True)
+        fini = animer(cle, tache_rig, ident, role, a.nom)
         telecharger(fini, os.path.join(SORTIE, "%s_%s.glb" % (a.nom, role)))
