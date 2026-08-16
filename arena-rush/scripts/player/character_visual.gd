@@ -32,10 +32,90 @@ var _attack_t: float = 0.0
 var _hit_t: float = 0.0
 var _dead: bool = false
 
+## Modèle 3D du personnage joueur, généré par Meshy depuis la planche de
+## Camille. Sa hauteur réelle est mesurée une fois pour toutes ici : le
+## gabarit du jeu vise 1,70 m, le modèle en fait 1,90.
+const MODELE := "res://assets/models/kael.glb"
+const MODELE_HAUTEUR := 1.90
+## Le modèle regarde vers +Z, alors que l'avant d'un nœud Godot est -Z.
+const MODELE_DEMI_TOUR := PI
+## Main droite du modèle, mesurée sur le maillage, en mètres et dans son
+## repère d'origine.
+const MODELE_MAIN := Vector3(-0.38, 0.72, 0.22)
+## Les modèles d'armes procéduraux ont été dessinés pour l'ancien gabarit :
+## 72 cm de canon, ce qui est énorme sur un personnage trapu et faisait
+## flotter l'arme au-dessus de sa tête. On les ramène à l'échelle du porteur.
+const ARME_ECHELLE := 0.5
+
 func build(color: Color, accent: Color, height: float = 1.7) -> void:
-	_rig = VisualKit.build_humanoid(color, accent, height)
+	_rig = Node3D.new()
+	_rig.name = "Rig"
 	add_child(_rig)
-	for child in _rig.get_children():
+	# On tente le vrai modèle ; à défaut on retombe sur les primitives.
+	# Ce repli n'est pas de la coquetterie : il garde le jeu lançable si
+	# l'asset manque, ce qui arrive dès qu'on travaille sur une branche
+	# où il n'a pas encore été déposé.
+	if ResourceLoader.exists(MODELE):
+		_monter_modele(height)
+	else:
+		push_warning("Modèle %s absent — repli sur le gabarit primitif." % MODELE)
+		_monter_primitives(color, accent, height)
+# --- MONTAGE DU VRAI MODÈLE ---------------------------------------------
+
+func _monter_modele(height: float) -> void:
+	var scene: PackedScene = load(MODELE)
+	var modele: Node3D = scene.instantiate()
+	# L'échelle et le demi-tour vivent sur le MODÈLE, pas sur `_rig` :
+	# `_rig` porte les animations (inclinaison, déformation), qui
+	# écraseraient ces réglages à chaque image.
+	var facteur := height / MODELE_HAUTEUR
+	modele.scale = Vector3.ONE * facteur
+	modele.rotation.y = MODELE_DEMI_TOUR
+	_rig.add_child(modele)
+
+	# Matériaux DUPLIQUÉS et posés en surcharge de surface : sans cette
+	# copie, teinter un personnage les teinterait tous, puisqu'ils
+	# partagent la ressource chargée.
+	for brut in _mailles(modele):
+		# Type explicite : `_mailles` renvoie un tableau non typé, donc
+		# GDScript ne peut rien inférer de ses éléments.
+		var noeud := brut as MeshInstance3D
+		for i in noeud.mesh.get_surface_count():
+			var src: Material = noeud.mesh.surface_get_material(i)
+			var copie: StandardMaterial3D = src.duplicate() if src is StandardMaterial3D \
+					else StandardMaterial3D.new()
+			# Même traitement cellulé que le reste du jeu, sinon le
+			# personnage jurerait avec son propre décor.
+			copie.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+			copie.specular_mode = BaseMaterial3D.SPECULAR_TOON
+			copie.rim_enabled = true
+			copie.rim = 0.4
+			noeud.set_surface_override_material(i, copie)
+			_materials.append(copie)
+		VisualKit.add_outline(noeud, 0.012 / maxf(facteur, 0.01))
+
+	# Point d'ancrage de l'arme, greffé à la main : le maillage est d'un
+	# seul tenant, il n'expose aucun os ni aucun repère.
+	_mount = Node3D.new()
+	_mount.name = "WeaponMount"
+	var main := MODELE_MAIN * facteur
+	# Le demi-tour du modèle s'applique aussi à ce repère.
+	_mount.position = Vector3(-main.x, main.y, -main.z)
+	_rig.add_child(_mount)
+
+func _mailles(n: Node, out: Array = []) -> Array:
+	if n is MeshInstance3D and (n as MeshInstance3D).mesh != null:
+		out.append(n)
+	for c in n.get_children():
+		_mailles(c, out)
+	return out
+
+# --- REPLI : ANCIEN GABARIT DE PRIMITIVES -------------------------------
+
+func _monter_primitives(color: Color, accent: Color, height: float) -> void:
+	var gabarit := VisualKit.build_humanoid(color, accent, height)
+	_rig.add_child(gabarit)
+	for child in gabarit.get_children():
 		var mi := child as MeshInstance3D
 		if mi == null:
 			continue
@@ -44,7 +124,7 @@ func build(color: Color, accent: Color, height: float = 1.7) -> void:
 		var m: Material = mi.material_override
 		if m is StandardMaterial3D:
 			_materials.append(m)
-	_mount = _rig.get_node_or_null("WeaponMount")
+	_mount = gabarit.get_node_or_null("WeaponMount")
 
 func get_weapon_mount() -> Node3D:
 	return _mount
@@ -56,6 +136,7 @@ func attach_weapon(model: Node3D) -> void:
 		_weapon_model.queue_free()
 	_weapon_model = model
 	if model and _mount:
+		model.scale = Vector3.ONE * ARME_ECHELLE
 		_mount.add_child(model)
 
 ## Vitesse et accélération dans le repère du personnage, normalisées.

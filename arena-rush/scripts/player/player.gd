@@ -29,6 +29,8 @@ const DASH_SPEED := 15.0
 const DASH_TIME := 0.16
 const DASH_COOLDOWN := 1.5
 const NET_SEND_HZ := 20.0
+## Hauteur d'affichage du personnage, distincte de sa boîte de collision.
+const VISUAL_HEIGHT := 2.15
 ## Dégâts par seconde hors de la zone sûre.
 const ZONE_DPS := 11.0
 
@@ -92,10 +94,10 @@ func _ready() -> void:
 
 	var shape := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.42
-	capsule.height = 1.6
+	capsule.radius = 0.48
+	capsule.height = 1.8
 	shape.shape = capsule
-	shape.position = Vector3(0, 0.8, 0)
+	shape.position = Vector3(0, 0.9, 0)
 	add_child(shape)
 
 	# Couleur d'équipe : se distinguer d'un coup d'œil des autres joueurs
@@ -107,7 +109,12 @@ func _ready() -> void:
 	var accent := Cfg.COL_KAEL_ACCENT if is_me else body_col.lightened(0.35)
 	visual = CharacterVisual.new()
 	add_child(visual)
-	visual.build(body_col, accent)
+	# Personnage volontairement SURDIMENSIONNÉ par rapport à une taille
+	# réaliste. La caméra est en plongée et vise le téléphone : à 1,70 m
+	# Kael n'occupait qu'une poignée de pixels et se lisait comme une
+	# tache sombre. Les jeux d'arène en vue de dessus exagèrent tous
+	# l'échelle du personnage pour cette raison.
+	visual.build(body_col, accent, VISUAL_HEIGHT)
 
 	weapon = Weapon.new()
 	var mount := visual.get_weapon_mount()
@@ -122,8 +129,25 @@ func _ready() -> void:
 	health.health_changed.connect(_on_health_changed)
 	health.died.connect(_on_died)
 
+	# ANNEAU D'ÉQUIPE. Tous les joueurs partagent le même modèle : sans
+	# repère au sol, on ne distingue plus un allié d'un adversaire, ce qui
+	# est une information de survie. C'est la solution des jeux d'arène,
+	# et elle a l'avantage de ne pas dénaturer le personnage — le teinter
+	# salirait ses couleurs d'origine.
+	var anneau := MeshInstance3D.new()
+	var couronne := TorusMesh.new()
+	couronne.inner_radius = 0.52
+	couronne.outer_radius = 0.68
+	couronne.rings = 24
+	couronne.ring_segments = 6
+	anneau.mesh = couronne
+	anneau.material_override = VisualKit.glow_mat(body_col.lerp(Color.BLACK, 0.15), 0.9)
+	anneau.position = Vector3(0, 0.05, 0)
+	anneau.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(anneau)
+
 	health_bar = HealthBar3D.new()
-	health_bar.position = Vector3(0, 2.15, 0)
+	health_bar.position = Vector3(0, 2.55, 0)
 	add_child(health_bar)
 	health_bar.build(1.1)
 	# La barre du joueur local est superflue (le HUD la porte déjà) et
