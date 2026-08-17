@@ -150,7 +150,13 @@ jobs:
       - name: Tester le plan de l'arène
         run: |
           set -uo pipefail
-          ~/godot-bin/godot --headless --path arena-rush \
+          # `timeout` EST UN GARDE-FOU, PAS UNE COMMODITÉ. Une erreur de
+          # syntaxe empêche le script de se charger : la scène s'ouvre
+          # alors sans lui, plus personne n'appelle quit(), et le moteur
+          # tourne indéfiniment. Constaté — six minutes perdues en local,
+          # et sur un runner cela aurait immobilisé le job jusqu'à sa
+          # limite. Le test ne prend que quelques secondes quand il va bien.
+          timeout 180 ~/godot-bin/godot --headless --path arena-rush \
             res://outils_dev/test_arene.tscn 2>&1 | tee arene.log || true
           if grep -qE "Parse Error|Failed to load script" arene.log; then
             echo "::error::Le test de l'arène ne compile pas — publication interrompue."

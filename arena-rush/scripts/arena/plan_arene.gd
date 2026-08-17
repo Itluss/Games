@@ -47,6 +47,19 @@ const RAYON_APPARITION := 26.0
 ## PropKit). Kael mesure 1,90 m — un abri de 1,2 m couvre un joueur
 ## accroupi, un abri de 2,2 m le couvre debout.
 
+## GRAPPES — pourquoi un « immeuble » est fait de PLUSIEURS modèles.
+##
+## Mesuré une fois les modèles livrés : le générateur a produit une tour
+## élancée (0,68 x 1,90 x 0,56 après sa normalisation). Ramenée dans un
+## volume déclaré de 7 x 5,2 x 5 m, elle donne une plaque de 1,9 m de
+## large — un vestiaire, pas un immeuble. Et comme la collision suit la
+## taille RÉELLE, la masse censée barrer une ligne de tir ne barrait plus
+## rien du tout. Le plan promettait une garantie que le jeu ne tenait pas.
+##
+## Une pièce peut donc déclarer une GRAPPE : le volume est pavé de
+## plusieurs exemplaires du modèle. C'est ainsi qu'on construit une ville
+## avec un kit — un pâté de maisons est fait de maisons — et cela rend à la
+## masse l'encombrement que le plan lui prête.
 # --- STRUCTURES ----------------------------------------------------------
 # Les quatre immeubles sont sur les axes, les apparitions sur les
 # diagonales : chacun barre donc la corde entre deux apparitions voisines.
@@ -58,18 +71,22 @@ const STRUCTURES: Array[Dictionary] = [
 		"note": "LE PYLÔNE. Repère visible de toute l'arène, et seul objet qui coupe les deux diagonales d'apparition."},
 
 	{"modele": &"deco_tour", "pos": Vector2(1.5, 18.6), "rot": 0.18,
-		"taille": Vector3(7.0, 5.2, 5.0), "note": "Immeuble NORD — barre la corde entre les apparitions est et ouest du haut."},
+		"taille": Vector3(7.0, 5.2, 5.0), "grappe": Vector2i(4, 3),
+		"note": "Immeuble NORD — barre la corde entre les apparitions est et ouest du haut."},
 	{"modele": &"deco_tour", "pos": Vector2(18.9, -1.2), "rot": 1.66,
-		"taille": Vector3(5.5, 5.6, 7.5), "note": "Immeuble EST."},
+		"taille": Vector3(5.5, 5.6, 7.5), "grappe": Vector2i(3, 4),
+		"note": "Immeuble EST."},
 	{"modele": &"deco_tour", "pos": Vector2(-1.0, -19.2), "rot": 3.05,
-		"taille": Vector3(6.5, 4.8, 5.0), "note": "Immeuble SUD."},
+		"taille": Vector3(6.5, 4.8, 5.0), "grappe": Vector2i(4, 3),
+		"note": "Immeuble SUD."},
 	{"modele": &"deco_tour", "pos": Vector2(-18.7, 1.8), "rot": 4.85,
-		"taille": Vector3(5.0, 5.4, 6.8), "note": "Immeuble OUEST."},
+		"taille": Vector3(5.0, 5.4, 6.8), "grappe": Vector2i(3, 4),
+		"note": "Immeuble OUEST."},
 
 	{"modele": &"deco_panneau", "pos": Vector2(7.8, 16.2), "rot": 0.52,
-		"taille": Vector3(4.6, 4.4, 1.0), "note": "Enseigne du quartier nord-est — repère fort et écran de fumée visuel."},
+		"taille": Vector3(3.2, 2.7, 1.1), "note": "Enseigne du quartier nord-est — repère fort et écran de fumée visuel."},
 	{"modele": &"deco_panneau", "pos": Vector2(-15.8, 8.8), "rot": 2.24,
-		"taille": Vector3(4.6, 4.4, 1.0), "note": "Enseigne du quartier ouest."},
+		"taille": Vector3(3.2, 2.7, 1.1), "note": "Enseigne du quartier ouest."},
 	{"modele": &"deco_passerelle", "pos": Vector2(14.2, 6.8), "rot": 0.92,
 		"taille": Vector3(6.2, 3.2, 2.6), "note": "Passerelle est — casse la rue est en deux sans la fermer."},
 	{"modele": &"deco_pylone", "pos": Vector2(-13.8, -13.2), "rot": 0.0,
@@ -85,7 +102,7 @@ const ABRIS: Array[Dictionary] = [
 	# LA PLACE — abris serrés autour du pylône. On peut y survivre, pas s'y
 	# installer : tout ce qui arrive des quatre rues vous voit.
 	{"modele": &"deco_barriere", "pos": Vector2(3.8, -2.2), "rot": 0.90,
-		"taille": Vector3(4.4, 1.2, 0.9)},
+		"taille": Vector3(2.2, 1.3, 0.9)},
 	{"modele": &"deco_bloc", "pos": Vector2(-3.2, 3.6), "rot": 2.40,
 		"taille": Vector3(2.2, 1.6, 2.2)},
 	{"modele": &"deco_generateur", "pos": Vector2(-1.4, -4.6), "rot": 0.0,
@@ -93,21 +110,21 @@ const ABRIS: Array[Dictionary] = [
 
 	# LES RUES — la couronne où se déroule l'essentiel des combats.
 	{"modele": &"deco_conteneur", "pos": Vector2(9.2, 7.4), "rot": 0.35,
-		"taille": Vector3(5.2, 2.2, 2.2)},
+		"taille": Vector3(4.0, 2.3, 2.3)},
 	{"modele": &"deco_conteneur", "pos": Vector2(-8.0, -9.5), "rot": 1.15,
-		"taille": Vector3(5.2, 2.2, 2.2)},
+		"taille": Vector3(4.0, 2.3, 2.3)},
 	{"modele": &"deco_barriere", "pos": Vector2(-9.8, 5.2), "rot": 2.05,
-		"taille": Vector3(4.4, 1.2, 0.9)},
+		"taille": Vector3(2.2, 1.3, 0.9)},
 	{"modele": &"deco_barriere", "pos": Vector2(6.0, -10.5), "rot": 0.55,
-		"taille": Vector3(4.4, 1.2, 0.9)},
+		"taille": Vector3(2.2, 1.3, 0.9)},
 	{"modele": &"deco_kiosque", "pos": Vector2(12.0, -5.5), "rot": 2.50,
 		"taille": Vector3(2.6, 2.4, 2.6)},
 	{"modele": &"deco_kiosque", "pos": Vector2(-5.5, 12.5), "rot": 0.80,
 		"taille": Vector3(2.6, 2.4, 2.6)},
 	{"modele": &"deco_ventilation", "pos": Vector2(3.5, 9.2), "rot": 1.40,
-		"taille": Vector3(2.4, 1.5, 1.8)},
+		"taille": Vector3(2.0, 2.0, 2.0)},
 	{"modele": &"deco_ventilation", "pos": Vector2(-11.8, -1.5), "rot": 0.30,
-		"taille": Vector3(2.4, 1.5, 1.8)},
+		"taille": Vector3(2.0, 2.0, 2.0)},
 	{"modele": &"deco_generateur", "pos": Vector2(10.8, 12.2), "rot": 0.0,
 		"taille": Vector3(1.7, 1.8, 1.7)},
 	{"modele": &"deco_generateur", "pos": Vector2(-12.6, 10.5), "rot": 0.0,
@@ -117,20 +134,20 @@ const ABRIS: Array[Dictionary] = [
 	{"modele": &"deco_bloc", "pos": Vector2(13.6, 2.5), "rot": 2.20,
 		"taille": Vector3(2.2, 1.6, 2.2)},
 	{"modele": &"deco_caisses", "pos": Vector2(7.4, -2.5), "rot": 0.60,
-		"taille": Vector3(1.7, 1.1, 1.7)},
+		"taille": Vector3(1.2, 2.0, 1.2)},
 	{"modele": &"deco_caisses", "pos": Vector2(-6.5, 2.0), "rot": 1.80,
-		"taille": Vector3(1.7, 1.1, 1.7)},
+		"taille": Vector3(1.2, 2.0, 1.2)},
 
 	# LES APPARITIONS — un abri à portée immédiate de chaque départ.
 	# Garantie n° 2 : personne ne commence à découvert.
 	{"modele": &"deco_conteneur", "pos": Vector2(15.6, 17.4), "rot": 0.75,
-		"taille": Vector3(5.2, 2.2, 2.2)},
+		"taille": Vector3(4.0, 2.3, 2.3)},
 	{"modele": &"deco_conteneur", "pos": Vector2(-17.4, 15.6), "rot": 2.35,
-		"taille": Vector3(5.2, 2.2, 2.2)},
+		"taille": Vector3(4.0, 2.3, 2.3)},
 	{"modele": &"deco_barriere", "pos": Vector2(-15.6, -17.4), "rot": 3.90,
-		"taille": Vector3(4.4, 1.2, 0.9)},
+		"taille": Vector3(2.2, 1.3, 0.9)},
 	{"modele": &"deco_barriere", "pos": Vector2(17.4, -15.6), "rot": 5.50,
-		"taille": Vector3(4.4, 1.2, 0.9)},
+		"taille": Vector3(2.2, 1.3, 0.9)},
 ]
 
 # --- GARNITURE -----------------------------------------------------------

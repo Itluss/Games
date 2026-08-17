@@ -34,6 +34,13 @@ var _ground_mat: StandardMaterial3D
 var _pieces_habillees: int = 0
 var _pieces_totales: int = 0
 
+## Journal de mise à l'échelle. Le volume DÉCLARÉ par le plan et le volume
+## RÉELLEMENT occupé par le modèle ne coïncident pas : le modèle est ramené
+## à l'intérieur du volume, donc il peut être plus petit. Or c'est le
+## volume réel qui porte la collision — et donc le gameplay. Sans cette
+## trace, l'écart entre ce qu'on a dessiné et ce qu'on joue reste invisible.
+const JOURNAL_TAILLES := false
+
 func _ready() -> void:
 	_build_environment()
 	_build_ground()
@@ -402,22 +409,72 @@ func _poser(piece: Dictionary, corps: StaticBody3D, teinte: Color,
 	var rot: float = piece["rot"]
 	var taille: Vector3 = piece["taille"]
 	var pos := Vector3(plan_pos.x, 0.0, plan_pos.y)
+	var grappe: Vector2i = piece.get("grappe", Vector2i.ONE)
+	var nx: int = maxi(1, grappe.x)
+	var nz: int = maxi(1, grappe.y)
+	# EN QUALITÉ BASSE, ON DESSINE MOINS D'EXEMPLAIRES — mais la collision,
+	# elle, couvre toujours le volume déclaré (voir plus bas). Un téléphone
+	# voit donc un immeuble un peu moins fourni, jamais un immeuble qui
+	# n'arrête plus les balles. Baisser la qualité ne doit jamais changer
+	# le jeu, seulement son habillage.
+	if Cfg.quality == Cfg.Quality.LOW and nx * nz > 1:
+		nx = maxi(1, nx - 1)
+		nz = maxi(1, nz - 1)
 
-	var rendu := PropKit.instancier(modele, taille, teinte)
-	var noeud: Node3D = rendu["noeud"]
-	var reelle: Vector3 = rendu["taille"]
-	noeud.position = pos
-	noeud.rotation.y = rot
-	add_child(noeud)
+	# CELLULE de la grappe : le volume déclaré divisé par le nombre
+	# d'exemplaires. Chacun est mis à l'échelle pour SA cellule, donc la
+	# grappe entière remplit le volume que le plan lui prête.
+	var cellule := Vector3(taille.x / float(nx), taille.y, taille.z / float(nz))
+	var reelle := taille
+	var enveloppe := Vector3.ZERO
 
-	_pieces_totales += 1
-	if rendu.get("reel", false):
-		_pieces_habillees += 1
+	for ix in nx:
+		for iz in nz:
+			# Silhouette : on fait varier la hauteur d'un exemplaire à
+			# l'autre. Toutes égales, la grappe ressemblerait à un peigne ;
+			# inégales, elle ressemble à une rue.
+			var variation := 1.0
+			if nx * nz > 1:
+				variation = 0.72 + 0.28 * float((ix * 7 + iz * 3) % 5) / 4.0
+			var voulu := Vector3(cellule.x, cellule.y * variation, cellule.z)
+			var rendu := PropKit.instancier(modele, voulu, teinte)
+			var noeud: Node3D = rendu["noeud"]
+			var r: Vector3 = rendu["taille"]
+			# Position de la cellule dans le repère de la pièce, puis
+			# rotation d'ensemble : la grappe tourne d'un bloc.
+			var dx := (float(ix) + 0.5) / float(nx) - 0.5
+			var dz := (float(iz) + 0.5) / float(nz) - 0.5
+			var local := Vector2(dx * taille.x, dz * taille.z).rotated(-rot)
+			noeud.position = pos + Vector3(local.x, 0.0, local.y)
+			noeud.rotation.y = rot
+			add_child(noeud)
+
+			_pieces_totales += 1
+			if rendu.get("reel", false):
+				_pieces_habillees += 1
+			enveloppe = Vector3(maxf(enveloppe.x, r.x), maxf(enveloppe.y, r.y),
+					maxf(enveloppe.z, r.z))
+			if not solide:
+				# La garniture ne projette pas d'ombre : elle est nombreuse,
+				# petite, et son ombre n'apprend rien au joueur.
+				_sans_ombre(noeud)
+
+	# LA COLLISION D'UNE GRAPPE COUVRE TOUT LE VOLUME DÉCLARÉ, pas un seul
+	# exemplaire : les modèles pavent l'espace, l'ensemble est bien plein.
+	# Pour une pièce SEULE, en revanche, la collision suit la taille réelle
+	# du modèle — promettre un encombrement que le modèle n'a pas était
+	# précisément le défaut à corriger.
+	if nx * nz == 1:
+		reelle = enveloppe
+	else:
+		reelle = Vector3(taille.x, enveloppe.y, taille.z)
+
+	if JOURNAL_TAILLES:
+		print("  %-18s %dx%d  déclaré %4.1f x %4.1f x %4.1f  →  jouable %4.1f x %4.1f x %4.1f"
+				% [modele, nx, nz, taille.x, taille.y, taille.z,
+				reelle.x, reelle.y, reelle.z])
 
 	if not solide:
-		# La garniture ne projette pas d'ombre : elle est nombreuse, petite,
-		# et son ombre n'apprend rien au joueur.
-		_sans_ombre(noeud)
 		return
 
 	var shape := CollisionShape3D.new()

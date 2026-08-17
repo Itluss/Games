@@ -16,9 +16,14 @@ extends Node
 var _echecs := 0
 var _total := 0
 
+## Les obstacles TELS QUE LE JEU LES POSE : centre, rotation, demi-côtés.
+## Lus sur l'arène construite, jamais sur le plan.
+var _boites: Array[Dictionary] = []
+
 func _ready() -> void:
 	await get_tree().process_frame
-	print("=== PLAN DE L'ARÈNE ===")
+	_relever_arene()
+	print("=== ARÈNE CONSTRUITE ===")
 	_garantie_lignes_de_tir()
 	_garantie_abri_au_depart()
 	_garantie_apparitions_libres()
@@ -27,6 +32,60 @@ func _ready() -> void:
 	_garantie_mobs()
 	print("=== %d échec(s) sur %d vérifications ===" % [_echecs, _total])
 	get_tree().quit(1 if _echecs > 0 else 0)
+
+
+## RELÈVE L'ARÈNE RÉELLEMENT MONTÉE.
+##
+## POURQUOI CE DÉTOUR, ET POURQUOI IL EST ESSENTIEL : la première version
+## de ce test lisait le PLAN. Or le plan déclare un volume, et le modèle 3D
+## qu'on y glisse est ramené à l'intérieur — il peut donc être plus petit.
+## Mesuré une fois les modèles livrés, un « immeuble » déclaré 7 m de large
+## n'occupait plus que 1,9 m. Le test continuait pourtant à annoncer que la
+## ligne de tir était coupée, parce qu'il vérifiait l'INTENTION.
+##
+## Un test qui valide l'intention pendant que le jeu fait autre chose est
+## pire qu'une absence de test : il donne la certitude d'être couvert. On
+## monte donc une vraie arène et on lit ses boîtes de collision.
+func _relever_arene() -> void:
+	var arene := Arena.new()
+	add_child(arene)
+	var corps := arene.get_node_or_null("Obstacles")
+	if corps == null:
+		push_error("Arène montée sans corps « Obstacles ».")
+		return
+	for n in corps.get_children():
+		var forme := n as CollisionShape3D
+		if forme == null:
+			continue
+		var boite := forme.shape as BoxShape3D
+		if boite == null:
+			continue
+		_boites.append({
+			"pos": Vector2(forme.position.x, forme.position.z),
+			"rot": forme.rotation.y,
+			"demi": Vector2(boite.size.x * 0.5, boite.size.z * 0.5),
+			"haut": boite.size.y,
+		})
+	print("  %d obstacles relevés sur l'arène montée." % _boites.size())
+
+
+## Une position est-elle libre ? Même convention de repère que le plan : une
+## rotation de +rot autour de Y correspond à une rotation Vector2 de -rot,
+## donc passer du monde au repère de la pièce demande +rot.
+func _libre(p: Vector2, rayon: float) -> bool:
+	for b in _boites:
+		# Les trois valeurs sont TYPÉES explicitement : sorties d'un
+		# Dictionary elles n'ont aucun type, et GDScript refuse alors
+		# d'inférer celui de `local`. C'est la troisième fois que ce piège
+		# me coûte une exécution — ici il a fait PENDRE le test six minutes
+		# au lieu de le faire échouer, le script n'ayant jamais été chargé.
+		var centre: Vector2 = b["pos"]
+		var angle: float = b["rot"]
+		var demi: Vector2 = b["demi"]
+		var local := (p - centre).rotated(angle)
+		if absf(local.x) < demi.x + rayon and absf(local.y) < demi.y + rayon:
+			return false
+	return true
 
 
 func _verifier(libelle: String, obtenu, attendu) -> void:
@@ -65,7 +124,7 @@ func _segment_coupe(a: Vector2, b: Vector2) -> bool:
 	var n := int(longueur / pas)
 	for k in range(1, n):
 		var p := a.lerp(b, float(k) / float(n))
-		if not PlanArene.est_libre(p, 0.0):
+		if not _libre(p, 0.0):
 			return true
 	return false
 
@@ -92,7 +151,7 @@ func _garantie_apparitions_libres() -> void:
 		var p := Vector2(points[i].x, points[i].z)
 		# 0,45 m : le rayon du corps du joueur, avec un peu de marge.
 		_verifier("apparition %d : position libre" % i,
-				PlanArene.est_libre(p, 0.45), true)
+				_libre(p, 0.45), true)
 
 
 # --- GARANTIE 4 : LES PIÈCES NE SE TRAVERSENT PAS -----------------------
@@ -147,7 +206,7 @@ func _garantie_mobs() -> void:
 		for i in nombre:
 			var a := TAU * float(i) / float(nombre) \
 					+ (0.31 if rayon < 10.0 else 0.0)
-			if PlanArene.est_libre(Vector2(cos(a) * rayon, sin(a) * rayon), 0.9):
+			if _libre(Vector2(cos(a) * rayon, sin(a) * rayon), 0.9):
 				libres += 1
 	print("      %d points d'apparition de mob libres" % libres)
 	_verifier("au moins 6 foyers d'apparition de mob", libres >= 6, true)

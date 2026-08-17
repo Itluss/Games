@@ -24,6 +24,9 @@ class_name PropKit
 
 const DOSSIER := "res://assets/models/"
 
+## Force du mélange entre la couleur du modèle et celle de sa famille.
+const TEINTE_FORCE := 0.5
+
 ## Le plan déclare un volume en mètres. Le modèle est ramené À L'INTÉRIEUR
 ## de ce volume — jamais au-delà —, ce qui borne ce que l'art génératif
 ## peut faire au gameplay : un modèle inattendu peut être plus petit que
@@ -32,7 +35,7 @@ static func instancier(modele: StringName, taille: Vector3,
 		teinte: Color) -> Dictionary:
 	var chemin := DOSSIER + String(modele) + ".glb"
 	if modele != &"" and ResourceLoader.exists(chemin):
-		var noeud := _depuis_modele(chemin, taille)
+		var noeud := _depuis_modele(chemin, taille, teinte)
 		if not noeud.is_empty():
 			return noeud
 	return {"noeud": _volume_de_secours(taille, teinte), "taille": taille,
@@ -46,7 +49,8 @@ static func disponible(modele: StringName) -> bool:
 
 # --- MODÈLE RÉEL ---------------------------------------------------------
 
-static func _depuis_modele(chemin: String, taille: Vector3) -> Dictionary:
+static func _depuis_modele(chemin: String, taille: Vector3,
+		teinte: Color) -> Dictionary:
 	var scene := load(chemin) as PackedScene
 	if scene == null:
 		push_warning("Modèle illisible : %s" % chemin)
@@ -85,7 +89,7 @@ static func _depuis_modele(chemin: String, taille: Vector3) -> Dictionary:
 	var facteur: float = f_tourne if quart else f_droit
 	modele.scale = Vector3.ONE * facteur
 
-	_traiter_matieres(modele)
+	_traiter_matieres(modele, teinte)
 
 	# Trois niveaux, et chacun a une raison : le PIVOT porte la position et
 	# la rotation voulues par le plan, l'ORIENTEUR le quart de tour éventuel
@@ -174,7 +178,18 @@ static func _toutes_les_mailles(n: Node, sortie: Array = []) -> Array:
 ## arrive donc entièrement métallique. Sans carte d'environnement, un métal
 ## pur ne réfléchit rien — il rend NOIR. Kael est arrivé en silhouette
 ## noire pour cette exact raison ; le mobilier arriverait de même.
-static func _traiter_matieres(racine: Node3D) -> void:
+## `teinte` : couleur de la FAMILLE à laquelle la pièce appartient. Elle
+## est mélangée à l'albédo, pas substituée — le modèle garde ses valeurs et
+## ses détails, il change seulement de température.
+##
+## POURQUOI TEINTER : la charte demandait « béton pâle, panneaux bleu nuit,
+## néons cyan et magenta ». Meshy a livré quinze pièces d'un gris beige
+## uniforme, sans en tenir compte. Regénérer coûterait quinze crédits pour
+## un résultat toujours incertain ; teinter coûte une multiplication et
+## rend l'ensemble cohérent d'un coup. Les immeubles virent au bleu nuit,
+## les abris au béton froid — et la couleur redevient une INFORMATION :
+## une masse sombre ne se contourne pas en deux pas.
+static func _traiter_matieres(racine: Node3D, teinte: Color) -> void:
 	for n in _toutes_les_mailles(racine):
 		var mi := n as MeshInstance3D
 		for i in mi.get_surface_override_material_count():
@@ -185,6 +200,10 @@ static func _traiter_matieres(racine: Node3D) -> void:
 			var copie := std.duplicate() as StandardMaterial3D
 			copie.metallic = 0.0
 			copie.roughness = 0.62
+			# Mélange à mi-chemin : au-delà, les modèles perdent leurs
+			# nuances et l'arène redevient monochrome — le défaut qu'on
+			# vient justement de corriger sur l'éclairage.
+			copie.albedo_color = copie.albedo_color.lerp(teinte, TEINTE_FORCE)
 			# Même éclairage cellulé que le reste du jeu : sans cela, le
 			# décor serait rendu en dégradé continu et jurerait avec les
 			# personnages, qui sont en aplats.
