@@ -153,7 +153,7 @@ func _verifier_canon(j: Node) -> void:
 
 
 ## Martèle le bouton et surveille l'animation entre les appuis.
-func _verifier_repetition(j: Node, ap: AnimationPlayer, bouton: Control) -> void:
+func _verifier_repetition(j: Node, visuel, bouton: Control) -> void:
 	var centre := bouton.get_global_rect().get_center()
 	print("  … martèlement en cours", " ")
 	var decroche := 0
@@ -165,10 +165,10 @@ func _verifier_repetition(j: Node, ap: AnimationPlayer, bouton: Control) -> void
 		# Entre deux appuis : c'est LÀ que la posture décrochait.
 		for i in 5:
 			await get_tree().process_frame
-			var a := ap.current_animation
+			var a: String = visuel.posture()
 			observees[a] = true
 			# Les deux premiers cycles servent à installer la posture.
-			if cycle >= 2 and a != "garde":
+			if cycle >= 2 and a != "tir_debout":
 				decroche += 1
 	print("      clips vus pendant le martèlement : ", observees.keys())
 	_verifier("tir à répétition → la posture ne décroche pas",
@@ -215,21 +215,24 @@ func _executer() -> void:
 	# défaut était PLUS LOIN, dans le choix du clip, faute d'animation de
 	# tir à l'arrêt. Vérifier l'intention ne suffit donc pas : on lit
 	# l'animation réellement jouée.
-	var ap := _animateur(j)
-	if ap == null:
-		print("  [ÉCHEC] AnimationPlayer introuvable")
+	# AVEC UN AnimationTree, `AnimationPlayer.current_animation` est VIDE :
+	# ce n'est plus lui qui décide. On interroge la posture logique du
+	# visuel, qui est l'observable maintenu à cet effet.
+	var visuel = j.get(&"visual")
+	if visuel == null:
+		print("  [ÉCHEC] visuel introuvable")
 		_echecs += 1
 	else:
 		await _clic(bouton.get_global_rect().get_center(), true)
 		for i in 30:
 			await get_tree().process_frame
-		_verifier_texte("à l'arrêt, gâchette pressée → posture de garde",
-				ap.current_animation, "garde")
+		_verifier_texte("à l'arrêt, gâchette pressée → posture de tir",
+				visuel.posture(), "tir_debout")
 		await _clic(bouton.get_global_rect().get_center(), false)
 		for i in 30:
 			await get_tree().process_frame
 		_verifier_texte("gâchette relâchée → retour au repos",
-				ap.current_animation, "repos")
+				visuel.posture(), "repos")
 
 	# 3 ter. L'ARME EST-ELLE VISIBLE DANS LA MAIN ?
 	#
@@ -250,8 +253,8 @@ func _executer() -> void:
 	# appui, si bien que l'orientation du corps ET l'animation
 	# basculaient plusieurs fois par seconde. On simule un joueur qui
 	# martèle le bouton et on vérifie que la posture NE DÉCROCHE PAS.
-	if ap != null:
-		await _verifier_repetition(j, ap, bouton)
+	if visuel != null:
+		await _verifier_repetition(j, visuel, bouton)
 
 	# 3 sexies. L'ARME POINTE-T-ELLE OÙ L'ON TIRE ?
 	#

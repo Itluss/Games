@@ -61,6 +61,18 @@ const A_COURSE_TIR := "course_tir"
 ## « Combat_Stance » est une vraie garde — jambes ancrées, appui vers
 ## l'avant, et elle boucle sur place.
 const A_GARDE := "garde"
+## Os du HAUT DU CORPS, sur lesquels la posture de tir est plaquée.
+##
+## Le bassin et les jambes en sont EXCLUS : ce sont eux qui doivent
+## rester au repos quand on tire sans bouger, faute de quoi le
+## personnage courrait sur place.
+const HAUT_DU_CORPS := [
+	"Spine", "Spine01", "Spine02", "neck", "Head", "head_end", "headfront",
+	"LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand",
+	"RightShoulder", "RightArm", "RightForeArm", "RightHand",
+]
+## Durée du fondu du haut du corps vers la posture de tir.
+const FONDU_BUSTE := 0.14
 const A_MORT := "mort"
 
 ## Durée du fondu entre deux clips. Assez court pour rester réactif,
@@ -104,6 +116,13 @@ var _squash: Vector3 = Vector3.ONE
 var _squash_target: Vector3 = Vector3.ONE
 var _vise_cible: float = 0.0
 var _clip: String = ""
+var _arbre: AnimationTree = null
+var _n_base: AnimationNodeAnimation = null
+var _melange: float = 0.0
+## Posture logique en cours. Avec un AnimationTree, `current_animation`
+## de l'AnimationPlayer ne veut plus rien dire : c'est cette valeur qui
+## fait foi, et que les tests observent.
+var _posture: String = "repos"
 ## Verrou du banc de rendu : empêche la machine à états de rechoisir.
 var _clip_verrouille: bool = false
 var _court: bool = false
@@ -147,7 +166,7 @@ func _monter_modele(height: float) -> void:
 				var clip := _anim.get_animation(nom)
 				clip.loop_mode = Animation.LOOP_LINEAR
 				_fixer_sur_place(clip, nom)
-		_jouer(A_REPOS, 0.0)
+		_monter_arbre()
 
 	for maille in _mailles(_modele):
 		var mi := maille as MeshInstance3D
@@ -276,8 +295,14 @@ func forcer_clip(nom: String) -> void:
 	_anim.get_animation(nom).loop_mode = Animation.LOOP_LINEAR
 	_clip_verrouille = true
 	_clip = nom
-	_anim.play(nom, 0.0)
+	_posture = nom
 	_anim.speed_scale = 1.0
+	if _arbre:
+		_n_base.animation = nom
+		_melange = 0.0
+		_appliquer_melange(0.0)
+	else:
+		_anim.play(nom, 0.0)
 
 
 func _trouver(n: Node, classe: String) -> Node:
@@ -296,6 +321,74 @@ func _mailles(n: Node, out: Array = []) -> Array:
 	for c in n.get_children():
 		_mailles(c, out)
 	return out
+
+
+## Monte l'arbre d'animation : LOCOMOTION + POSTURE DE TIR SUPERPOSÉE.
+##
+## POURQUOI UN ARBRE plutôt qu'un simple clip à la fois.
+##
+## La posture de tir jugée bonne est celle de « Run_and_Shoot » — bras et
+## buste d'un personnage qui tire. Mais ce clip contient AUSSI une
+## foulée : le jouer à l'arrêt ferait courir sur place.
+##
+## On superpose donc les deux étages du corps : le HAUT vient du clip de
+## tir, le BAS de la locomotion réelle — repos si l'on ne bouge pas,
+## course si l'on court. Le personnage garde ainsi la même attitude de
+## tir, qu'il soit lancé ou immobile, ce qui est exactement ce qu'on
+## attend d'un jeu de tir.
+##
+## Le filtre porte sur les os, et le bassin en est EXCLU : c'est lui qui
+## porte le rebond de la foulée, et l'inclure ramènerait le sautillement
+## qu'on cherche justement à éviter.
+func _monter_arbre() -> void:
+	if _anim == null or not _anim.has_animation(A_COURSE_TIR):
+		_jouer(A_REPOS, 0.0)
+		return
+
+	var melange := AnimationNodeBlend2.new()
+	melange.filter_enabled = true
+	# Les chemins de piste sont ceux du clip lui-même : on les relève
+	# plutôt que de les reconstruire, pour ne pas dépendre du nom exact
+	# du nœud Skeleton3D dans le modèle importé.
+	var reference := _anim.get_animation(A_COURSE_TIR)
+	for t in reference.get_track_count():
+		var chemin := reference.track_get_path(t)
+		var os := str(chemin).get_slice(":", 1)
+		if os in HAUT_DU_CORPS:
+			melange.set_filter_path(chemin, true)
+
+	_n_base = AnimationNodeAnimation.new()
+	_n_base.animation = A_REPOS
+	var haut := AnimationNodeAnimation.new()
+	haut.animation = A_COURSE_TIR
+
+	var racine := AnimationNodeBlendTree.new()
+	racine.add_node("base", _n_base)
+	racine.add_node("haut", haut)
+	racine.add_node("melange", melange)
+	racine.connect_node("melange", 0, "base")
+	racine.connect_node("melange", 1, "haut")
+	racine.connect_node("output", 0, "melange")
+
+	_arbre = AnimationTree.new()
+	_arbre.name = "ArbreAnim"
+	_modele.add_child(_arbre)
+	_arbre.anim_player = _arbre.get_path_to(_anim)
+	_arbre.tree_root = racine
+	_arbre.active = true
+	_appliquer_melange(0.0)
+
+
+func _appliquer_melange(valeur: float) -> void:
+	if _arbre:
+		_arbre.set("parameters/melange/blend_amount", valeur)
+
+
+## Posture logique en cours — « repos », « course », « course_tir »,
+## « tir_debout » ou « mort ». C'est l'observable des tests : avec un
+## AnimationTree, `AnimationPlayer.current_animation` est vide.
+func posture() -> String:
+	return _posture
 
 
 ## Change de clip, sans relancer celui qui tourne déjà.
@@ -437,6 +530,15 @@ func _play_death() -> void:
 	# On dispose désormais d'une VRAIE animation de mort. L'ancienne
 	# bascule au sol par tween — le personnage entier pivoté et écrasé —
 	# n'était qu'un pis-aller faute de squelette.
+	if _arbre and _anim and _anim.has_animation(A_MORT):
+		# Avec un arbre actif, `AnimationPlayer.play()` est ignoré : c'est
+		# le nœud de base qu'il faut changer.
+		_posture = A_MORT
+		_n_base.animation = A_MORT
+		_melange = 0.0
+		_appliquer_melange(0.0)
+		_anim.speed_scale = 1.0
+		return
 	if _anim and _anim.has_animation(A_MORT):
 		_clip = A_MORT
 		_anim.play(A_MORT, FONDU_MORT)
@@ -476,21 +578,39 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	elif not _court and a > SEUIL_COURSE:
 		_court = true
 
+	var tire := _vise_cible > 0.5
 	if _clip_verrouille:
 		pass
+	elif _arbre:
+		# LOCOMOTION en bas, POSTURE DE TIR en haut.
+		#
+		# En courant, la locomotion est déjà le clip de tir : le corps
+		# entier est cohérent, et la superposition n'a rien à ajouter. À
+		# l'arrêt, on garde les jambes au repos et l'on plaque le buste du
+		# tir par-dessus — c'est ce qui donne la MÊME attitude debout
+		# qu'en course, sans courir sur place.
+		if _court:
+			state = State.RUN
+			_n_base.animation = A_COURSE_TIR if tire else A_COURSE
+			_posture = A_COURSE_TIR if tire else A_COURSE
+			_melange = lerpf(_melange, 0.0, 1.0 - exp(-delta / FONDU_BUSTE))
+			_anim.speed_scale = lerpf(CADENCE_MIN, CADENCE_MAX, a)
+		else:
+			state = State.ATTACK if tire else State.IDLE
+			_n_base.animation = A_REPOS
+			_posture = "tir_debout" if tire else A_REPOS
+			_melange = lerpf(_melange, 1.0 if tire else 0.0,
+					1.0 - exp(-delta / FONDU_BUSTE))
+			_anim.speed_scale = 1.0
+		_appliquer_melange(_melange)
 	elif _court:
 		state = State.RUN
-		_jouer(A_COURSE_TIR if _vise_cible > 0.5 else A_COURSE)
-		# La cadence suit l'allure réelle : sans cela le personnage garde
-		# la même foulée à toute vitesse, et ses pieds patinent.
+		_jouer(A_COURSE_TIR if tire else A_COURSE)
 		if _anim:
 			_anim.speed_scale = lerpf(CADENCE_MIN, CADENCE_MAX, a)
 	else:
-		# À L'ARRÊT, la gâchette change la posture : garde si l'on tire,
-		# repos sinon. C'est ce qui rendait le bouton de tir sans effet
-		# visible quand on ne bougeait pas.
-		state = State.ATTACK if _vise_cible > 0.5 else State.IDLE
-		_jouer(A_GARDE if _vise_cible > 0.5 else A_REPOS)
+		state = State.ATTACK if tire else State.IDLE
+		_jouer(A_GARDE if tire else A_REPOS)
 		if _anim:
 			_anim.speed_scale = 1.0
 
@@ -537,6 +657,12 @@ func revive() -> void:
 	_squash_target = Vector3.ONE
 	_clip = ""
 	_court = false
+	_melange = 0.0
+	_posture = A_REPOS
 	if _anim:
 		_anim.speed_scale = 1.0
+	if _arbre:
+		_n_base.animation = A_REPOS
+		_appliquer_melange(0.0)
+	elif _anim:
 		_jouer(A_REPOS, 0.0)

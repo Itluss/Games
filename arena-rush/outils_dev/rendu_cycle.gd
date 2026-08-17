@@ -28,10 +28,10 @@ const SCENARIOS := [
 	{"prefixe": "course_tir", "vise": true, "duree": 0.70, "regime": 1.0},
 	# À L'ARRÊT, gâchette pressée : c'est le cas qui n'avait aucune
 	# animation. On rend les deux candidats pour les départager.
-	{"prefixe": "tir", "vise": true, "duree": 4.03, "regime": 0.0,
-		"clip": "tir"},
-	{"prefixe": "garde", "vise": true, "duree": 1.70, "regime": 0.0,
-		"clip": "garde"},
+	# TIR DEBOUT : pas de clip forcé — c'est la machine à états qui doit
+	# produire le mélange (jambes au repos, buste en position de tir).
+	{"prefixe": "tir_debout", "vise": true, "duree": 4.03, "regime": 0.0},
+	{"prefixe": "repos", "vise": false, "duree": 4.03, "regime": 0.0},
 ]
 const LARGEUR := 320
 const HAUTEUR := 480
