@@ -96,6 +96,13 @@ const TAMPON_TIR := 0.30
 ## Plafond, pour qu'un appui oublié ne ressorte jamais très longtemps
 ## après. Au-delà, le joueur a changé d'avis.
 const TAMPON_MAX := 1.20
+## Marge ajoutée au temps de recharge restant.
+##
+## Sans elle, la mémoire expirait pile au moment où l'arme devenait
+## prête : la moindre image perdue faisait rater le rendez-vous, et
+## l'appui était quand même jeté. C'est ce que la barrière de test a
+## attrapé sur un runner à cinq images par seconde.
+const TAMPON_MARGE := 0.25
 var want_dash: bool = false
 
 var health: HealthComponent
@@ -319,11 +326,13 @@ func _simulate(delta: float) -> void:
 	# Un appui NEUF arme la mémoire, qu'on puisse tirer ou non à cet
 	# instant. C'est ce qui rend le bouton réactif sur une arme lente.
 	if want_tap:
-		# La mémoire couvre au moins une recharge complète : ainsi AUCUN
-		# appui n'est perdu, quelle que soit la cadence de l'arme.
+		# La mémoire est taillée sur le temps de recharge RESTANT — et non
+		# sur la cadence nominale de l'arme : un appui juste après un tir
+		# doit attendre une recharge entière, un appui juste avant qu'elle
+		# ne s'achève presque rien.
 		var duree := TAMPON_TIR
-		if weapon and weapon.data:
-			duree = maxf(duree, weapon.data.cooldown())
+		if weapon:
+			duree = maxf(duree, weapon.temps_restant() + TAMPON_MARGE)
 		_tampon_tir = minf(duree, TAMPON_MAX)
 		want_tap = false
 	_tampon_tir = maxf(0.0, _tampon_tir - delta)

@@ -38,11 +38,30 @@ func muzzle_position() -> Vector3:
 		return _muzzle.global_position
 	return global_position
 
-func _process(delta: float) -> void:
+## LA RECHARGE EST DU JEU, pas de l'affichage : elle décompte donc sur
+## l'horloge de la PHYSIQUE.
+##
+## Elle vivait dans `_process`, c'est-à-dire sur l'horloge d'affichage,
+## alors que le tir et la mémoire d'appui sont traités dans
+## `_physics_process`. Les deux horloges avancent au même rythme quand
+## tout va bien, mais DIVERGENT dès que les images tombent — et sur un
+## runner en rendu logiciel, à cinq images par seconde, la divergence
+## suffisait à faire expirer une mémoire d'appui avant que l'arme ne soit
+## prête. La cadence dépendait donc de la fluidité, ce qui n'a aucun sens
+## pour une règle de jeu.
+func _physics_process(delta: float) -> void:
 	if _cooldown > 0.0:
 		_cooldown -= delta
+
+## Temps restant avant que l'arme ne puisse tirer. Publié pour que le
+## joueur dimensionne exactement sa mémoire d'appui.
+func temps_restant() -> float:
+	return maxf(_cooldown, 0.0)
+
+func _process(delta: float) -> void:
 	# Le recul revient à zéro tout seul : l'arme « respire » à chaque tir,
-	# ce qui donne du poids sans coûter une animation.
+	# ce qui donne du poids sans coûter une animation. C'est de la
+	# présentation : elle reste sur l'horloge d'affichage.
 	if _model and _recoil_offset > 0.001:
 		_recoil_offset = move_toward(_recoil_offset, 0.0, delta * 2.4)
 		_model.position.z = _recoil_offset
