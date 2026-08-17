@@ -136,6 +136,38 @@ jobs:
           fi
           echo "Commandes conformes."
 
+      # TEST DU PLAN DE L'ARÈNE — barrière contre une carte injouable.
+      #
+      # Le plan est dessiné à la main, et une carte dessinée à la main se
+      # croit toujours équilibrée. Ce test mesure ce qui n'était qu'une
+      # intention : aucune ligne de tir d'une apparition à une autre, un
+      # abri à portée de chaque départ, aucune pièce qui en traverse une
+      # autre, et de quoi faire apparaître des mobs.
+      #
+      # Il tourne SANS RENDU, donc il ne peut pas échouer pour une raison
+      # d'environnement. Un échec ici est toujours un vrai défaut de
+      # niveau, et bloque donc la publication sans nuance.
+      - name: Tester le plan de l'arène
+        run: |
+          set -uo pipefail
+          ~/godot-bin/godot --headless --path arena-rush \
+            res://outils_dev/test_arene.tscn 2>&1 | tee arene.log || true
+          if grep -qE "Parse Error|Failed to load script" arene.log; then
+            echo "::error::Le test de l'arène ne compile pas — publication interrompue."
+            grep -E "Parse Error|Failed to load script" -A2 arene.log
+            exit 1
+          fi
+          if ! grep -q "vérifications ===" arene.log; then
+            echo "::error::Le test de l'arène ne s'est pas exécuté."
+            exit 1
+          fi
+          grep -E "^\s+\[(OK|ÉCHEC)\]" arene.log || true
+          if grep -qE "=== [1-9][0-9]* échec\(s\)" arene.log; then
+            echo "::error::Le plan de l'arène ne respecte plus ses garanties."
+            exit 1
+          fi
+          echo "Plan de l'arène conforme."
+
       - name: Exporter en WebAssembly
         run: |
           set -euo pipefail

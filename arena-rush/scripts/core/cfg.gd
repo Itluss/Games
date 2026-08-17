@@ -36,6 +36,41 @@ const COL_SKY_TOP := Color("2f7fd6")
 const COL_SKY_HORIZON := Color("ffdca8")
 const COL_SUN := Color("fff2d6")
 
+# --- PALETTE DE L'ARÈNE : CITÉ FUTURISTE NÉON ---------------------------
+#
+# LE PIÈGE ÉVITÉ ICI : une cité néon, on l'imagine spontanément de nuit,
+# sur un asphalte noir. Ce serait un contresens pour CE jeu. Kael porte
+# une veste bleu roi ; posé sur un sol bleu-noir, il disparaît. Or dans un
+# jeu vu de dessus, la première exigence n'est pas la beauté, c'est de
+# distinguer son personnage d'un coup d'œil.
+#
+# L'arène est donc au CRÉPUSCULE, pas en pleine nuit : le sol reste un
+# béton pâle et froid qui détache toutes les silhouettes, et le néon vient
+# du ciel, des enseignes et des liserés. On garde l'image sans perdre la
+# lisibilité — et le contraste chaud/froid entre un ciel corail et un sol
+# bleuté fait à lui seul la moitié du travail.
+const COL_BETON := Color("8b93a8")
+const COL_BETON_SOMBRE := Color("6f7793")
+## Marquages au sol et joints de dalle.
+const COL_MARQUAGE := Color("6e7691")
+const COL_METAL := Color("2e3552")
+const COL_METAL_SOMBRE := Color("242a41")
+const COL_NEON_CYAN := Color("3ce9ff")
+const COL_NEON_MAGENTA := Color("ff3ea5")
+## Ciel de crépuscule : indigo profond au zénith, corail à l'horizon.
+const COL_CIEL_HAUT := Color("221a44")
+const COL_CIEL_HORIZON := Color("f57a52")
+## Soleil rasant, chaud mais peu énergique — il sculpte, il n'écrase pas.
+const COL_SOLEIL_VILLE := Color("ffc79e")
+## Ambiante violette : elle colore les ombres au lieu de les grisailler.
+const COL_AMBIANTE_VILLE := Color("6b5ca8")
+## Brume de rue. VOLONTAIREMENT VIOLETTE et non corail : teintée de la
+## couleur chaude de l'horizon, elle repeignait tout le sol en rose et
+## l'arène entière virait monochrome — vérifié en image. Le violet pousse
+## les lointains vers le FROID, ce qui creuse la profondeur au lieu de
+## l'aplatir, et laisse le chaud au ciel seul, là où il est beau.
+const COL_BRUME_VILLE := Color("4a4078")
+
 # Couleurs d'identité — une arme se reconnaît à sa couleur avant même
 # qu'on lise son nom.
 const COL_BASIC := Color("5fc4ff")
