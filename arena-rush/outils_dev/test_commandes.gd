@@ -20,8 +20,32 @@ func _ready() -> void:
 	await get_tree().create_timer(2.5).timeout
 	_isoler_le_banc()
 	await _executer()
+	_verifier_le_banc()
 	print("=== %d échec(s) ===" % _echecs)
 	get_tree().quit(1 if _echecs > 0 else 0)
+
+
+## LE BANC SE CONTRÔLE LUI-MÊME.
+##
+## Quand l'isolation a lâché, le joueur est mort en cours de route et
+## QUATRE vérifications sont tombées d'affilée — toutes avec le même
+## « obtenu=false », aucune ne disant la vraie raison. Il a fallu lire le
+## diagnostic pour comprendre qu'il n'y avait qu'une cause.
+##
+## Cette vérification finale nomme la panne pour ce qu'elle est : un
+## défaut du banc, pas quatre régressions du jeu. Elle est délibérément
+## placée à la FIN, quand tout le temps de jeu du banc s'est écoulé.
+func _verifier_le_banc() -> void:
+	var j := _joueur()
+	if j == null:
+		_verifier("le banc a bien un joueur", false, true)
+		return
+	var elimine: bool = j.get(&"is_eliminated")
+	if elimine:
+		print("      Le sujet du test est MORT pendant le banc : les échecs "
+				+ "ci-dessus n'en sont probablement qu'un seul.")
+	_verifier("le joueur est resté vivant pendant tout le banc",
+			not elimine, true)
 
 
 ## ISOLE LE BANC DE TOUT CE QUI N'EST PAS UNE COMMANDE.
@@ -57,12 +81,35 @@ func _isoler_le_banc() -> void:
 	MatchDirector.set_physics_process(false)
 	MatchDirector.zone_radius = Cfg.ARENA_RADIUS
 
-	var j := _joueur()
-	if j != null:
-		var pv = j.get(&"health")
+	# LES BOTS AUSSI. Première omission, et elle a coûté une publication :
+	# j'avais gelé les mobs et la zone en croyant avoir figé « les
+	# menaces ». Les autres joueurs sont des bots, ils tirent, et sur un
+	# runner lent le banc dure assez de temps de jeu pour qu'ils tuent le
+	# sujet du test. Le journal l'a dit sans ambiguïté :
+	#
+	#   DIAGNOSTIC tirs=15 éliminé=true pv=0.0
+	#   clips vus pendant le martèlement : ["tir_debout", "mort"]
+	#
+	# Quatre vérifications sont alors tombées d'un coup, pour une seule et
+	# même cause. Un cerveau de bot arrêté ne vise plus personne.
+	var local := _joueur()
+	var bots := 0
+	for p in get_tree().get_nodes_in_group(&"players"):
+		if p == local:
+			continue
+		var cerveau := p.get_node_or_null("Brain")
+		if cerveau != null:
+			cerveau.set_process(false)
+			cerveau.set_physics_process(false)
+		p.set_physics_process(false)
+		bots += 1
+
+	if local != null:
+		var pv = local.get(&"health")
 		if pv != null:
 			pv.reset()
-	print("  Banc isolé : pondeur arrêté, mobs retirés, zone et partie figées.")
+	print("  Banc isolé : pondeur arrêté, mobs retirés, %d bot(s) neutralisé(s), "
+			% bots + "zone et partie figées.")
 
 
 func _joueur() -> Node:
