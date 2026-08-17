@@ -84,13 +84,10 @@ func _poignee() -> Control:
 	var r := radius * 0.44
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	c.draw.connect(func():
-		c.draw_circle(Vector2(0, r * 0.16), r, UiKit.OMBRE)
-		c.draw_circle(Vector2.ZERO, r, UiKit.BLANC)
-		UiKit.disque_degrade(c, Vector2.ZERO, r - maxf(4.0, r * 0.12),
-				UiKit.ESQUIVE_CLAIR, UiKit.ESQUIVE_SOMBRE)
-		c.draw_arc(Vector2.ZERO, (r - 6.0) * 0.72, PI * 1.18, PI * 1.82, 16,
-				Color(1, 1, 1, 0.34), maxf(3.0, r * 0.13), true))
+		UiKit.poser_pastille(c, Vector2.ZERO, r,
+				UiKit.ESQUIVE_CLAIR, UiKit.ESQUIVE_SOMBRE, false))
 	return c
 
 ## RELÂCHEMENT GLOBAL — corrige un tir qui ne s'arrête plus.

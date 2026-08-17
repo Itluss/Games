@@ -34,16 +34,20 @@ const OMBRE := Color(0.03, 0.05, 0.12, 0.42)
 
 ## Chaque bouton porte DEUX tons : le clair en haut, le sombre en bas.
 ## C'est cet écart qui donne le volume, bien plus que l'ombre portée.
-const TIR_CLAIR := Color("ff9b3d")
-const TIR_SOMBRE := Color("f2452c")
-const ESQUIVE_CLAIR := Color("54a8ff")
-const ESQUIVE_SOMBRE := Color("2b62d8")
-const ARME_CLAIR := Color("b07bff")
-const ARME_SOMBRE := Color("7b3fd4")
+## L'écart de TEINTE entre les deux tons compte autant que l'écart de
+## luminosité : un bouton orange en haut et rouge en bas paraît bien plus
+## riche que le même orange simplement assombri, parce que c'est ce que la
+## lumière fait réellement sur une matière colorée.
+const TIR_CLAIR := Color("ffb03a")
+const TIR_SOMBRE := Color("e02f26")
+const ESQUIVE_CLAIR := Color("6ec0ff")
+const ESQUIVE_SOMBRE := Color("1c48cf")
+const ARME_CLAIR := Color("c98cff")
+const ARME_SOMBRE := Color("6524c4")
 const NEUTRE_CLAIR := Color("ffffff")
-const NEUTRE_SOMBRE := Color("d5ddf0")
-const VIE_CLAIR := Color("7ff06a")
-const VIE_SOMBRE := Color("2fae3c")
+const NEUTRE_SOMBRE := Color("cfd8ee")
+const VIE_CLAIR := Color("9bf76d")
+const VIE_SOMBRE := Color("1f9436")
 const OR_CLAIR := Color("ffce4d")
 const OR_SOMBRE := Color("f08b1e")
 
@@ -51,8 +55,6 @@ const OR_SOMBRE := Color("f08b1e")
 ## paraît sale au-dessus d'une image colorée.
 const PANNEAU := Color("16213f")
 const PANNEAU_BORD := Color(1, 1, 1, 0.22)
-
-const BANDES := 16
 
 
 # --- TYPOGRAPHIE ---------------------------------------------------------
@@ -102,29 +104,205 @@ static func texte(c: Control, taille: int, couleur: Color = BLANC,
 			c.add_theme_color_override(etat, couleur)
 
 
-# --- FORMES --------------------------------------------------------------
+# --- PASTILLES : DES TEXTURES, PLUS DES BANDES ---------------------------
+#
+# CE QUE FAISAIT LA VERSION PRÉCÉDENTE, ET POURQUOI C'ÉTAIT MAUVAIS.
+# Le dégradé d'un bouton était peint en seize bandes rectangulaires
+# empilées, chacune large de la corde du cercle à sa hauteur. À
+# l'intérieur d'un disque, seize rectangles ne font pas un cercle : ils
+# font un ESCALIER. Et `draw_circle` ne lisse pas davantage ses bords —
+# Godot 4.3 ne lui offre aucun anticrénelage. Le résultat était
+# franchement pixelisé, ce qui se voit d'autant plus que ces boutons sont
+# les seuls objets fixes de l'écran.
+#
+# LA RÉPONSE : on calcule la pastille UNE FOIS, au pixel, dans une image,
+# et on la dessine ensuite comme une texture. Le filtrage bilinéaire du
+# moteur la lisse à n'importe quelle taille, et surtout on peut calculer
+# par pixel ce qu'aucune primitive ne sait dessiner :
+#
+#   • une COUVERTURE progressive sur le dernier pixel du bord, donc un
+#     contour net sans marches ;
+#   • un ÉCLAIRAGE de sphère — on connaît la normale en chaque point du
+#     disque, donc on peut l'éclairer comme un volume et non comme un
+#     aplat. C'est de là que vient le relief ;
+#   • un REFLET spéculaire, une lumière rasante en bas, et un
+#     assombrissement du pourtour : les trois signes qui font lire
+#     « objet en plastique » plutôt que « rond de couleur ».
+#
+# COÛT : trois textures de 192 px calculées au premier montage de
+# l'interface, et jamais recalculées ensuite. On n'en calcule d'ailleurs
+# que la MOITIÉ : la lumière est placée droit au-dessus, donc l'image est
+# symétrique et la seconde moitié se recopie.
 
-## Disque en dégradé vertical, clair en haut.
+const TEX := 192
+
+static var _pastilles: Dictionary = {}
+static var _anneau: ImageTexture = null
+static var _ombre_tex: ImageTexture = null
+
+
+## Pastille éclairée comme une sphère, dans deux tons.
 ##
-## Godot ne remplit pas un cercle en dégradé : on empile des bandes dont la
-## demi-largeur vaut sqrt(r² - y²), c'est-à-dire la corde du cercle à cette
-## hauteur. Le résultat est un vrai dégradé circulaire, sans texture.
-static func disque_degrade(ci: CanvasItem, centre: Vector2, rayon: float,
-		haut: Color, bas: Color) -> void:
-	var pas := (rayon * 2.0) / float(BANDES)
-	for i in BANDES:
-		var y0 := -rayon + pas * float(i)
-		var y1 := y0 + pas
-		# On mesure la corde au point le plus large de la bande : ainsi les
-		# bandes se recouvrent légèrement au lieu de laisser voir le fond
-		# entre elles.
-		var y_large: float = y0 if absf(y0) < absf(y1) else y1
-		var demi := sqrt(maxf(0.0, rayon * rayon - y_large * y_large))
-		if demi <= 0.0:
-			continue
-		var t := (float(i) + 0.5) / float(BANDES)
-		ci.draw_rect(Rect2(centre.x - demi, centre.y + y0, demi * 2.0, pas + 1.0),
-				haut.lerp(bas, t))
+## `clair` et `sombre` ne sont pas seulement le haut et le bas d'un
+## dégradé : ils portent aussi la variation de TEINTE. Un bouton dont le
+## haut est orange et le bas rouge paraît bien plus riche qu'un même
+## orange assombri, parce que c'est ce que fait la lumière réelle sur une
+## matière colorée.
+static func pastille(clair: Color, sombre: Color) -> ImageTexture:
+	var cle := "%s|%s" % [clair.to_html(), sombre.to_html()]
+	if _pastilles.has(cle):
+		return _pastilles[cle]
+
+	var img := Image.create(TEX, TEX, false, Image.FORMAT_RGBA8)
+	# On vide explicitement : le contenu d'une image fraîchement créée n'est
+	# pas garanti, et les pixels hors du disque ne sont jamais écrits.
+	img.fill(Color(0, 0, 0, 0))
+	var demi := TEX / 2
+	var inv := 2.0 / float(TEX)
+	for y in TEX:
+		var v := (float(y) + 0.5) * inv - 1.0
+		# Le dégradé de teinte suit la hauteur, indépendamment de
+		# l'éclairage : c'est la couleur de la matière, pas de la lumière.
+		var teinte := clair.lerp(sombre, clampf((v + 1.0) * 0.5, 0.0, 1.0))
+		for x in range(demi + 1):
+			var u := (float(x) + 0.5) * inv - 1.0
+			var d2 := u * u + v * v
+			if d2 > 1.06:
+				continue
+			var d := sqrt(d2)
+			# Couverture : la transition tient sur un pixel, ce qui suffit à
+			# supprimer les marches sans rendre le bord flou.
+			var couv := clampf((1.0 - d) * float(demi), 0.0, 1.0)
+			if couv <= 0.0:
+				continue
+			# Normale de la sphère au point courant. C'est elle qui permet
+			# d'éclairer un disque comme un volume.
+			var z := sqrt(maxf(0.0, 1.0 - d2))
+			# Lumière DROIT AU-DESSUS et légèrement en avant : symétrique
+			# gauche-droite, donc la moitié de l'image suffit à la calculer.
+			var lam := clampf(-v * 0.62 + z * 0.78, 0.0, 1.0)
+			var ombre_pourtour := 0.62 + 0.5 * lam
+			# Lumière rasante sur le bord bas : c'est le rebond du sol. Sans
+			# elle, la pastille paraît collée à l'écran au lieu d'être posée
+			# dessus — c'est le détail qui donne l'épaisseur.
+			var rebond: float = pow(clampf(d, 0.0, 1.0), 7.0) \
+					* clampf(v, 0.0, 1.0) * 0.85
+			# REFLET — un éclat, pas une tache.
+			#
+			# Mesuré en image : à la puissance 26 et pleine intensité, il
+			# formait un dôme blanc qui montait jusqu'au centre et AVALAIT
+			# l'icône du bouton. Sa direction est donc distincte de celle de
+			# l'éclairage — plus verticale, donc plus haut placée — et il est
+			# beaucoup plus serré. Un reflet doit accrocher l'œil sur un
+			# millimètre carré, pas repeindre la moitié de l'objet.
+			var glint := clampf(-v * 0.84 + z * 0.54, 0.0, 1.0)
+			var brillance: float = pow(glint, 44.0) * 0.62
+			var f := ombre_pourtour + rebond
+			var col := Color(
+					clampf(teinte.r * f + brillance, 0.0, 1.0),
+					clampf(teinte.g * f + brillance, 0.0, 1.0),
+					clampf(teinte.b * f + brillance, 0.0, 1.0),
+					couv)
+			img.set_pixel(x, y, col)
+			# Symétrie : on recopie au lieu de recalculer.
+			img.set_pixel(TEX - 1 - x, y, col)
+
+	var t := ImageTexture.create_from_image(img)
+	_pastilles[cle] = t
+	return t
+
+
+## Anneau blanc, lissé lui aussi. Séparé de la pastille pour n'être calculé
+## qu'une fois quelle que soit la couleur du bouton.
+static func anneau() -> ImageTexture:
+	if _anneau != null:
+		return _anneau
+	var img := Image.create(TEX, TEX, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var demi := TEX / 2
+	var inv := 2.0 / float(TEX)
+	# L'anneau est légèrement plus lumineux en haut : même un liseré blanc
+	# gagne à ne pas être parfaitement uniforme.
+	for y in TEX:
+		var v := (float(y) + 0.5) * inv - 1.0
+		for x in range(demi + 1):
+			var u := (float(x) + 0.5) * inv - 1.0
+			var d := sqrt(u * u + v * v)
+			var dehors := clampf((1.0 - d) * float(demi), 0.0, 1.0)
+			var dedans := clampf((d - 0.86) * float(demi) * 0.9, 0.0, 1.0)
+			var a := minf(dehors, dedans)
+			if a <= 0.0:
+				continue
+			var ton := 1.0 - clampf((v + 1.0) * 0.5, 0.0, 1.0) * 0.16
+			var col := Color(ton, ton, ton, a)
+			img.set_pixel(x, y, col)
+			img.set_pixel(TEX - 1 - x, y, col)
+	_anneau = ImageTexture.create_from_image(img)
+	return _anneau
+
+
+## Ombre portée à bord DOUX. Un disque plein, même bien placé, dessine une
+## silhouette dure sous le bouton ; une ombre réelle s'estompe.
+static func ombre_douce() -> ImageTexture:
+	if _ombre_tex != null:
+		return _ombre_tex
+	var img := Image.create(TEX, TEX, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var demi := TEX / 2
+	var inv := 2.0 / float(TEX)
+	for y in TEX:
+		var v := (float(y) + 0.5) * inv - 1.0
+		for x in range(demi + 1):
+			var u := (float(x) + 0.5) * inv - 1.0
+			var d := sqrt(u * u + v * v)
+			if d >= 1.0:
+				continue
+			# Plateau opaque au centre, fondu sur le tiers extérieur.
+			var a: float = clampf((1.0 - d) / 0.34, 0.0, 1.0)
+			var col := Color(OMBRE.r, OMBRE.g, OMBRE.b, a * a * OMBRE.a)
+			img.set_pixel(x, y, col)
+			img.set_pixel(TEX - 1 - x, y, col)
+	_ombre_tex = ImageTexture.create_from_image(img)
+	return _ombre_tex
+
+
+## PRÉCHAUFFE — calcule la pastille d'avance.
+##
+## POURQUOI : calculée paresseusement, elle le serait au premier affichage
+## du bouton, sous la forme d'un à-coup. On paie donc la note au montage de
+## l'interface, exactement comme on précompile les effets de tir avant le
+## « GO ».
+##
+## Il n'y a QU'UNE texture par bouton, et non deux. L'état enfoncé se
+## contentait d'éclaircir les deux tons — donc une seconde texture, qui
+## aurait été calculée au PREMIER APPUI, c'est-à-dire au pire moment
+## possible. Un simple facteur de teinte au moment du dessin donne le même
+## éclaircissement pour zéro calcul : la moitié du coût disparaît.
+static func prechauffer(clair: Color, sombre: Color) -> void:
+	anneau()
+	ombre_douce()
+	pastille(clair, sombre)
+
+
+## Dessine une pastille complète — ombre, anneau, corps — centrée.
+static func poser_pastille(ci: CanvasItem, centre: Vector2, rayon: float,
+		clair: Color, sombre: Color, appuye: bool) -> void:
+	var e := rayon * 2.0
+	var ombre_r := Rect2(centre - Vector2(e, e) * 0.58
+			+ Vector2(0, rayon * (0.12 if appuye else 0.20)),
+			Vector2(e, e) * 1.16)
+	ci.draw_texture_rect(ombre_douce(), ombre_r, false)
+	var zone := Rect2(centre - Vector2(rayon, rayon), Vector2(e, e))
+	ci.draw_texture_rect(anneau(), zone, false)
+	# Le corps est rentré de l'épaisseur de l'anneau.
+	var interne := rayon * 0.87
+	# L'éclaircissement de l'appui est une TEINTE de dessin, pas une seconde
+	# texture : `draw_texture_rect` multiplie, donc un facteur au-dessus de
+	# 1 éclaircit sans rien recalculer.
+	var teinte := Color(1.16, 1.16, 1.16) if appuye else Color.WHITE
+	ci.draw_texture_rect(pastille(clair, sombre),
+			Rect2(centre - Vector2(interne, interne),
+					Vector2(interne * 2.0, interne * 2.0)), false, teinte)
 
 
 ## Bouton circulaire « bonbon » : ombre portée, anneau blanc épais, disque
@@ -146,6 +324,11 @@ class BoutonRond extends Button:
 	func _init() -> void:
 		flat = true
 		focus_mode = Control.FOCUS_NONE
+		# Filtrage LINÉAIRE explicite : la pastille est une texture de 192 px
+		# redimensionnée à la taille du bouton. En filtrage au plus proche —
+		# réglage possible du projet — elle redeviendrait crénelée, ce qu'on
+		# vient précisément de corriger.
+		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		# Les quatre états sont VIDÉS : tout le dessin est fait par _draw,
 		# et un fond de thème résiduel apparaîtrait derrière lui.
 		var vide := StyleBoxEmpty.new()
@@ -157,6 +340,7 @@ class BoutonRond extends Button:
 		# natif d'un Button se centrerait et passerait sur l'icône.
 		text = ""
 		UiKit.texte(self, 18)
+		UiKit.prechauffer(ton_clair, ton_sombre)
 
 	func est_enfonce() -> bool:
 		return enfonce_doigt or button_pressed
@@ -170,19 +354,11 @@ class BoutonRond extends Button:
 		var k := 0.94 if appuye else 1.0
 		r *= k
 
-		draw_circle(c + Vector2(0, r * (0.10 if appuye else 0.17)),
-				r * 0.99, UiKit.OMBRE)
-		# Anneau blanc : c'est lui qui détache le bouton de N'IMPORTE QUEL
-		# fond, ce que ne fait aucune couleur seule.
-		draw_circle(c, r, UiKit.BLANC)
-		var bord := maxf(4.0, r * 0.09)
-		var clair := ton_clair.lightened(0.12) if appuye else ton_clair
-		var sombre := ton_sombre.lightened(0.10) if appuye else ton_sombre
-		UiKit.disque_degrade(self, c, r - bord, clair, sombre)
-		# Reflet : un arc clair en haut, la marque du plastique brillant.
-		if not appuye:
-			draw_arc(c, (r - bord) * 0.74, PI * 1.18, PI * 1.82, 20,
-					Color(1, 1, 1, 0.34), maxf(3.0, r * 0.11), true)
+		# Ombre, anneau blanc et corps éclairé : trois textures lissées au
+		# pixel. L'anneau blanc est ce qui détache le bouton de N'IMPORTE
+		# QUEL fond, ce que ne fait aucune couleur seule ; le corps porte le
+		# relief, calculé comme sur une sphère.
+		UiKit.poser_pastille(self, c, r, ton_clair, ton_sombre, appuye)
 
 		var haut_icone := c - Vector2(0, r * (0.20 if libelle != "" else 0.0))
 		UiKit.icone(self, icone, haut_icone, r * 0.42, UiKit.BLANC)
@@ -393,6 +569,9 @@ class BarreVie extends Control:
 	var valeur: int = 100
 	var maximum: int = 100
 
+	func _init() -> void:
+		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+
 	func regler(courant: float, maxi: float) -> void:
 		maximum = int(round(maxi))
 		valeur = int(ceil(courant))
@@ -428,10 +607,8 @@ class BarreVie extends Control:
 		# il masque volontairement le départ.
 		var c := Vector2(0.0, size.y * 0.5)
 		var rc := size.y * 0.76
-		draw_circle(c + Vector2(0, rc * 0.14), rc, UiKit.OMBRE)
-		draw_circle(c, rc, UiKit.BLANC)
-		UiKit.disque_degrade(self, c, rc - maxf(3.0, rc * 0.14),
-				UiKit.VIE_CLAIR, UiKit.VIE_SOMBRE)
+		UiKit.poser_pastille(self, c, rc, UiKit.VIE_CLAIR, UiKit.VIE_SOMBRE,
+				false)
 		UiKit.icone(self, &"coeur", c, rc * 0.5, UiKit.BLANC)
 
 
