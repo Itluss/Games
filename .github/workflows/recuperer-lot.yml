@@ -1,0 +1,128 @@
+# RÉCUPÉRATION D'UN LOT D'ASSETS DÉJÀ GÉNÉRÉ.
+#
+# POURQUOI CE FICHIER EXISTE — un incident précis, et coûteux s'il n'était
+# pas rattrapé. Le lot des quinze pièces de décor a été généré avec succès
+# (15/15), puis l'étape qui devait le déposer sur une branche a été
+# REFUSÉE par GitHub :
+#
+#   ! [remote rejected] assets-3d -> assets-3d (refusing to allow a
+#     GitHub App to create or update workflow `.github/workflows/...`
+#     without `workflows` permission)
+#
+# La cause : l'étape de dépôt faisait `git checkout -B assets-3d` depuis le
+# HEAD courant, donc depuis `main`. La branche emportait au passage TOUT
+# l'arbre de main, y compris des fichiers de workflow modifiés — ce qu'un
+# jeton d'application n'a pas le droit de pousser. Les modèles, pourtant
+# payés, n'existaient plus que dans l'artefact du run.
+#
+# Ce workflow les en ressort. Il ne regénère RIEN : il télécharge
+# l'artefact d'un run passé, allège les textures, et dépose les seuls
+# fichiers de modèles sur `main`. Aucun fichier de workflow n'étant touché,
+# le dépôt passe.
+#
+# Déclenchement, sur le même principe que les bons de commande : on pousse
+# un fichier dans art/recup/ contenant l'identifiant du run à récupérer.
+#
+#   echo 32038316162 > art/recup/001-lot-decor.txt
+name: Récupérer un lot d'assets déjà généré
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "art/recup/**"
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Identifiant du run dont on veut l'artefact"
+        required: true
+
+permissions:
+  contents: write
+  # Indispensable pour lire l'artefact d'un AUTRE run que celui-ci.
+  actions: read
+
+jobs:
+  recuperer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Déterminer le run à récupérer
+        id: cible
+        run: |
+          set -euo pipefail
+          RUN="${{ inputs.run_id }}"
+          if [ -z "$RUN" ]; then
+            # Le fichier de demande le plus récemment ajouté fait foi.
+            FICHIER=$(git diff --name-only --no-renames --diff-filter=A \
+              HEAD~1 HEAD -- 'art/recup/*' | tail -n 1)
+            if [ -z "$FICHIER" ]; then
+              echo "::error::Aucune demande de récupération ajoutée."
+              exit 1
+            fi
+            RUN=$(tr -cd '0-9' < "$FICHIER")
+          fi
+          if [ -z "$RUN" ]; then
+            echo "::error::Identifiant de run illisible."
+            exit 1
+          fi
+          echo "Run ciblé : $RUN"
+          echo "run=$RUN" >> "$GITHUB_OUTPUT"
+
+      - name: Télécharger l'artefact du lot
+        uses: actions/download-artifact@v4
+        with:
+          name: asset-3d-lot
+          run-id: ${{ steps.cible.outputs.run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: lot
+
+      - name: Installer Pillow
+        run: pip install --quiet Pillow
+
+      - name: Reprendre les modèles et alléger les textures
+        run: |
+          set -euo pipefail
+          ls -lh lot/ || true
+          mkdir -p arena-rush/assets/models
+          # SEULS LES .glb SONT REPRIS. L'artefact contient aussi les cartes
+          # PBR séparées et les journaux de tâche : utiles pour retoucher
+          # une matière sans repayer, inutiles dans la build web, et lourds.
+          find lot -name '*.glb' -exec cp -v {} arena-rush/assets/models/ \;
+          echo "--- avant allègement ---"
+          du -sh arena-rush/assets/models
+          python3 outils/alleger_decor.py --taille 512
+          echo "--- après allègement ---"
+          du -sh arena-rush/assets/models
+          ls -lh arena-rush/assets/models/*.glb
+
+      - name: Déposer les modèles sur main
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # ON N'AJOUTE QUE LES MODÈLES. C'est la condition qui rend ce
+          # dépôt possible : le jeton d'application n'a pas le droit de
+          # modifier un fichier de workflow, donc le commit ne doit toucher
+          # à rien d'autre.
+          git add arena-rush/assets/models/
+          git status --short
+          git commit -m "Modèles 3D du décor récupérés du run ${{ steps.cible.outputs.run }}" || {
+            echo "::warning::Aucun modèle à déposer."; exit 0; }
+          # Rebase avant de pousser : d'autres commits ont pu arriver sur
+          # main pendant la récupération.
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      # Filet de sécurité : les modèles ALLÉGÉS restent récupérables même
+      # si le dépôt échoue. C'est la leçon du run précédent.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: modeles-decor-alleges
+          path: arena-rush/assets/models/*.glb
+          retention-days: 30

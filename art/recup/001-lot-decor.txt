@@ -1,0 +1,10 @@
+32038316162
+
+Lot des quinze pièces de décor « cité futuriste néon ».
+Généré avec succès (15/15) le 2026-08-17, puis PERDU au dépôt : la
+branche emportait des fichiers de workflow modifiés, ce qu'un jeton
+d'application n'a pas le droit de pousser. Les modèles n'existaient plus
+que dans l'artefact du run.
+
+Cette demande les en ressort. Elle ne regénère rien et ne consomme aucun
+crédit Meshy.

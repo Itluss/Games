@@ -177,15 +177,40 @@ jobs:
           path: arena-rush/assets/models/
           retention-days: 14
 
+      # DÉPÔT SUR LA BRANCHE — corrigé après un rejet qui a bien failli
+      # coûter quinze générations payées.
+      #
+      # `git checkout -B <branche>` repartait du HEAD courant, donc de
+      # `main` : la branche emportait TOUT l'arbre de main, y compris des
+      # fichiers de workflow modifiés. GitHub refuse qu'un jeton
+      # d'application pousse un changement de workflow :
+      #
+      #   ! [remote rejected] assets-3d -> assets-3d (refusing to allow a
+      #     GitHub App to create or update workflow ... without
+      #     `workflows` permission)
+      #
+      # On repart donc de la branche ELLE-MÊME quand elle existe : les
+      # fichiers de workflow n'y changent pas d'un commit à l'autre, et le
+      # dépôt passe. L'artefact ci-dessus reste le vrai filet — mais un
+      # filet ne doit pas servir à chaque saut.
       - name: Déposer l'asset sur la branche
         if: always()
         continue-on-error: true
         run: |
+          BRANCHE="${{ inputs.branche || 'assets-3d' }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin "${{ inputs.branche || 'assets-3d' }}" || true
-          git checkout -B "${{ inputs.branche || 'assets-3d' }}"
+          mkdir -p /tmp/modeles
+          cp -a arena-rush/assets/models/. /tmp/modeles/ || true
+          if git fetch origin "$BRANCHE"; then
+            git checkout -B "$BRANCHE" "origin/$BRANCHE"
+          else
+            echo "::warning::Branche $BRANCHE absente — création depuis HEAD."
+            git checkout -B "$BRANCHE"
+          fi
+          mkdir -p arena-rush/assets/models
+          cp -a /tmp/modeles/. arena-rush/assets/models/
           git add arena-rush/assets/models/
           git commit -m "Assets 3D générés (${{ github.event_name }})" || {
             echo "::warning::Aucun changement à commiter."; exit 0; }
-          git push -u origin "${{ inputs.branche || 'assets-3d' }}" --force
+          git push -u origin "$BRANCHE"

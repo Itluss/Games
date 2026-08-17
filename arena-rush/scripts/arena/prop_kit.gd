@@ -66,21 +66,57 @@ static func _depuis_modele(chemin: String, taille: Vector3) -> Dictionary:
 	# par axe déformerait la pièce ; prendre le plus grand la ferait
 	# déborder de son volume, donc traverser un autre abri ou dépasser de
 	# sa collision. Le plus petit garantit qu'elle tient dedans.
-	var facteur: float = minf(minf(taille.x / brut.size.x, taille.y / brut.size.y),
-			taille.z / brut.size.z)
+	#
+	# MAIS ON ESSAIE AUSSI LE QUART DE TOUR. Meshy choisit librement
+	# l'orientation de ce qu'il produit : le conteneur est arrivé avec sa
+	# longueur sur Z alors que le plan la déclare sur X. Sans ce test, le
+	# rapport le plus petit devenait celui de la longueur contre la
+	# largeur — un conteneur de 5,2 m sur 2,2 m se serait retrouvé réduit à
+	# un cube de 1,3 m, et aurait cessé d'abriter qui que ce soit.
+	#
+	# Le volume déclaré exprime donc une INTENTION — « un abri long et
+	# bas » — et non une orientation imposée. C'est ce qui rend le plan
+	# indépendant des caprices du générateur.
+	var f_droit: float = minf(minf(taille.x / brut.size.x,
+			taille.y / brut.size.y), taille.z / brut.size.z)
+	var f_tourne: float = minf(minf(taille.x / brut.size.z,
+			taille.y / brut.size.y), taille.z / brut.size.x)
+	var quart := f_tourne > f_droit
+	var facteur: float = f_tourne if quart else f_droit
 	modele.scale = Vector3.ONE * facteur
 
 	_traiter_matieres(modele)
 
+	# Trois niveaux, et chacun a une raison : le PIVOT porte la position et
+	# la rotation voulues par le plan, l'ORIENTEUR le quart de tour éventuel
+	# imposé par le modèle, et le modèle lui-même son recentrage. Les
+	# mélanger rendrait impossible de régler l'un sans casser l'autre.
+	var pivot := Node3D.new()
+	var orienteur := Node3D.new()
+	orienteur.rotation.y = PI * 0.5 if quart else 0.0
+	pivot.add_child(orienteur)
+	orienteur.add_child(modele)
+
 	# On recentre en X/Z et on POSE la pièce sur le sol. Meshy centre ses
 	# modèles sur leur barycentre, pas sur leurs pieds : sans ce décalage,
-	# la moitié de chaque abri serait enterrée.
-	var pivot := Node3D.new()
-	pivot.add_child(modele)
+	# la moitié de chaque abri serait enterrée. Le recentrage a lieu AVANT
+	# le quart de tour, dans l'espace du modèle — une rotation autour de Y
+	# d'un objet déjà centré sur l'axe le laisse centré, et ne touche pas
+	# à sa hauteur.
 	var centre := brut.get_center() * facteur
 	modele.position = Vector3(-centre.x, -brut.position.y * facteur, -centre.z)
 
-	return {"noeud": pivot, "taille": brut.size * facteur, "reel": true}
+	var reelle := brut.size * facteur
+	if quart:
+		reelle = Vector3(reelle.z, reelle.y, reelle.x)
+
+	# Un abri sensiblement plus bas que prévu n'abrite plus : on le signale
+	# plutôt que de le découvrir en jouant.
+	if reelle.y < taille.y * 0.75:
+		push_warning("%s : hauteur rendue %.2f m pour %.2f m attendus."
+				% [chemin.get_file(), reelle.y, taille.y])
+
+	return {"noeud": pivot, "taille": reelle, "reel": true}
 
 
 ## Boîte englobante de TOUTES les mailles, exprimée dans l'espace du modèle.
