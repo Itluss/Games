@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "ABRI DE COMBAT — c'est le coeur du gameplay. Hauteur calee pour couvrir un joueur accroupi ou debout selon la piece.",
+  "_role": "abri",
+  "_hauteur_cible_m": 2.2,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : l'arene mesure le modele et le remet a cette taille. Kael mesure 1,90 m.",
+  "nom": "deco_conteneur",
+  "mode": "texte",
+  "famille": "decor",
+  "prompt": "futuristic cargo shipping container, chunky rectangular box, deep vertical corrugations, heavy corner castings, twin doors on one end with a chunky latch bar, a thin neon strip along the top edge",
+  "polycount": 3000,
+  "texturer": true
+}

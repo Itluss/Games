@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "ABRI DE COMBAT — c'est le coeur du gameplay. Hauteur calee pour couvrir un joueur accroupi ou debout selon la piece.",
+  "_role": "abri",
+  "_hauteur_cible_m": 1.8,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : l'arene mesure le modele et le remet a cette taille. Kael mesure 1,90 m.",
+  "nom": "deco_generateur",
+  "mode": "texte",
+  "famille": "decor",
+  "prompt": "compact industrial power generator unit, thick vertical cylinder on a square base, ribbed cooling fins around the body, a glowing energy core window on one side, chunky pipes and a domed cap",
+  "polycount": 3000,
+  "texturer": true
+}

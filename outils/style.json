@@ -1,10 +1,36 @@
 {
-  "_lisez_moi": "Direction artistique d'Arena Rush, calee sur la planche du personnage KAEL (art/references/). Seul endroit ou l'identite visuelle est definie : meshy.py l'ajoute a chaque generation pour que tous les assets sortent du meme monde. Ecrit en anglais, Meshy y repond mieux.",
+  "_lisez_moi": "Direction artistique d'Arena Rush. Seul endroit ou l'identite visuelle est definie : meshy.py l'ajoute a chaque generation pour que tous les assets sortent du meme monde. Ecrit en anglais, Meshy y repond mieux.",
+
+  "_pourquoi_des_familles": "Un personnage et un mur ne se decrivent PAS avec les memes mots. Le style ci-dessous etait taille pour Kael — « chibi proportions, 3.5 heads tall, oversized head, large expressive eyes ». Colle en suffixe d'un conteneur de fret, il produit un conteneur a tete. Chaque famille d'assets a donc son propre bloc, et le champ `famille` du bon de commande choisit lequel. Les cles de premier niveau restent celles du personnage : une demande SANS `famille` se comporte exactement comme avant.",
+
   "style_forme": "stylized mobile hero shooter character, chibi proportions about 3.5 heads tall, oversized head, large expressive eyes, chunky oversized sneakers, broad shoulders, short limbs, bold readable silhouette from above, glossy toy-like finish, clean flat colors, vibrant royal blue and orange accents, single centered character",
   "style_texture": "hand-painted stylized game texture, clean flat colors, crisp edges, glossy toy plastic finish, royal blue jacket, white and light grey armor plates, orange trim, gold star emblem, dark navy trousers, no dirt, no wear, no text",
   "negatif": "photorealistic, gritty, desaturated, blurry, noisy, text, watermark, multiple characters, weapon in hands, action pose, background scenery, UI panels",
   "art_style": "realistic",
   "sujet_defaut": "young hero character in blue jacket with shoulder armor",
+
+  "familles": {
+    "personnage": {
+      "_role": "Kael et les mobs. Bloc vide : il herite tel quel des cles de premier niveau."
+    },
+
+    "decor": {
+      "_role": "Mobilier d'arene : abris, blocs, bornes, enseignes. Univers CITE FUTURISTE NEON.",
+
+      "_pourquoi_ces_mots": "Trois exigences pesent plus que la beaute du prompt. (1) UN SEUL OBJET, isole, pose a plat : Meshy ajoute volontiers un socle ou un bout de trottoir, et ce socle traverserait ensuite le sol de l'arene. (2) SILHOUETTE LISIBLE DE DESSUS : la camera du jeu est en plongee ; un detail sur une facade verticale ne sera jamais vu, une masse franche posee au sol se lit immediatement. (3) GEOMETRIE FRANCHE : les grandes faces plates portent la lumiere du soleil directionnel et donnent le trait cartoon ; une surface bruitee la disperse et rend gris.",
+
+      "style_forme": "stylized mobile game environment prop, futuristic neon city, chunky simplified hard-surface geometry, large flat panels with beveled edges, bold silhouette readable from above, low detail density, glossy plastic finish, clean flat colors, pale concrete grey and dark navy panels with cyan and magenta neon trim, one single isolated object, centered, upright, resting flat on the ground, no base plinth, no ground slab, no scenery around it",
+
+      "style_texture": "hand-painted stylized game texture, clean flat colors, crisp panel edges, glossy plastic finish, pale warm concrete grey, dark navy blue metal, bright cyan and magenta neon light strips, thin orange accent lines, no dirt, no rust, no wear, no text, no logos, no lettering",
+
+      "negatif": "photorealistic, gritty, desaturated, blurry, noisy, text, letters, numbers, watermark, logo, characters, people, humans, animals, weapons, background scenery, street, road, terrain, ground plane, base plinth, display stand, multiple objects, cluttered composition, UI panels",
+
+      "art_style": "realistic",
+      "sujet_defaut": "futuristic neon city cover block"
+    }
+  },
+
   "_note_art_style": "art_style est un champ de l'API Meshy pour le mode texte (valeurs usuelles : realistic, sculpture). Il ne decrit PAS ton jeu — le rendu stylise vient de style_forme, pas de ce champ.",
-  "_note_kael": "Kael, personnage joueur de reference. Veste bleue a capuche, plastron d'epaule blanc, doublure orange, cheveux bruns en pics avec une meche bleue, etoile doree comme embleme, baskets surdimensionnees bleu/blanc/orange. Il fixe l'echelle et la charte : mobs et armes s'accordent a LUI, jamais l'inverse."
+  "_note_kael": "Kael, personnage joueur de reference. Veste bleue a capuche, plastron d'epaule blanc, doublure orange, cheveux bruns en pics avec une meche bleue, etoile doree comme embleme, baskets surdimensionnees bleu/blanc/orange. Il fixe l'echelle et la charte : mobs et armes s'accordent a LUI, jamais l'inverse.",
+  "_note_decor": "L'arene est une CITE FUTURISTE NEON (choix du 2026-08-17). Beton pale et metal bleu nuit, neons cyan et magenta. Kael est bleu roi et orange : des neons cyan/magenta le laissent ressortir, un decor orange l'aurait noye."
 }

@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Grosse piece structurante : elle coupe une ligne de vue entiere et sert de repere d'orientation.",
+  "_role": "structure",
+  "_hauteur_cible_m": 5.0,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : l'arene mesure le modele et le remet a cette taille. Kael mesure 1,90 m.",
+  "nom": "deco_tour",
+  "mode": "texte",
+  "famille": "decor",
+  "prompt": "modular futuristic city tower block segment, stacked rectangular volumes, large flat wall panels, recessed window bands, a slim vertical neon light strip running up one corner, flat roof with a low parapet",
+  "polycount": 4000,
+  "texturer": true
+}

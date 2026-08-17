@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Habillage : donne vie et echelle a la rue. Pas ou peu de collision.",
+  "_role": "garniture",
+  "_hauteur_cible_m": 0.5,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : l'arene mesure le modele et le remet a cette taille. Kael mesure 1,90 m.",
+  "nom": "deco_debris",
+  "mode": "texte",
+  "famille": "decor",
+  "prompt": "pile of broken road plates, three or four thick cracked slabs leaning against each other at angles, chunky fractured edges, a few blocky rubble chunks at the base",
+  "polycount": 1500,
+  "texturer": true
+}

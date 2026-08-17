@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Habillage : donne vie et echelle a la rue. Pas ou peu de collision.",
+  "_role": "garniture",
+  "_hauteur_cible_m": 1.1,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : l'arene mesure le modele et le remet a cette taille. Kael mesure 1,90 m.",
+  "nom": "deco_borne",
+  "mode": "texte",
+  "famille": "decor",
+  "prompt": "futuristic charging bollard terminal, slim rounded pillar, angled top face with a smooth screen panel, a glowing ring band around the middle, a thick disc base",
+  "polycount": 1800,
+  "texturer": true
+}

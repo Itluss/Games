@@ -60,6 +60,9 @@ def executer(chemin: str) -> str:
         demande.get("texturer", True),
         polycount=int(demande.get("polycount", 30000)),
         modele_ia=demande.get("modele_ia", "latest"),
+        # Sans `famille`, on reste sur le style personnage : les demandes
+        # deja au depot produisent exactement le meme resultat qu'avant.
+        famille=demande.get("famille", ""),
     )
 
 
@@ -68,10 +71,33 @@ if __name__ == "__main__":
     if not chemins:
         print("Aucune demande à traiter.")
         sys.exit(0)
+    # UN ÉCHEC N'ARRÊTE PAS LE LOT. Quinze demandes partent désormais d'un
+    # seul coup ; laisser la troisième tuer les douze suivantes gâcherait un
+    # run entier alors que les générations réussies, elles, sont DÉJÀ PAYÉES.
+    # On isole donc chaque demande, et on ne signale l'échec qu'à la fin —
+    # après que tout ce qui pouvait aboutir a abouti.
     produits = []
+    echecs = []
     for c in chemins:
-        produits.append(executer(c))
+        try:
+            produits.append(executer(c))
+        except SystemExit as e:
+            print("\n!! ÉCHEC sur %s : %s\n" % (c, e), flush=True)
+            echecs.append((c, str(e)))
+        except Exception as e:  # noqa: BLE001 — un imprévu ne doit pas non plus tout emporter
+            print("\n!! ERREUR INATTENDUE sur %s : %r\n" % (c, e), flush=True)
+            echecs.append((c, repr(e)))
+
     print()
-    print("Assets produits :")
+    print("Assets produits (%d/%d) :" % (len(produits), len(chemins)))
     for p in produits:
         print("  •", p)
+    if echecs:
+        print()
+        print("Demandes en échec (%d) :" % len(echecs))
+        for c, msg in echecs:
+            print("  ✗ %s — %s" % (c, msg.splitlines()[0] if msg else "?"))
+        # Sortie non nulle : le workflow doit virer au rouge. Mais les
+        # assets réussis sont déjà sur le disque, donc l'étape d'artefact
+        # les récupérera quand même.
+        sys.exit(1)

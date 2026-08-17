@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Habillage : donne vie et echelle a la rue. Pas ou peu de collision.",
+  "_role": "garniture",
+  "_hauteur_cible_m": 1.2,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : l'arene mesure le modele et le remet a cette taille. Kael mesure 1,90 m.",
+  "nom": "deco_plante",
+  "mode": "texte",
+  "famille": "decor",
+  "prompt": "bioluminescent planter, wide hexagonal trough of smooth panels, a dense cluster of broad glowing leaves and slim upright stalks growing out of it",
+  "polycount": 2500,
+  "texturer": true
+}

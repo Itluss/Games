@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Grosse piece structurante : elle coupe une ligne de vue entiere et sert de repere d'orientation.",
+  "_role": "structure",
+  "_hauteur_cible_m": 6.0,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : l'arene mesure le modele et le remet a cette taille. Kael mesure 1,90 m.",
+  "nom": "deco_pylone",
+  "mode": "texte",
+  "famille": "decor",
+  "prompt": "tall futuristic communications mast, slim tapering tripod base, three stacked horizontal ring antennas, a glowing beacon capsule at the top, thin cables",
+  "polycount": 3500,
+  "texturer": true
+}

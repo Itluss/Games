@@ -53,11 +53,22 @@ RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FICHIER_STYLE = os.path.join(RACINE, "outils", "style.json")
 
 
-def charger_style():
-    """Direction artistique du projet.
+def charger_style(famille=""):
+    """Direction artistique du projet, pour une FAMILLE d'assets.
 
     Volontairement un fichier de donnees et non des constantes : changer
     l'identite visuelle du jeu ne doit jamais demander de relire du code.
+
+    POURQUOI UNE FAMILLE : le style de premier niveau decrit Kael —
+    « chibi proportions, 3.5 heads tall, oversized head ». Meshy colle ce
+    suffixe a CHAQUE sujet ; demander un conteneur de fret avec ces mots
+    produit un conteneur a tete. Le bloc de la famille ecrase donc les
+    cles de premier niveau, qui restent celles du personnage pour que les
+    demandes existantes ne changent pas d'un iota.
+
+    Une famille inconnue est une ERREUR, pas un repli silencieux : se
+    rabattre sur le style personnage produirait un decor hors-sujet, et
+    on ne s'en apercevrait qu'apres avoir paye.
     """
     if not os.path.exists(FICHIER_STYLE):
         raise SystemExit(
@@ -66,6 +77,20 @@ def charger_style():
         )
     with open(FICHIER_STYLE, encoding="utf-8") as f:
         style = json.load(f)
+
+    if famille:
+        familles = style.get("familles") or {}
+        if famille not in familles:
+            raise SystemExit(
+                "outils/style.json : famille « %s » inconnue.\n"
+                "Familles declarees : %s"
+                % (famille, ", ".join(sorted(familles)) or "aucune"))
+        # Les cles prefixees par « _ » sont de la documentation, pas du
+        # style : elles ne doivent jamais partir dans un prompt.
+        for cle, valeur in familles[famille].items():
+            if not cle.startswith("_"):
+                style[cle] = valeur
+
     for champ in ("style_forme", "style_texture", "negatif"):
         if champ not in style:
             raise SystemExit("outils/style.json : champ « %s » manquant." % champ)
@@ -228,7 +253,7 @@ def _telecharger(fini, nom):
 
 
 def generer(mode, nom, prompt="", image=None, modele_url="", texturer=True,
-            cle=None, polycount=30000, modele_ia="latest"):
+            cle=None, polycount=30000, modele_ia="latest", famille=""):
     """Produit un .glb (et ses cartes) et retourne son chemin."""
     cle = cle or os.environ.get("MESHY_API_KEY", "")
     if not cle:
@@ -237,7 +262,9 @@ def generer(mode, nom, prompt="", image=None, modele_url="", texturer=True,
             "En local : definis-la dans ton shell. En CI : ajoute-la dans\n"
             "Settings → Secrets and variables → Actions du depot.")
 
-    style = charger_style()
+    style = charger_style(famille)
+    print("Style : famille « %s »" % (famille or "personnage (defaut)"),
+          flush=True)
     verifier(cle)  # gratuit, et evite de decouvrir une cle morte trop tard
 
     invite_texture = _decrire(prompt or style.get("sujet_defaut", ""),
@@ -330,6 +357,9 @@ if __name__ == "__main__":
     p.add_argument("--sans-texture", action="store_true")
     p.add_argument("--polycount", type=int, default=30000)
     p.add_argument("--modele-ia", default="latest", dest="modele_ia")
+    p.add_argument("--famille", default="",
+                   help="Bloc de style a employer (voir outils/style.json). "
+                        "Vide = personnage, comportement d'origine.")
     a = p.parse_args()
 
     if a.verifier:
@@ -343,4 +373,5 @@ if __name__ == "__main__":
         sys.exit("--mode texte exige --prompt")
 
     generer(a.mode, a.nom, a.prompt, a.image or None, a.modele_url,
-            not a.sans_texture, polycount=a.polycount, modele_ia=a.modele_ia)
+            not a.sans_texture, polycount=a.polycount, modele_ia=a.modele_ia,
+            famille=a.famille)

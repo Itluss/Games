@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Habillage : donne vie et echelle a la rue. Pas ou peu de collision.",
+  "_role": "garniture",
+  "_hauteur_cible_m": 1.0,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : l'arene mesure le modele et le remet a cette taille. Kael mesure 1,90 m.",
+  "nom": "deco_caisses",
+  "mode": "texte",
+  "famille": "decor",
+  "prompt": "stack of three futuristic supply crates, chunky rounded cubes of different sizes, thick reinforced corner brackets, recessed side panels, a small glowing status light on each crate",
+  "polycount": 2000,
+  "texturer": true
+}

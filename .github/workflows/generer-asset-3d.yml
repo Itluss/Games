@@ -147,7 +147,13 @@ jobs:
           ARGS+=(--polycount "${{ inputs.polycount }}")
           python3 outils/meshy.py "${ARGS[@]}"
 
+      # `always()` À PARTIR D'ICI. Les demandes partent maintenant par lots
+      # de quinze : si l'une échoue, l'étape de génération sort en erreur —
+      # et sans cette clause, GitHub sauterait la récupération des QUATORZE
+      # autres, pourtant déjà générées et déjà FACTURÉES. La règle du
+      # dépôt est constante : une génération payée ne se perd jamais.
       - name: Inspecter le modèle produit
+        if: always()
         run: |
           pip install --quiet trimesh numpy
           python3 - <<'PY'
@@ -165,12 +171,14 @@ jobs:
       # est récupérable. Une génération PAYÉE ne doit jamais être perdue
       # parce qu'une étape git a échoué — c'est arrivé sur un autre dépôt.
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: asset-3d-${{ inputs.nom || 'lot' }}
           path: arena-rush/assets/models/
           retention-days: 14
 
       - name: Déposer l'asset sur la branche
+        if: always()
         continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"

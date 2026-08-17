@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Habillage : donne vie et echelle a la rue. Pas ou peu de collision.",
+  "_role": "garniture",
+  "_hauteur_cible_m": 4.0,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : l'arene mesure le modele et le remet a cette taille. Kael mesure 1,90 m.",
+  "nom": "deco_lampadaire",
+  "mode": "texte",
+  "famille": "decor",
+  "prompt": "futuristic street lamp, slim vertical pole on a disc base, the top bending over into a long horizontal arm, a flat elongated glowing light panel under the arm",
+  "polycount": 2000,
+  "texturer": true
+}
