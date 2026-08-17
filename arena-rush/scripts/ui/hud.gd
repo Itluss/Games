@@ -30,6 +30,18 @@ var _fire_held: bool = false
 ## Appui NEUF, à usage unique. Distinct de la gâchette maintenue : c'est
 ## lui qui autorise le tir accéléré au tapotement.
 var _fire_tapped: bool = false
+## Index du DOIGT qui tient le bouton de tir, -1 si aucun.
+##
+## POURQUOI UNE VOIE TACTILE SÉPARÉE : Godot fusionne le tactile en une
+## souris unique, et un Button n'écoute que celle-ci. Or le joystick de
+## déplacement, lui, suit son propre doigt. Dès qu'un doigt tenait le
+## joystick — c'est-à-dire dès qu'on COURAIT — la souris émulée lui était
+## acquise, et le second doigt n'atteignait jamais le bouton de tir.
+## Appuyer sur TIR en courant ne faisait donc rien du tout.
+##
+## Le bouton suit désormais son propre doigt, par index, exactement comme
+## le joystick. La voie souris subsiste pour le bureau.
+var _doigt_tir: int = -1
 var _swap_button: Button
 var _dash_button: Button
 var _alive_label: Label
@@ -47,6 +59,45 @@ var _overlay_sub: Label
 var _swap_queued: bool = false
 var _dash_queued: bool = false
 var _help: Control = null
+
+## Suivi du doigt posé sur le bouton de tir.
+##
+## On filtre par le RECTANGLE du bouton : un doigt posé ailleurs — sur le
+## joystick, sur l'arène — ne déclenche rien. C'est ce qui évite de
+## retomber dans le défaut où toucher l'écran tirait.
+func _input(event: InputEvent) -> void:
+	if _fire_button == null or not is_instance_valid(_fire_button):
+		return
+	if event is InputEventScreenTouch:
+		var t := event as InputEventScreenTouch
+		if t.pressed:
+			if _doigt_tir < 0 and _fire_button.get_global_rect().has_point(t.position):
+				_doigt_tir = t.index
+				_fire_tapped = true
+				_marquer_tir(true)
+		elif t.index == _doigt_tir:
+			_doigt_tir = -1
+			_marquer_tir(false)
+	elif event is InputEventScreenDrag and _doigt_tir >= 0:
+		# Le doigt a glissé HORS du bouton : on relâche, sinon la gâchette
+		# resterait tenue alors que le doigt est parti ailleurs.
+		var d := event as InputEventScreenDrag
+		if d.index == _doigt_tir \
+				and not _fire_button.get_global_rect().has_point(d.position):
+			_doigt_tir = -1
+			_marquer_tir(false)
+
+
+## Retour visuel de l'appui. Le style « pressé » d'un Button ne s'affiche
+## que sur la voie souris : au doigt, sans cela, rien ne bougerait à
+## l'écran et le bouton paraîtrait mort même quand il tire.
+func _marquer_tir(actif: bool) -> void:
+	if _fire_button == null or not is_instance_valid(_fire_button):
+		return
+	_fire_button.modulate = Color(1.35, 1.35, 1.35) if actif else Color.WHITE
+	_fire_button.scale = Vector2.ONE * (0.93 if actif else 1.0)
+	_fire_button.pivot_offset = _fire_button.size * 0.5
+
 
 func _ready() -> void:
 	add_to_group(&"hud")
@@ -246,10 +297,17 @@ func _build_controls() -> void:
 	# MAINTENU, et non pas « cliqué » : on lit l'appui et le relâchement.
 	# Le signal `pressed` ne se déclencherait qu'au relâchement, ce qui
 	# interdirait de tenir la gâchette d'une arme automatique.
+	# VOIE SOURIS, pour le bureau. La voie TACTILE est traitée dans
+	# `_input`, par index de doigt : un Button n'écoute que la souris
+	# émulée, dont le joystick s'empare dès qu'on court.
 	_fire_button.button_down.connect(func():
 		_fire_held = true
-		_fire_tapped = true)
-	_fire_button.button_up.connect(func(): _fire_held = false)
+		_fire_tapped = true
+		_marquer_tir(true))
+	_fire_button.button_up.connect(func():
+		_fire_held = false
+		if _doigt_tir < 0:
+			_marquer_tir(false))
 	_root.add_child(_fire_button)
 
 	_swap_button = _round_button("ARME", Cfg.COL_ENERGY)
@@ -334,7 +392,7 @@ func aim_vector() -> Vector2:
 	return Vector2.ZERO
 
 func is_firing() -> bool:
-	return _fire_held
+	return _fire_held or _doigt_tir >= 0
 
 ## Consommation à usage unique : sans cela un seul appui vaudrait un
 ## bonus de cadence à chaque image.

@@ -167,6 +167,34 @@ func _compter_projectiles(n: Node = null) -> int:
 	return total
 
 
+## Simule un VRAI tactile à deux doigts : un sur le joystick, un sur le
+## bouton de tir. On utilise des évènements d'écran indexés, et non un
+## clic souris, car c'est précisément la différence qui compte.
+func _doigt(index: int, pos: Vector2, appui: bool) -> void:
+	var e := InputEventScreenTouch.new()
+	e.index = index
+	e.pressed = appui
+	e.position = pos
+	Input.parse_input_event(e)
+	await get_tree().process_frame
+
+
+func _verifier_deux_doigts(j: Node, stick: Control, bouton: Control) -> void:
+	# Doigt 0 : on tient le joystick de déplacement, comme en courant.
+	await _doigt(0, stick.get_global_rect().get_center(), true)
+	await get_tree().process_frame
+	# Doigt 1 : on presse le bouton de tir SANS lâcher le joystick.
+	await _doigt(1, bouton.get_global_rect().get_center(), true)
+	for i in 6:
+		await get_tree().process_frame
+	var tire: bool = j.want_fire
+	await _doigt(1, bouton.get_global_rect().get_center(), false)
+	await _doigt(0, stick.get_global_rect().get_center(), false)
+	for i in 4:
+		await get_tree().process_frame
+	_verifier("joystick tenu + appui sur TIR → le tir part", tire, true)
+
+
 func _verifier_canon(j: Node) -> void:
 	var visuel = j.get(&"visual")
 	var accroche: Node3D = visuel.get_weapon_mount() if visuel else null
@@ -299,6 +327,14 @@ func _executer() -> void:
 	# tout de suite QUAND l'arme était prête. Le reste du temps, l'appui
 	# était JETÉ, et le bouton semblait mort. Il est désormais mémorisé.
 	await _verifier_tampon(j, bouton)
+
+	# 3 septies. DEUX DOIGTS À LA FOIS — le cas réel du jeu.
+	#
+	# Retour de test : « je cours, j'appuie sur tir, il ne se passe rien ».
+	# Un doigt tient donc le joystick pendant que l'autre presse le
+	# bouton. Tous mes tests précédents injectaient un clic ISOLÉ et ne
+	# pouvaient pas voir ce cas.
+	await _verifier_deux_doigts(j, stick, bouton)
 
 	# 3 sexies. L'ARME POINTE-T-ELLE OÙ L'ON TIRE ?
 	#
