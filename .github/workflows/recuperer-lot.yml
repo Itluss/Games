@@ -64,10 +64,25 @@ jobs:
               echo "::error::Aucune demande de récupération ajoutée."
               exit 1
             fi
-            RUN=$(tr -cd '0-9' < "$FICHIER")
+            # LA PREMIÈRE LIGNE, ET ELLE SEULE.
+            #
+            # La version précédente faisait « tr -cd '0-9' » sur le fichier
+            # ENTIER. Le commentaire explicatif que contient la demande
+            # porte une date, et ses chiffres se sont collés à ceux de
+            # l'identifiant : 32038316162 est devenu 32038316162151520260817,
+            # et le téléchargement a répondu « Not Found ». Le fichier
+            # d'explication avait empoisonné son propre analyseur.
+            RUN=$(head -n 1 "$FICHIER" | tr -cd '0-9')
           fi
-          if [ -z "$RUN" ]; then
-            echo "::error::Identifiant de run illisible."
+          # Un identifiant de run GitHub tient dans une dizaine de chiffres.
+          # On refuse tout de suite ce qui n'y ressemble pas, plutôt que
+          # d'aller chercher un artefact qui ne peut pas exister.
+          case "$RUN" in
+            "" ) echo "::error::Identifiant de run illisible."; exit 1 ;;
+            *[!0-9]* ) echo "::error::Identifiant non numérique : $RUN"; exit 1 ;;
+          esac
+          if [ "${#RUN}" -lt 8 ] || [ "${#RUN}" -gt 14 ]; then
+            echo "::error::Identifiant de run invraisemblable (${#RUN} chiffres) : $RUN"
             exit 1
           fi
           echo "Run ciblé : $RUN"
@@ -85,6 +100,7 @@ jobs:
         run: pip install --quiet Pillow
 
       - name: Reprendre les modèles et alléger les textures
+        id: reprendre
         run: |
           set -euo pipefail
           ls -lh lot/ || true
@@ -119,9 +135,15 @@ jobs:
           git push origin HEAD:main
 
       # Filet de sécurité : les modèles ALLÉGÉS restent récupérables même
-      # si le dépôt échoue. C'est la leçon du run précédent.
+      # si le DÉPÔT échoue. C'est la leçon du run précédent.
+      #
+      # Conditionné à la reprise, et pas à `always()` : au premier essai, le
+      # téléchargement a échoué et cette étape a quand même publié un
+      # artefact nommé « modeles-decor-alleges » qui ne contenait qu'un
+      # vieux fichier traînant. Un filet qui ramène autre chose que ce
+      # qu'on croit est pire qu'une absence de filet.
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.reprendre.outcome == 'success'
         with:
           name: modeles-decor-alleges
           path: arena-rush/assets/models/*.glb

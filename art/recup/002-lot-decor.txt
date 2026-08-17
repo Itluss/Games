@@ -1,0 +1,9 @@
+32038316162
+
+Reprise de la demande 001, dont l'analyse d'identifiant etait cassee :
+« tr -cd '0-9' » balayait le fichier entier, et les chiffres de la date
+ecrite plus bas se sont colles a ceux du run. L'identifiant vaut
+32038316162 ; il valait 32038316162151520260817 au premier essai.
+
+Le lot lui-meme (15 pieces de decor) est deja genere. Cette demande ne
+regenere rien et ne consomme aucun credit Meshy.
