@@ -62,7 +62,47 @@ func _start() -> void:
 			Net.broadcast(self, &"net_spawn_player",
 					[id, info.get("name", "Joueur"), info.get("bot", false), index])
 			index += 1
+	_prechauffer()
 	MatchDirector.begin(arena)
+
+
+## Position de préchauffe : loin sous l'arène, hors de tout champ de
+## caméra. Ce qu'on y dessine existe pour le moteur, pas pour le joueur.
+const PRECHAUFFE_POS := Vector3(0.0, -400.0, 0.0)
+
+
+## PRÉCHAUFFE — dessine une fois chaque effet coûteux, avant le « GO ».
+##
+## POURQUOI : mesuré au démarrage d'une partie, un appui sur le bouton de
+## tir dans la première demi-seconde est PERDU — pas retardé, perdu. Rien
+## dans le jeu ne l'interdit pourtant : l'arme est équipée dès la première
+## trame, les munitions sont là, la recharge est à zéro, et le décompte
+## n'empêche pas de tirer. Ce qui manque, c'est que le moteur n'a encore
+## jamais dessiné de projectile ni de gerbe d'étincelles : il compile
+## leurs shaders au premier tir, et ce travail bloque la trame.
+##
+## Sur un navigateur, cette compilation est le poste le plus coûteux du
+## démarrage, et elle tombe exactement au moment où le joueur appuie.
+##
+## On paie donc la note À L'AVANCE, pendant le décompte, en dessinant
+## chaque effet une fois très loin sous l'arène. Le premier vrai tir n'a
+## alors plus rien à compiler.
+func _prechauffer() -> void:
+	for id in Registry.weapons.keys():
+		var data: WeaponData = Registry.weapons[id]
+		var p := Pool.acquire(Weapon.PROJECTILE_SCENE, entities)
+		if p is Node3D:
+			(p as Node3D).global_position = PRECHAUFFE_POS
+		Fx.muzzle_flash(entities, PRECHAUFFE_POS, data.color)
+		Fx.impact(PRECHAUFFE_POS, data.color)
+		# Une trame de visibilité suffit à forcer la compilation ; le
+		# projectile retourne ensuite au réservoir.
+		Pool.release.call_deferred(p)
+	Fx.hit(PRECHAUFFE_POS, Cfg.COL_DANGER)
+	Fx.death(PRECHAUFFE_POS, Cfg.COL_DANGER)
+	Fx.explosion(PRECHAUFFE_POS, 3.0, Cfg.COL_SHOTGUN)
+	Fx.loot_spawn(PRECHAUFFE_POS, Cfg.COL_ENERGY)
+	Fx.pickup(PRECHAUFFE_POS, Cfg.COL_ENERGY)
 
 # --- JOUEURS -------------------------------------------------------------
 

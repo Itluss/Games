@@ -1,85 +1,95 @@
 extends Node
-## MESURE DE LA LATENCE DU BOUTON DE TIR — outil de développement.
+## POURQUOI LE TIR NE PART PAS EN DÉBUT DE PARTIE — outil de dev.
 ##
-## Retour de test : « quand j'appuie, ça ne tire pas immédiatement ».
-## On ne cherche pas la cause à la lecture du code : on injecte un appui
-## et on COMPTE les trames jusqu'à l'apparition d'un projectile.
+## On maintient le bouton de tir dès la toute première trame et on relève
+## à chaque instant TOUT ce qui pourrait bloquer : présence du joueur,
+## arme équipée, munitions, recharge, phase de partie, élimination.
+## La colonne qui reste bloquante quand rien ne part est la réponse.
 
-var _main: Node
+var _presse := false
+var _dernier_rect := Rect2()
 
 func _ready() -> void:
-	_main = load("res://scenes/main.tscn").instantiate()
-	add_child(_main)
-	await get_tree().create_timer(3.0).timeout
-	await _mesurer()
+	add_child(load("res://scenes/main.tscn").instantiate())
+	await _observer()
 	get_tree().quit()
 
-## Les projectiles ne sont pas groupés : on les compte par leur classe,
-## en balayant la scène courante.
-func _projectiles() -> int:
-	return _compter(get_tree().current_scene)
-
-func _compter(n: Node) -> int:
-	var total := 0
+func _projectiles(n: Node = null) -> int:
+	if n == null:
+		n = get_tree().current_scene
+	var t := 0
 	if n is Projectile and (n as Node3D).visible:
-		total += 1
+		t += 1
 	for c in n.get_children():
-		total += _compter(c)
-	return total
+		t += _projectiles(c)
+	return t
 
-func _clic(pos: Vector2, appui: bool) -> void:
-	var e := InputEventMouseButton.new()
-	e.button_index = MOUSE_BUTTON_LEFT
-	e.pressed = appui
-	e.position = pos
-	e.global_position = pos
-	Input.parse_input_event(e)
-
-func _mesurer() -> void:
-	var hud := get_tree().get_first_node_in_group(&"hud")
-	var bouton: Control = hud.get(&"_fire_button")
-	var joueur: Node = null
-	for p in get_tree().get_nodes_in_group(&"players"):
-		joueur = p
-		break
-	if bouton == null or joueur == null:
-		print("ÉCHEC : bouton ou joueur introuvable")
-		return
-	print("groupes de projectiles au départ : ", _projectiles())
-
-	var cd: float = joueur.weapon.data.cooldown()
-	print("cadence de l'arme : %.3f s de recharge" % cd)
-
-	# CAS 1 — arme PRÊTE. On attend une réponse immédiate.
-	await _essai(joueur, bouton, 0.0, "arme prête")
-	# CAS 2 — appui EN PLEINE RECHARGE. C'est le cas rapporté : l'appui
-	# était jeté et rien ne partait. Il doit désormais être mémorisé et
-	# repartir seul.
-	await _essai(joueur, bouton, cd * 0.95, "appui pendant la recharge")
-	await _essai(joueur, bouton, cd * 0.60, "appui à mi-recharge")
-
-func _essai(joueur: Node, bouton: Control, cooldown: float, libelle: String) -> void:
-	joueur.weapon._cooldown = 0.0
-	for i in 15:
+func _observer() -> void:
+	var t0 := Time.get_ticks_msec()
+	var dernier := ""
+	var premier_tir := -1.0
+	for i in 260:
 		await get_tree().process_frame
-	joueur.weapon._cooldown = cooldown
-	var avant := _projectiles()
-	# UN SEUL appui bref : on relâche tout de suite, pour qu'aucun
-	# maintien ne vienne masquer le comportement de la mémoire.
-	_clic(bouton.get_global_rect().get_center(), true)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	_clic(bouton.get_global_rect().get_center(), false)
-	# On mesure en SECONDES : sous rendu logiciel le jeu tourne à une
-	# dizaine d'images par seconde, si bien qu'un compte de trames ne dit
-	# rien de la durée réellement écoulée.
-	var debut := Time.get_ticks_msec()
-	var delai := -1.0
-	for i in 200:
-		await get_tree().process_frame
-		if _projectiles() > avant:
-			delai = (Time.get_ticks_msec() - debut) / 1000.0
+		var s := (Time.get_ticks_msec() - t0) / 1000.0
+		var hud := get_tree().get_first_node_in_group(&"hud")
+		var j: Node = null
+		for p in get_tree().get_nodes_in_group(&"players"):
+			j = p
 			break
-	print("  %-28s recharge=%.2f s → tir %s"
-			% [libelle, cooldown,
-			("après %.2f s" % delai) if delai >= 0.0 else "JAMAIS (appui perdu)"])
+		# Dès que le bouton existe, on APPUIE et on ne relâche plus.
+		# LE BANC MENT-IL ? Si le rectangle du bouton n'est pas encore
+		# calculé, mon clic tombe à côté et « l'appui perdu » que je
+		# mesure est mon propre défaut, pas celui du jeu.
+		if hud:
+			var bb: Control = hud.get(&"_fire_button")
+			if bb:
+				var r := bb.get_global_rect()
+				if r != _dernier_rect:
+					print("[%5.2f s] rectangle du bouton = %s" % [s, r])
+					_dernier_rect = r
+		if hud and not _presse:
+			var b: Control = hud.get(&"_fire_button")
+			if b:
+				var e := InputEventMouseButton.new()
+				e.button_index = MOUSE_BUTTON_LEFT
+				e.pressed = true
+				e.position = b.get_global_rect().get_center()
+				e.global_position = e.position
+				Input.parse_input_event(e)
+				_presse = true
+				print("[%5.2f s] appui MAINTENU sur le bouton de tir" % s)
+		# On sépare les trois maillons de la chaîne : le HUD a-t-il
+		# ENREGISTRÉ l'appui ? le contrôleur TOURNE-t-il ? le joueur
+		# a-t-il reçu l'intention ?
+		var tenu := "?"
+		if hud:
+			tenu = str(hud.get(&"_fire_held"))
+		var ctrl: Node = null
+		for n in get_tree().get_nodes_in_group(&"players"):
+			for c in n.get_children():
+				if c is PlayerController:
+					ctrl = c
+		if ctrl == null:
+			for c in get_tree().current_scene.get_children():
+				if c is PlayerController:
+					ctrl = c
+		var etat := "boutonTenu=%s ctrl=%s ctrlActif=%s ctrlJoueur=%s" % [
+			tenu,
+			ctrl != null,
+			str(ctrl.is_processing()) if ctrl else "-",
+			str(ctrl.player != null) if ctrl else "-"]
+		if j != null:
+			var arme = j.get(&"weapon")
+			etat += " arme=%s munitions=%s recharge=%.2f elimine=%s want_fire=%s" % [
+				"OUI" if (arme and arme.data) else "NON",
+				str(arme.ammo) if arme else "?",
+				arme.temps_restant() if arme else -1.0,
+				j.get(&"is_eliminated"), j.get(&"want_fire")]
+		etat += " phase=%d" % MatchDirector.phase
+		if etat != dernier:
+			print("[%5.2f s] %s" % [s, etat])
+			dernier = etat
+		if premier_tir < 0.0 and _projectiles() > 0:
+			premier_tir = s
+			print("[%5.2f s] >>> PREMIER PROJECTILE <<<" % s)
+	print("premier tir à %.2f s après le lancement" % premier_tir)
