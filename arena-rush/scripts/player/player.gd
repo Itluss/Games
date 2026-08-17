@@ -45,6 +45,8 @@ var want_fire: bool = false
 ## Appui NEUF sur la gâchette, latché jusqu'à la prochaine tentative de
 ## tir. C'est lui qui donne droit à la cadence accélérée au tapotement.
 var want_tap: bool = false
+## Temps de validité restant du dernier appui mémorisé.
+var _tampon_tir: float = 0.0
 ## ENGAGEMENT AU COMBAT, lissé.
 ##
 ## POURQUOI CE LISSAGE EXISTE : maintenue, la gâchette rend `want_fire`
@@ -69,6 +71,31 @@ const COMBAT_DESCENTE := 0.55
 ## Seuil de bascule. Volontairement bas : mieux vaut rester en posture de
 ## tir un court instant de trop qu'en sortir entre deux appuis.
 const COMBAT_SEUIL := 0.35
+
+## MÉMOIRE D'APPUI, en secondes.
+##
+## LE DÉFAUT QUE CECI CORRIGE : « quand j'appuie, ça ne tire pas
+## immédiatement ». La latence d'entrée était pourtant d'UNE trame,
+## mesurée — le tir partait donc bien tout de suite… quand l'arme était
+## prête. Le reste du temps, l'appui était purement JETÉ.
+##
+## Or le blaster de départ recharge en 0,333 s et le fusil à pompe en plus
+## d'une seconde. Un appui tombant dans cet intervalle ne produisait rien
+## du tout : du point de vue du joueur, le bouton ne répond pas.
+##
+## L'appui est désormais MÉMORISÉ : dès que l'arme est prête, le coup
+## part, sans qu'il faille réappuyer. C'est la solution classique des jeux
+## d'action, et elle ne touche pas à la cadence — le serveur la valide
+## toujours. La mémoire est courte : au-delà, l'appui est oublié, faute de
+## quoi un coup partirait longtemps après qu'on l'ait demandé.
+## Mémoire MINIMALE. Elle est étendue à la durée de recharge de l'arme
+## portée, sans quoi un appui serait encore perdu sur une arme lente : le
+## fusil à pompe met plus d'une seconde à se recharger, et une mémoire de
+## trois dixièmes aurait expiré bien avant qu'il ne soit prêt.
+const TAMPON_TIR := 0.30
+## Plafond, pour qu'un appui oublié ne ressorte jamais très longtemps
+## après. Au-delà, le joueur a changé d'avis.
+const TAMPON_MAX := 1.20
 var want_dash: bool = false
 
 var health: HealthComponent
@@ -289,12 +316,21 @@ func _simulate(delta: float) -> void:
 	rotation.y = _facing + PI
 	visual.rotation.y = 0.0
 
-	if want_fire:
-		_try_fire()
-	elif want_tap:
-		# Gâchette relâchée avant même d'avoir tiré : on ne garde pas un
-		# front en réserve, il s'appliquerait à contretemps.
+	# Un appui NEUF arme la mémoire, qu'on puisse tirer ou non à cet
+	# instant. C'est ce qui rend le bouton réactif sur une arme lente.
+	if want_tap:
+		# La mémoire couvre au moins une recharge complète : ainsi AUCUN
+		# appui n'est perdu, quelle que soit la cadence de l'arme.
+		var duree := TAMPON_TIR
+		if weapon and weapon.data:
+			duree = maxf(duree, weapon.data.cooldown())
+		_tampon_tir = minf(duree, TAMPON_MAX)
 		want_tap = false
+	_tampon_tir = maxf(0.0, _tampon_tir - delta)
+	# On tente le tir si la gâchette est TENUE, ou si un appui récent
+	# attend encore son tour.
+	if want_fire or _tampon_tir > 0.0:
+		_try_fire(_tampon_tir > 0.0)
 
 ## Le joueur est-il ENGAGÉ ? Sert à la fois à l'orientation du corps et
 ## au choix de l'animation, pour que les deux restent d'accord.
@@ -302,19 +338,21 @@ func en_combat() -> bool:
 	return _combat > COMBAT_SEUIL
 
 
-func _try_fire() -> void:
+## `tap` : la tentative vient-elle d'un appui NEUF encore en mémoire ?
+## Elle donne alors droit à la cadence accélérée.
+func _try_fire(tap: bool = false) -> void:
 	if weapon.data == null:
 		return
-	if not weapon.can_fire(want_tap):
-		want_tap = false
+	if not weapon.can_fire(tap):
+		# L'arme n'est pas prête : on NE JETTE PAS l'appui, il reste en
+		# mémoire et repartira dès que la recharge le permettra.
 		return
 	var dir := Vector3(sin(_facing), 0, cos(_facing))
 	if aim_input.length() > 0.1:
 		dir = aim_input.normalized()
-	# Le front est consommé qu'on tire ou non : le garder le ferait
-	# s'appliquer à un tir ultérieur, donc à contretemps.
-	var tap := want_tap
-	want_tap = false
+	# Le coup est parti : la mémoire est vidée, sinon le même appui
+	# vaudrait deux tirs.
+	_tampon_tir = 0.0
 	# Le client DEMANDE, le serveur DISPOSE. Le tir part visuellement tout
 	# de suite chez le tireur (réactivité), mais aucun dégât n'est appliqué
 	# tant que le serveur n'a pas rediffusé l'ordre.

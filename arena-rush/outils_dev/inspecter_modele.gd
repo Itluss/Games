@@ -1,68 +1,85 @@
-extends Node3D
-## Le mélange par étage fait-il ce qu'on croit ? — outil de dev.
+extends Node
+## MESURE DE LA LATENCE DU BOUTON DE TIR — outil de développement.
 ##
-## On compare, os par os, la pose obtenue en « tir debout » avec celles
-## des deux clips purs. Le HAUT doit coller au clip de tir, le BAS au
-## repos. Un filtre mal posé donnerait l'inverse, ou un mélange des deux
-## partout — et rien à l'écran ne le dirait clairement.
+## Retour de test : « quand j'appuie, ça ne tire pas immédiatement ».
+## On ne cherche pas la cause à la lecture du code : on injecte un appui
+## et on COMPTE les trames jusqu'à l'apparition d'un projectile.
 
-var _v: CharacterVisual
+var _main: Node
 
 func _ready() -> void:
-	_v = CharacterVisual.new()
-	add_child(_v)
-	_v.build(Color.WHITE, Color.WHITE, 1.7)
-	await get_tree().process_frame
-
-	var repos := await _poses(false, false)
-	var course_tir := await _poses(true, true)
-	var debout := await _poses(false, true)
-
-	print("posture relevée = ", _v.posture())
-	print("%-14s %10s %10s   verdict" % ["os", "vs repos", "vs tir"])
-	var haut_ok := 0
-	var haut_tot := 0
-	var bas_ok := 0
-	var bas_tot := 0
-	for os_nom in repos.keys():
-		var d_repos: float = _ecart(debout[os_nom], repos[os_nom])
-		var d_tir: float = _ecart(debout[os_nom], course_tir[os_nom])
-		var est_haut: bool = os_nom in CharacterVisual.HAUT_DU_CORPS
-		var suit := "TIR" if d_tir < d_repos else "REPOS"
-		if est_haut:
-			haut_tot += 1
-			if suit == "TIR":
-				haut_ok += 1
-		else:
-			bas_tot += 1
-			if suit == "REPOS":
-				bas_ok += 1
-		print("%-14s %10.2f %10.2f   suit %s%s"
-				% [os_nom, d_repos, d_tir, suit, "  (haut)" if est_haut else ""])
-	print("HAUT du corps qui suit le TIR   : %d/%d" % [haut_ok, haut_tot])
-	print("BAS  du corps qui suit le REPOS : %d/%d" % [bas_ok, bas_tot])
+	_main = load("res://scenes/main.tscn").instantiate()
+	add_child(_main)
+	await get_tree().create_timer(3.0).timeout
+	await _mesurer()
 	get_tree().quit()
 
-func _ecart(a: Dictionary, b: Dictionary) -> float:
-	return rad_to_deg((a["q"] as Quaternion).angle_to(b["q"] as Quaternion))
+## Les projectiles ne sont pas groupés : on les compte par leur classe,
+## en balayant la scène courante.
+func _projectiles() -> int:
+	return _compter(get_tree().current_scene)
 
-## Laisse le mélange s'installer, puis relève toutes les rotations d'os.
-func _poses(court: bool, tire: bool) -> Dictionary:
-	_v.set_aiming(tire)
-	for i in 90:
-		_v.update_visual(1.0 / 60.0, 1.0 if court else 0.0)
+func _compter(n: Node) -> int:
+	var total := 0
+	if n is Projectile and (n as Node3D).visible:
+		total += 1
+	for c in n.get_children():
+		total += _compter(c)
+	return total
+
+func _clic(pos: Vector2, appui: bool) -> void:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = appui
+	e.position = pos
+	e.global_position = pos
+	Input.parse_input_event(e)
+
+func _mesurer() -> void:
+	var hud := get_tree().get_first_node_in_group(&"hud")
+	var bouton: Control = hud.get(&"_fire_button")
+	var joueur: Node = null
+	for p in get_tree().get_nodes_in_group(&"players"):
+		joueur = p
+		break
+	if bouton == null or joueur == null:
+		print("ÉCHEC : bouton ou joueur introuvable")
+		return
+	print("groupes de projectiles au départ : ", _projectiles())
+
+	var cd: float = joueur.weapon.data.cooldown()
+	print("cadence de l'arme : %.3f s de recharge" % cd)
+
+	# CAS 1 — arme PRÊTE. On attend une réponse immédiate.
+	await _essai(joueur, bouton, 0.0, "arme prête")
+	# CAS 2 — appui EN PLEINE RECHARGE. C'est le cas rapporté : l'appui
+	# était jeté et rien ne partait. Il doit désormais être mémorisé et
+	# repartir seul.
+	await _essai(joueur, bouton, cd * 0.95, "appui pendant la recharge")
+	await _essai(joueur, bouton, cd * 0.60, "appui à mi-recharge")
+
+func _essai(joueur: Node, bouton: Control, cooldown: float, libelle: String) -> void:
+	joueur.weapon._cooldown = 0.0
+	for i in 15:
 		await get_tree().process_frame
-	var sq := _cherche(_v, "Skeleton3D") as Skeleton3D
-	var out := {}
-	for i in sq.get_bone_count():
-		out[sq.get_bone_name(i)] = {"q": sq.get_bone_pose_rotation(i)}
-	return out
-
-func _cherche(n: Node, c: String) -> Node:
-	if n.is_class(c):
-		return n
-	for e in n.get_children():
-		var r := _cherche(e, c)
-		if r:
-			return r
-	return null
+	joueur.weapon._cooldown = cooldown
+	var avant := _projectiles()
+	# UN SEUL appui bref : on relâche tout de suite, pour qu'aucun
+	# maintien ne vienne masquer le comportement de la mémoire.
+	_clic(bouton.get_global_rect().get_center(), true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_clic(bouton.get_global_rect().get_center(), false)
+	# On mesure en SECONDES : sous rendu logiciel le jeu tourne à une
+	# dizaine d'images par seconde, si bien qu'un compte de trames ne dit
+	# rien de la durée réellement écoulée.
+	var debut := Time.get_ticks_msec()
+	var delai := -1.0
+	for i in 200:
+		await get_tree().process_frame
+		if _projectiles() > avant:
+			delai = (Time.get_ticks_msec() - debut) / 1000.0
+			break
+	print("  %-28s recharge=%.2f s → tir %s"
+			% [libelle, cooldown,
+			("après %.2f s" % delai) if delai >= 0.0 else "JAMAIS (appui perdu)"])

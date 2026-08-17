@@ -131,6 +131,42 @@ func _verifier_cadence(j: Node) -> void:
 const CANON_ECART_MAX := 12.0
 
 
+## Presse une seule fois EN PLEINE RECHARGE et vérifie qu'un coup finit
+## par partir, sans réappuyer.
+func _verifier_tampon(j: Node, bouton: Control) -> void:
+	var arme = j.get(&"weapon")
+	if arme == null or arme.data == null:
+		_verifier("arme équipée pour tester la mémoire d'appui", false, true)
+		return
+	var avant := _compter_projectiles()
+	# On place l'arme presque au début de sa recharge : sans mémoire
+	# d'appui, la demande serait purement ignorée.
+	arme._cooldown = arme.data.cooldown() * 0.95
+	await _clic(bouton.get_global_rect().get_center(), true)
+	await get_tree().process_frame
+	await _clic(bouton.get_global_rect().get_center(), false)
+	var parti := false
+	for i in 120:
+		await get_tree().process_frame
+		if _compter_projectiles() > avant:
+			parti = true
+			break
+	_verifier("appui pendant la recharge → le coup part quand même",
+			parti, true)
+
+
+## Les projectiles ne sont pas groupés : on les compte par leur classe.
+func _compter_projectiles(n: Node = null) -> int:
+	if n == null:
+		n = get_tree().current_scene
+	var total := 0
+	if n is Projectile and (n as Node3D).visible:
+		total += 1
+	for c in n.get_children():
+		total += _compter_projectiles(c)
+	return total
+
+
 func _verifier_canon(j: Node) -> void:
 	var visuel = j.get(&"visual")
 	var accroche: Node3D = visuel.get_weapon_mount() if visuel else null
@@ -255,6 +291,14 @@ func _executer() -> void:
 	# martèle le bouton et on vérifie que la posture NE DÉCROCHE PAS.
 	if visuel != null:
 		await _verifier_repetition(j, visuel, bouton)
+
+	# 3 quinquies bis. UN APPUI PENDANT LA RECHARGE EST-IL PERDU ?
+	#
+	# Retour de test : « quand j'appuie, ça ne tire pas immédiatement ».
+	# La latence d'entrée était pourtant d'une trame — le tir partait bien
+	# tout de suite QUAND l'arme était prête. Le reste du temps, l'appui
+	# était JETÉ, et le bouton semblait mort. Il est désormais mémorisé.
+	await _verifier_tampon(j, bouton)
 
 	# 3 sexies. L'ARME POINTE-T-ELLE OÙ L'ON TIRE ?
 	#
