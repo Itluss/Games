@@ -17,13 +17,15 @@ class_name HUD
 
 const MARGIN := 26
 const STICK_SIZE := 210
-const FIRE_SIZE := 160
+const FIRE_SIZE := 168
+const ESQUIVE_SIZE := 104
+const ARME_SIZE := 92
 
 var player: Player = null
 
 var _root: Control
 var _move_stick: VirtualJoystick
-var _fire_button: Button
+var _fire_button: UiKit.BoutonRond
 ## Gâchette maintenue. Un booléen et non un compteur d'appuis : les armes
 ## automatiques se tiennent, elles ne se tapotent pas.
 var _fire_held: bool = false
@@ -42,16 +44,16 @@ var _fire_tapped: bool = false
 ## Le bouton suit désormais son propre doigt, par index, exactement comme
 ## le joystick. La voie souris subsiste pour le bureau.
 var _doigt_tir: int = -1
-var _swap_button: Button
-var _dash_button: Button
+var _swap_button: UiKit.BoutonRond
+var _dash_button: UiKit.BoutonRond
 var _alive_label: Label
 var _timer_label: Label
-var _announce: Label
+var _announce: UiKit.Banniere
 var _countdown: Label
-var _health_fill: ColorRect
-var _health_text: Label
+var _health_bar: UiKit.BarreVie
 var _slot_panels: Array[PanelContainer] = []
 var _slot_labels: Array[Label] = []
+var _slot_ammo: Array[Label] = []
 var _overlay: Control
 var _overlay_title: Label
 var _overlay_sub: Label
@@ -94,9 +96,11 @@ func _input(event: InputEvent) -> void:
 func _marquer_tir(actif: bool) -> void:
 	if _fire_button == null or not is_instance_valid(_fire_button):
 		return
-	_fire_button.modulate = Color(1.35, 1.35, 1.35) if actif else Color.WHITE
-	_fire_button.scale = Vector2.ONE * (0.93 if actif else 1.0)
-	_fire_button.pivot_offset = _fire_button.size * 0.5
+	# Le bouton se redessine lui-même enfoncé : plus de bricolage d'échelle
+	# ni de teinte depuis l'extérieur. Le DESSIN de l'état appartient au
+	# bouton, la CONNAISSANCE du doigt au HUD.
+	_fire_button.enfonce_doigt = actif
+	_fire_button.queue_redraw()
 
 
 func _ready() -> void:
@@ -132,40 +136,56 @@ func _build() -> void:
 	_build_overlay()
 	_build_help()
 
-func _label(text: String, size_px: int, color: Color = Color.WHITE) -> Label:
+## Tout le texte de l'interface passe par ici, et donc par UiKit : grasse,
+## penchée, cerclée de sombre. Un seul label réglé à la main suffirait à
+## faire jurer l'ensemble.
+func _label(text: String, size_px: int, color: Color = UiKit.BLANC) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override(&"font_size", size_px)
-	l.add_theme_color_override(&"font_color", color)
-	# Contour sombre : le texte blanc doit rester lisible au-dessus du
-	# sable clair comme au-dessus d'une explosion.
-	l.add_theme_color_override(&"font_outline_color", Color(0, 0, 0, 0.75))
-	l.add_theme_constant_override(&"outline_size", 6)
+	UiKit.texte(l, size_px, color)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
 
+## BARRE DU HAUT — deux segments accolés en une seule capsule.
+##
+## Les deux informations n'ont pas le même statut : le nombre de survivants
+## est un ENJEU, le chronomètre un simple repère. Le premier est donc sur
+## fond bleu saturé, le second sur fond d'encre. Les mettre au même niveau
+## reviendrait à dire qu'ils comptent autant.
 func _build_top() -> void:
 	var bar := HBoxContainer.new()
-	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	bar.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	bar.offset_top = MARGIN
-	bar.offset_left = MARGIN
-	bar.offset_right = -MARGIN
-	bar.alignment = BoxContainer.ALIGNMENT_CENTER
-	bar.add_theme_constant_override(&"separation", 34)
+	bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	bar.add_theme_constant_override(&"separation", 0)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(bar)
 
-	_alive_label = _label("4 VIVANTS", 30, Cfg.COL_LOCAL_PLAYER)
-	bar.add_child(_alive_label)
-	_timer_label = _label("0:00", 30, Color(1, 1, 1, 0.85))
-	bar.add_child(_timer_label)
+	var gauche := PanelContainer.new()
+	gauche.add_theme_stylebox_override(&"panel",
+			UiKit.segment(Color("2f6ee0"), true, false))
+	gauche.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(gauche)
+	_alive_label = _label("4 VIVANTS", 27)
+	gauche.add_child(_alive_label)
+
+	var droite := PanelContainer.new()
+	droite.add_theme_stylebox_override(&"panel",
+			UiKit.segment(Color("111a30"), false, true))
+	droite.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(droite)
+	_timer_label = _label("0:00", 27)
+	droite.add_child(_timer_label)
 
 func _build_center() -> void:
-	_announce = _label("", 46, Cfg.COL_SHOTGUN)
-	_announce.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_announce.offset_top = 96
-	_announce.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_announce.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	# Une PLAQUE et non un texte nu : une élimination est un évènement, elle
+	# mérite un objet à l'écran. Un mot qui apparaît seul se confond avec le
+	# décor ; une plaque dorée s'impose et s'oublie aussitôt après.
+	_announce = UiKit.Banniere.new()
+	_announce.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_announce.offset_top = 92
+	_announce.offset_bottom = 92 + 84
+	_announce.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_announce.modulate.a = 0.0
 	_root.add_child(_announce)
 
@@ -194,60 +214,51 @@ func _build_bottom() -> void:
 	health_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(health_row)
 
-	var health_box := Control.new()
-	health_box.custom_minimum_size = Vector2(330, 26)
-	health_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	health_row.add_child(health_box)
-
-	var bg := ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.55)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	health_box.add_child(bg)
-
-	_health_fill = ColorRect.new()
-	_health_fill.color = Cfg.COL_HEAL
-	_health_fill.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	_health_fill.offset_left = 3
-	_health_fill.offset_top = 3
-	_health_fill.offset_bottom = -3
-	_health_fill.offset_right = 324
-	_health_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	health_box.add_child(_health_fill)
-
-	_health_text = _label("100", 19)
-	_health_text.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_health_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_health_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	health_box.add_child(_health_text)
+	_health_bar = UiKit.BarreVie.new()
+	_health_bar.custom_minimum_size = Vector2(360, 38)
+	_health_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	health_row.add_child(_health_bar)
 
 	var slots := HBoxContainer.new()
 	slots.alignment = BoxContainer.ALIGNMENT_CENTER
-	slots.add_theme_constant_override(&"separation", 12)
+	slots.add_theme_constant_override(&"separation", 16)
 	slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(slots)
 
+	# CARTES D'ARMES. Le fond est bleu nuit DENSE et non translucide : posé
+	# sur un sol clair, un panneau semi-transparent devient illisible
+	# exactement quand le joueur cherche à savoir ce qu'il tient.
 	for i in 2:
 		var panel := PanelContainer.new()
-		panel.custom_minimum_size = Vector2(158, 56)
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(0, 0, 0, 0.5)
-		style.set_corner_radius_all(10)
-		style.set_border_width_all(3)
-		style.border_color = Color(1, 1, 1, 0.18)
-		panel.add_theme_stylebox_override(&"panel", style)
+		panel.custom_minimum_size = Vector2(196, 66)
+		panel.add_theme_stylebox_override(&"panel",
+				UiKit.panneau(16, UiKit.PANNEAU, UiKit.PANNEAU_BORD, 4))
 		# Les emplacements sont TOUCHABLES : passer d'une arme à l'autre en
-		# tapant directement son icône est plus direct qu'un bouton dédié.
+		# tapant directement sa carte est plus direct qu'un bouton dédié.
 		panel.gui_input.connect(_on_slot_input.bind(i))
 		panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		panel.pivot_offset = Vector2(98, 33)
 		slots.add_child(panel)
 		_slot_panels.append(panel)
 
-		var lbl := _label("—", 20)
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		panel.add_child(lbl)
-		_slot_labels.append(lbl)
+		var ligne := HBoxContainer.new()
+		ligne.alignment = BoxContainer.ALIGNMENT_CENTER
+		ligne.add_theme_constant_override(&"separation", 12)
+		ligne.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(ligne)
+
+		var nom := _label("—", 21)
+		nom.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		ligne.add_child(nom)
+		_slot_labels.append(nom)
+
+		# Les munitions ont leur PROPRE étiquette, alignée à droite : mêlées
+		# au nom, elles décalaient le titre à chaque coup tiré et la carte
+		# tremblait en permanence.
+		var muni := _label("", 21, Color(1, 1, 1, 0.72))
+		muni.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		ligne.add_child(muni)
+		_slot_ammo.append(muni)
 
 func _build_controls() -> void:
 	_move_stick = VirtualJoystick.new()
@@ -272,28 +283,13 @@ func _build_controls() -> void:
 	#
 	# La règle est désormais celle de tout jeu d'arène tactile : le pouce
 	# gauche DIRIGE, le pouce droit TIRE, et le jeu accroche la cible.
-	_fire_button = Button.new()
-	_fire_button.text = "TIR"
-	_fire_button.add_theme_font_size_override(&"font_size", 26)
+	_fire_button = UiKit.bouton_rond(FIRE_SIZE, "TIR", &"viseur",
+			UiKit.TIR_CLAIR, UiKit.TIR_SOMBRE)
 	_fire_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_fire_button.custom_minimum_size = Vector2(FIRE_SIZE, FIRE_SIZE)
-	_fire_button.size = Vector2(FIRE_SIZE, FIRE_SIZE)
 	_fire_button.offset_left = -(FIRE_SIZE + MARGIN)
 	_fire_button.offset_top = -(FIRE_SIZE + MARGIN)
 	_fire_button.offset_right = -MARGIN
 	_fire_button.offset_bottom = -MARGIN
-	var tir_style := StyleBoxFlat.new()
-	tir_style.bg_color = Color(Cfg.COL_DANGER.r, Cfg.COL_DANGER.g,
-			Cfg.COL_DANGER.b, 0.32)
-	tir_style.set_corner_radius_all(int(FIRE_SIZE * 0.5))
-	tir_style.set_border_width_all(4)
-	tir_style.border_color = Cfg.COL_DANGER
-	_fire_button.add_theme_stylebox_override(&"normal", tir_style)
-	var tir_appui := tir_style.duplicate()
-	tir_appui.bg_color = Color(Cfg.COL_DANGER.r, Cfg.COL_DANGER.g,
-			Cfg.COL_DANGER.b, 0.62)
-	_fire_button.add_theme_stylebox_override(&"pressed", tir_appui)
-	_fire_button.add_theme_stylebox_override(&"hover", tir_appui)
 	# MAINTENU, et non pas « cliqué » : on lit l'appui et le relâchement.
 	# Le signal `pressed` ne se déclencherait qu'au relâchement, ce qui
 	# interdirait de tenir la gâchette d'une arme automatique.
@@ -310,39 +306,32 @@ func _build_controls() -> void:
 			_marquer_tir(false))
 	_root.add_child(_fire_button)
 
-	_swap_button = _round_button("ARME", Cfg.COL_ENERGY)
+	# HIÉRARCHIE DES TAILLES. Le bouton de tir est le plus gros parce qu'il
+	# est pressé cent fois par partie ; l'échange d'arme est le plus petit
+	# parce qu'il l'est trois fois. Une taille égale pour les trois ferait
+	# manquer le seul qui compte.
+	_swap_button = UiKit.bouton_rond(ARME_SIZE, "ARME", &"echange",
+			UiKit.ARME_CLAIR, UiKit.ARME_SOMBRE)
 	_swap_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_swap_button.offset_left = -(FIRE_SIZE + MARGIN + 106)
-	_swap_button.offset_top = -(MARGIN + 96)
-	_swap_button.offset_right = -(FIRE_SIZE + MARGIN + 10)
-	_swap_button.offset_bottom = -(MARGIN + 6)
+	_swap_button.offset_left = -(FIRE_SIZE + MARGIN + ARME_SIZE + 18)
+	_swap_button.offset_top = -(MARGIN + ARME_SIZE + 8)
+	_swap_button.offset_right = -(FIRE_SIZE + MARGIN + 18)
+	_swap_button.offset_bottom = -(MARGIN + 8)
 	_swap_button.pressed.connect(func(): _swap_queued = true)
 	_root.add_child(_swap_button)
 
-	_dash_button = _round_button("ESQUIVE", Cfg.COL_BASIC)
+	_dash_button = UiKit.bouton_rond(ESQUIVE_SIZE, "ESQUIVE", &"eclair",
+			UiKit.ESQUIVE_CLAIR, UiKit.ESQUIVE_SOMBRE)
 	_dash_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_dash_button.offset_left = -(FIRE_SIZE + MARGIN + 20)
-	_dash_button.offset_top = -(MARGIN + FIRE_SIZE + 96)
-	_dash_button.offset_right = -(FIRE_SIZE + MARGIN - 76)
-	_dash_button.offset_bottom = -(MARGIN + FIRE_SIZE + 6)
+	# MESURÉ EN IMAGE : ESQUIVE mordait sur TIR de vingt-cinq pixels. Deux
+	# boutons qui se touchent, ce n'est pas seulement laid — au pouce, on
+	# déclenche l'un en visant l'autre. On le cale FRANCHEMENT au-dessus.
+	_dash_button.offset_bottom = -(MARGIN + FIRE_SIZE + 16)
+	_dash_button.offset_top = _dash_button.offset_bottom - ESQUIVE_SIZE
+	_dash_button.offset_right = -(MARGIN + 20)
+	_dash_button.offset_left = _dash_button.offset_right - ESQUIVE_SIZE
 	_dash_button.pressed.connect(func(): _dash_queued = true)
 	_root.add_child(_dash_button)
-
-func _round_button(text: String, color: Color) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.add_theme_font_size_override(&"font_size", 17)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(color.r, color.g, color.b, 0.3)
-	style.set_corner_radius_all(24)
-	style.set_border_width_all(3)
-	style.border_color = color
-	b.add_theme_stylebox_override(&"normal", style)
-	var hover := style.duplicate()
-	hover.bg_color = Color(color.r, color.g, color.b, 0.55)
-	b.add_theme_stylebox_override(&"pressed", hover)
-	b.add_theme_stylebox_override(&"hover", hover)
-	return b
 
 func _build_overlay() -> void:
 	_overlay = Control.new()
@@ -371,9 +360,20 @@ func _build_overlay() -> void:
 	_overlay_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_overlay_sub)
 
-	var replay := _round_button("REJOUER", Cfg.COL_HEAL)
-	replay.custom_minimum_size = Vector2(280, 74)
-	replay.add_theme_font_size_override(&"font_size", 28)
+	# BOUTON EN CAPSULE, et non rond : celui-ci porte un mot, pas une icône,
+	# et un mot enfermé dans un cercle oblige à rapetisser le texte jusqu'à
+	# l'illisible. Il reprend le reste de la charte — dégradé, bord clair,
+	# ombre — pour rester de la même famille que les boutons d'action.
+	var replay := Button.new()
+	replay.text = "REJOUER"
+	replay.custom_minimum_size = Vector2(300, 80)
+	replay.focus_mode = Control.FOCUS_NONE
+	UiKit.texte(replay, 30)
+	var repos := UiKit.panneau(24, UiKit.VIE_SOMBRE, Color(1, 1, 1, 0.85), 5)
+	replay.add_theme_stylebox_override(&"normal", repos)
+	var appuye := UiKit.panneau(24, UiKit.VIE_CLAIR, Color(1, 1, 1, 0.85), 5)
+	replay.add_theme_stylebox_override(&"pressed", appuye)
+	replay.add_theme_stylebox_override(&"hover", appuye)
 	replay.pressed.connect(_on_replay)
 	var center := CenterContainer.new()
 	center.add_child(replay)
@@ -436,11 +436,9 @@ func _process(_delta: float) -> void:
 		_dash_button.modulate.a = lerpf(0.4, 1.0, player.dash_ready_ratio())
 
 func _on_health_changed(current: float, maximum: float) -> void:
-	var ratio := clampf(current / maxf(maximum, 0.01), 0.0, 1.0)
-	_health_text.text = str(int(ceil(current)))
-	var tw := create_tween()
-	tw.tween_property(_health_fill, "offset_right", -3 + 327 * ratio, 0.12)
-	_health_fill.color = Cfg.COL_HEAL.lerp(Cfg.COL_DANGER, (1.0 - ratio) ** 1.5)
+	# La barre se dessine elle-même, teinte comprise : le HUD lui donne des
+	# chiffres, pas des pixels.
+	_health_bar.regler(current, maximum)
 
 func _on_inventory_changed(slots: Array, active: int) -> void:
 	for i in _slot_panels.size():
@@ -449,24 +447,29 @@ func _on_inventory_changed(slots: Array, active: int) -> void:
 		var style := _slot_panels[i].get_theme_stylebox(&"panel") as StyleBoxFlat
 		if data == null:
 			_slot_labels[i].text = "—"
-			style.border_color = Color(1, 1, 1, 0.18)
-			style.bg_color = Color(0, 0, 0, 0.5)
+			_slot_ammo[i].text = ""
+			style.border_color = UiKit.PANNEAU_BORD
+			style.bg_color = UiKit.PANNEAU
+			style.set_border_width_all(4)
 			continue
-		var ammo := ""
-		if i == active and player and player.weapon:
-			ammo = "  " + player.weapon.ammo_text()
-		_slot_labels[i].text = data.display_name + ammo
-		# L'arme ACTIVE est bordée de sa couleur et remplie : impossible de
-		# se tromper d'un coup d'œil, même en plein combat.
+		_slot_labels[i].text = data.display_name
+		_slot_ammo[i].text = player.weapon.ammo_text() \
+				if i == active and player and player.weapon else ""
+		# L'arme ACTIVE porte un bord ÉPAIS à sa couleur et un fond éclairci.
+		# Le bord seul ne suffisait pas : sur un téléphone tenu à bout de
+		# bras, trois pixels de différence ne se voient pas.
 		if i == active:
 			style.border_color = data.color
-			style.bg_color = Color(data.color.r, data.color.g, data.color.b, 0.3)
+			style.bg_color = UiKit.PANNEAU.lerp(data.color, 0.26)
+			style.set_border_width_all(6)
 			var tw := create_tween()
-			tw.tween_property(_slot_panels[i], "scale", Vector2(1.08, 1.08), 0.07)
+			tw.tween_property(_slot_panels[i], "scale", Vector2(1.07, 1.07), 0.07)
 			tw.tween_property(_slot_panels[i], "scale", Vector2.ONE, 0.1)
 		else:
-			style.border_color = Color(data.color.r, data.color.g, data.color.b, 0.4)
-			style.bg_color = Color(0, 0, 0, 0.5)
+			style.border_color = Color(data.color.r, data.color.g,
+					data.color.b, 0.45)
+			style.bg_color = UiKit.PANNEAU
+			style.set_border_width_all(4)
 
 func _on_alive_changed(count: int) -> void:
 	_alive_label.text = "%d VIVANT%s" % [count, "S" if count > 1 else ""]
@@ -485,11 +488,19 @@ func _on_countdown(value: int) -> void:
 	tw.tween_property(_countdown, "modulate:a", 0.0, 0.8).set_delay(0.2)
 
 func _on_announce(text: String, color: Color) -> void:
-	_announce.text = text
-	_announce.add_theme_color_override(&"font_color", color)
+	# La plaque prend la TEINTE de l'évènement — dorée pour une élimination,
+	# rouge pour la mort du joueur — tout en gardant son dégradé. Une
+	# couleur plate perdrait le relief qui la fait exister.
+	_announce.afficher(text, color.lightened(0.30), color.darkened(0.22))
 	_announce.modulate.a = 1.0
+	# Elle ARRIVE, elle ne se contente pas d'apparaître : un objet qui
+	# surgit se remarque, un objet qui se révèle en fondu se manque.
+	_announce.scale = Vector2(0.7, 0.7)
+	_announce.pivot_offset = Vector2(_announce.size.x * 0.5, 40.0)
 	var tw := create_tween()
-	tw.tween_interval(1.4)
+	tw.tween_property(_announce, "scale", Vector2.ONE, 0.26) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(1.3)
 	tw.tween_property(_announce, "modulate:a", 0.0, 0.5)
 
 func _on_player_eliminated(peer_id: int, name_text: String) -> void:
@@ -545,17 +556,42 @@ func _build_help() -> void:
 	# soi-même, ce que personne ne fait sous la pression d'un décompte.
 	_help_note("SE DÉPLACER\nUNIQUEMENT", Cfg.COL_LOCAL_PLAYER,
 			Control.PRESET_BOTTOM_LEFT, Vector2(MARGIN + 14, -(STICK_SIZE + 74)))
-	_help_note("MAINTENIR POUR TIRER\nVISÉE AUTOMATIQUE", Cfg.COL_SHOTGUN,
-			Control.PRESET_BOTTOM_RIGHT, Vector2(-320, -(FIRE_SIZE + 78)))
-	_help_note("CHANGER D'ARME", Cfg.COL_ENERGY,
-			Control.PRESET_BOTTOM_RIGHT, Vector2(-330, -(MARGIN + 132)))
-	_help_note("ESQUIVER", Cfg.COL_BASIC,
-			Control.PRESET_BOTTOM_RIGHT, Vector2(-330, -(MARGIN + FIRE_SIZE + 138)))
+	# LES TROIS ENCARTS DE DROITE SONT REGROUPÉS EN UNE COLONNE.
+	#
+	# Éparpillés, chacun collé à son bouton, ils se chevauchaient entre eux
+	# ET recouvraient les cartes d'armes — vérifié en image, deux fois. Le
+	# coin bas-droit d'un écran de téléphone en paysage n'a tout simplement
+	# pas la place d'accueillir trois blocs de texte et trois boutons.
+	#
+	# La colonne est alignée à DROITE et remonte au-dessus des commandes :
+	# elle reste du côté des boutons qu'elle décrit, sans jamais mordre
+	# dessus. Chaque ligne garde la couleur de son bouton, ce qui suffit à
+	# faire la correspondance sans flèche ni encadré.
+	var aide := VBoxContainer.new()
+	aide.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	aide.offset_right = -(MARGIN + 14)
+	aide.offset_bottom = -(MARGIN + FIRE_SIZE + ESQUIVE_SIZE + 34)
+	aide.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	aide.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	aide.alignment = BoxContainer.ALIGNMENT_END
+	aide.add_theme_constant_override(&"separation", 4)
+	aide.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_help.add_child(aide)
+
+	for entree in [
+			{"t": "MAINTENIR POUR TIRER · VISÉE AUTOMATIQUE", "c": Cfg.COL_SHOTGUN},
+			{"t": "ESQUIVER", "c": Cfg.COL_BASIC},
+			{"t": "CHANGER D'ARME", "c": Cfg.COL_ENERGY}]:
+		var ligne := _label(entree["t"], 19, entree["c"])
+		ligne.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		aide.add_child(ligne)
 
 	var goal := _label("TUEZ LES MOBS · RAMASSEZ LEURS ARMES · SOYEZ LE DERNIER",
 			24, Color(1, 1, 1, 0.92))
 	goal.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	goal.offset_top = 150
+	# 196 et non 150 : la plaque d'annonce occupe la bande 92-176, et les
+	# deux se superposaient dès qu'une élimination tombait.
+	goal.offset_top = 196
 	goal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	goal.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_help.add_child(goal)

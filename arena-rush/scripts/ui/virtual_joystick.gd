@@ -31,9 +31,9 @@ var _base_home: Vector2
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
-	_base = _make_circle(radius, Color(1, 1, 1, 0.13), Color(1, 1, 1, 0.28))
+	_base = _socle()
 	add_child(_base)
-	_knob = _make_circle(radius * 0.42, Color(1, 1, 1, 0.5), Color(1, 1, 1, 0.8))
+	_knob = _poignee()
 	add_child(_knob)
 	# `resized` plutôt qu'un calcul immédiat : à la première image, la
 	# taille dépend du conteneur parent et n'est pas encore connue.
@@ -46,17 +46,51 @@ func _recenter() -> void:
 	_base.position = _base_home
 	_knob.position = _base_home
 
-func _make_circle(r: float, fill: Color, border: Color) -> Control:
+## SOCLE — un anneau clair et quatre chevrons de direction.
+##
+## POURQUOI LES CHEVRONS : un disque vide ne dit pas qu'il se manipule. Les
+## quatre pointes annoncent un axe de déplacement avant même qu'on y pose
+## le pouce, ce qui compte pour un joueur qui découvre le jeu et n'aura
+## jamais lu de notice.
+##
+## Le socle reste TRANSLUCIDE là où les boutons sont opaques, et c'est
+## voulu : il occupe un quart de l'écran, et un aplat de cette taille
+## masquerait le jeu. Les boutons, eux, sont petits et doivent s'imposer.
+func _socle() -> Control:
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	c.set_meta(&"r", r)
-	c.set_meta(&"fill", fill)
-	c.set_meta(&"border", border)
 	c.draw.connect(func():
-		c.draw_circle(Vector2.ZERO, r, fill)
-		# Anneau dessiné en arcs : net à toute résolution, et aucune
-		# texture à charger.
-		c.draw_arc(Vector2.ZERO, r, 0.0, TAU, 48, border, 3.0, true))
+		c.draw_circle(Vector2(0, radius * 0.06), radius, Color(0.03, 0.05, 0.12, 0.22))
+		c.draw_circle(Vector2.ZERO, radius, Color(1, 1, 1, 0.14))
+		# Anneau dessiné en arcs : net à toute résolution, aucune texture.
+		c.draw_arc(Vector2.ZERO, radius - 3.0, 0.0, TAU, 56,
+				Color(1, 1, 1, 0.62), 6.0, true)
+		for i in 4:
+			var a := TAU * float(i) / 4.0
+			var d := Vector2(cos(a), sin(a))
+			var n := Vector2(-d.y, d.x)
+			var pointe := d * (radius - 16.0)
+			var base := d * (radius - 30.0)
+			c.draw_colored_polygon(PackedVector2Array([
+					pointe, base + n * 10.0, base - n * 10.0]),
+					Color(1, 1, 1, 0.5)))
+	return c
+
+
+## POIGNÉE — le même bouton charnu que le reste de l'interface, en plus
+## petit. C'est la seule pièce mobile de l'écran : elle doit avoir l'air
+## d'un objet qu'on pousse, pas d'une tache qui suit le doigt.
+func _poignee() -> Control:
+	var r := radius * 0.44
+	var c := Control.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.draw.connect(func():
+		c.draw_circle(Vector2(0, r * 0.16), r, UiKit.OMBRE)
+		c.draw_circle(Vector2.ZERO, r, UiKit.BLANC)
+		UiKit.disque_degrade(c, Vector2.ZERO, r - maxf(4.0, r * 0.12),
+				UiKit.ESQUIVE_CLAIR, UiKit.ESQUIVE_SOMBRE)
+		c.draw_arc(Vector2.ZERO, (r - 6.0) * 0.72, PI * 1.18, PI * 1.82, 16,
+				Color(1, 1, 1, 0.34), maxf(3.0, r * 0.13), true))
 	return c
 
 ## RELÂCHEMENT GLOBAL — corrige un tir qui ne s'arrête plus.
