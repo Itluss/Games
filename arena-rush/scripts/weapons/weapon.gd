@@ -16,6 +16,17 @@ const PROJECTILE_SCENE := "res://scenes/projectiles/projectile.tscn"
 var data: WeaponData = null
 var ammo: int = 0
 
+## Nombre de coups RÉELLEMENT partis depuis le début de la partie.
+##
+## POURQUOI UN COMPTEUR QUI NE REDESCEND JAMAIS : un tir est un évènement
+## INSTANTANÉ. Le vérifier en comptant les projectiles présents à l'écran
+## revient à échantillonner : si la trame suivante arrive après que le
+## projectile a déjà touché un mur, on conclut que le coup n'est jamais
+## parti. C'est exactement ce qui a fait échouer la publication sur un
+## runner lent alors que le jeu fonctionnait. Un compteur monotone ne peut
+## pas être manqué, quelle que soit la cadence d'images.
+var tirs: int = 0
+
 var _cooldown: float = 0.0
 var _model: Node3D = null
 var _muzzle: Node3D = null
@@ -121,6 +132,7 @@ func fire(origin: Vector3, dir: Vector3, team: int, owner_id: int,
 	if scene_root == null:
 		return
 
+	tirs += 1
 	var basis_dir := dir.normalized()
 	for i in data.projectile_count:
 		var spread_dir := basis_dir

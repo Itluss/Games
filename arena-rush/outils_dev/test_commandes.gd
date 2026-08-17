@@ -18,9 +18,51 @@ func _ready() -> void:
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
 	await get_tree().create_timer(2.5).timeout
+	_isoler_le_banc()
 	await _executer()
 	print("=== %d échec(s) ===" % _echecs)
 	get_tree().quit(1 if _echecs > 0 else 0)
+
+
+## ISOLE LE BANC DE TOUT CE QUI N'EST PAS UNE COMMANDE.
+##
+## POURQUOI : ce test mesure des COMMANDES, et il le faisait au milieu
+## d'une vraie partie — mobs qui chargent, zone qui se referme. Tant que
+## les images défilent vite, cela ne se voit pas. Sur le runner
+## d'intégration, où une image peut coûter une seconde, le moteur avance
+## quand même le temps de jeu par paquets : plusieurs dizaines de secondes
+## de partie s'écoulent pendant le test. Le joueur peut alors être blessé,
+## repoussé, voire éliminé — et un joueur éliminé ne tire pas, quelle que
+## soit la qualité du bouton.
+##
+## La publication a été bloquée par exactement ce genre d'échec, sur un jeu
+## qui fonctionnait. Un test qui dépend de la survie de son sujet ne mesure
+## pas ce qu'il annonce. On fige donc les menaces.
+func _isoler_le_banc() -> void:
+	# Le pondeur est cherché par son NOM et non par sa classe : `is_class`
+	# ne connaît que les classes du moteur, jamais celles déclarées en
+	# GDScript. Passer par « GameWorld » n'aurait jamais rien trouvé, et
+	# l'isolation aurait échoué en silence — le pire des résultats.
+	var pondeur := _main.find_child("MobSpawner", true, false)
+	if pondeur != null:
+		pondeur.set_process(false)
+	for m in get_tree().get_nodes_in_group(&"mobs"):
+		m.queue_free()
+
+	# On fige le directeur de partie. Repousser seulement le rayon de zone
+	# n'aurait servi à rien : il est ramené vers sa cible à chaque tick et
+	# reviendrait aussitôt. Figer le nœud arrête d'un coup la fermeture de
+	# la zone et la fin de partie.
+	MatchDirector.set_process(false)
+	MatchDirector.set_physics_process(false)
+	MatchDirector.zone_radius = Cfg.ARENA_RADIUS
+
+	var j := _joueur()
+	if j != null:
+		var pv = j.get(&"health")
+		if pv != null:
+			pv.reset()
+	print("  Banc isolé : pondeur arrêté, mobs retirés, zone et partie figées.")
 
 
 func _joueur() -> Node:
@@ -138,7 +180,17 @@ func _verifier_tampon(j: Node, bouton: Control) -> void:
 	if arme == null or arme.data == null:
 		_verifier("arme équipée pour tester la mémoire d'appui", false, true)
 		return
-	var avant := _compter_projectiles()
+	# ON COMPTE LES COUPS PARTIS, PAS LES PROJECTILES VISIBLES.
+	#
+	# La version précédente regardait, à chaque trame, s'il y avait un
+	# projectile de plus dans la scène : un ÉCHANTILLONNAGE, pour un tir qui
+	# est un évènement instantané. Mesuré ici, le projectile reste visible
+	# 80 trames — donc l'échantillonnage n'explique PAS l'échec constaté sur
+	# le runner d'intégration, contrairement à ce que je supposais. Le
+	# compteur reste néanmoins le bon instrument : il ne peut pas être
+	# manqué, et il distingue « le coup n'est pas parti » de « le projectile
+	# a disparu trop vite », ce que l'ancien test confondait.
+	var avant: int = arme.tirs
 	# On place l'arme presque au début de sa recharge : sans mémoire
 	# d'appui, la demande serait purement ignorée.
 	arme._cooldown = arme.data.cooldown() * 0.95
@@ -148,9 +200,22 @@ func _verifier_tampon(j: Node, bouton: Control) -> void:
 	var parti := false
 	for i in 120:
 		await get_tree().process_frame
-		if _compter_projectiles() > avant:
+		if arme.tirs > avant:
 			parti = true
 			break
+	if not parti:
+		# DIAGNOSTIC COMPLET. L'échec ne s'est produit que sur le runner
+		# d'intégration, jamais ici : je ne peux donc l'observer que par ce
+		# qu'il imprime là-bas. On relève tout ce qui peut interdire un tir,
+		# pour que le prochain passage tranche en une seule fois plutôt
+		# qu'en trois allers-retours.
+		var pv = j.get(&"health")
+		print("      DIAGNOSTIC recharge=%.3f  mémoire=%.3f  tirs=%d  "
+				% [arme.temps_restant(), j.get(&"_tampon_tir"), arme.tirs]
+				+ "munitions=%d  éliminé=%s  pv=%.1f  veut_tirer=%s  zone=%.1f"
+				% [arme.ammo, str(j.get(&"is_eliminated")),
+				(pv.current_health if pv != null else -1.0),
+				str(j.get(&"want_fire")), MatchDirector.zone_radius])
 	_verifier("appui pendant la recharge → le coup part quand même",
 			parti, true)
 
