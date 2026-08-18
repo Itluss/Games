@@ -106,7 +106,11 @@ func _build_environment() -> void:
 	env.ambient_light_color = Cfg.COL_AMBIANTE_VILLE
 	env.ambient_light_energy = 0.26
 
-	env.glow_enabled = true
+	# LE HALO EST COUPÉ SUR TÉLÉPHONE. Il coûte plusieurs passes en plein
+	# écran, et le plein écran d'un téléphone compte trois fois plus de
+	# pixels qu'on ne le croit. C'est le second poste de dépense après les
+	# ombres, pour un effet que le soleil rasant rend déjà à moitié.
+	env.glow_enabled = not Cfg.est_mobile()
 	env.glow_intensity = 1.15
 	env.glow_bloom = 0.12
 	env.glow_hdr_threshold = 0.95
@@ -147,7 +151,10 @@ func _build_environment() -> void:
 	# l'écran. Étendre la carte sans toucher à ce réglage est volontaire —
 	# une ombre à 150 m ne serait jamais vue et diviserait par quatre la
 	# résolution de celles qu'on voit.
-	sun.directional_shadow_max_distance = 58.0
+	# 58 m sur ordinateur, 34 m sur téléphone : la carte d'ombres couvre une
+	# surface qui varie avec le carré de cette distance, et au-delà de 34 m
+	# l'ombre d'un rocher n'est plus qu'une tache grise de quelques pixels.
+	sun.directional_shadow_max_distance = 34.0 if Cfg.est_mobile() else 58.0
 	sun.shadow_bias = 0.09
 	sun.shadow_normal_bias = 3.2
 	add_child(sun)
@@ -157,7 +164,11 @@ func _build_environment() -> void:
 func _build_ground() -> void:
 	var col := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(PlanMonde.RAYON * 2.4, 1.0, PlanMonde.RAYON * 2.4)
+	# 3,0 ET NON 2,4. Une boîte carrée de 2,4 rayons ne couvre que 93 m sur
+	# ses axes, alors que le disque VISIBLE en fait 107 : il existait une
+	# couronne où l'on voyait du sol sans qu'il y en ait sous les pieds.
+	# Passer à 3,0 met la collision partout où il y a quelque chose à voir.
+	box.size = Vector3(PlanMonde.RAYON * 3.0, 1.0, PlanMonde.RAYON * 3.0)
 	col.shape = box
 	col.position = Vector3(0, -0.5, 0)
 	_obstacles.add_child(col)
@@ -426,7 +437,7 @@ func _batir_secteurs() -> void:
 		for cle: String in par_cellule:
 			var liste: Array[Transform3D] = par_cellule[cle]
 			var noeud := KitDecor.semer(famille, liste,
-					PORTEE.get(famille, 0.0), famille in FAMILLES_SOLIDES)
+					_portee(famille), famille in FAMILLES_SOLIDES)
 			add_child(noeud)
 			_semis += 1
 			_props += liste.size()
@@ -454,6 +465,22 @@ const PORTEE := {
 	&"caillou": 46.0, &"touffe": 34.0, &"buisson": 52.0, &"tonneau": 58.0,
 	&"caisse": 62.0, &"cloture": 62.0,
 }
+
+## Distance d'effacement effective, raccourcie de 40 % sur téléphone.
+##
+## C'EST LE RÉGLAGE QUI SUIT LA DENSITÉ. Le nombre de semis dessinés dépend
+## de ce que la caméra voit : dans un secteur clairsemé une poignée, dans
+## les ruines ou le bosquet plusieurs dizaines. C'est ce qui explique qu'un
+## défaut de performance se manifeste « à certains endroits » et pas
+## ailleurs — la carte n'a pas un coût, elle en a cinq.
+##
+## Les petites pièces sont celles qu'on efface : un caillou à 28 m sur un
+## écran de téléphone fait trois pixels.
+func _portee(famille: StringName) -> float:
+	var base: float = PORTEE.get(famille, 0.0)
+	if base <= 0.0:
+		return 0.0
+	return base * 0.6 if Cfg.est_mobile() else base
 
 
 func _poser_collision_ronde(p: Vector2, rayon: float, haut: float) -> void:

@@ -24,6 +24,15 @@ var _monde: Arena
 func _ready() -> void:
 	await get_tree().process_frame
 	_relever()
+	# DEUX TRAMES DE PHYSIQUE, APRÈS LA CONSTRUCTION. Les formes de
+	# collision ne sont connues du serveur physique qu'après un pas de
+	# simulation. Placées AVANT `_relever()`, elles s'écoulaient sur un
+	# monde qui n'existait pas encore, et la garantie d'étanchéité annonçait
+	# 1 440 brèches sur 1 440 angles — c'est-à-dire aucun mur du tout. Un
+	# test qui échoue à 100 % accuse le test avant d'accuser le monde, et
+	# c'est deux fois de suite que ce réflexe a payé.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
 	print("=== MONDE CONSTRUIT ===")
 	_garantie_pavage()
 	_garantie_poi_dans_leur_secteur()
@@ -33,6 +42,7 @@ func _ready() -> void:
 	_garantie_tout_dans_le_monde()
 	_garantie_foyers_de_mobs()
 	_garantie_cout_de_dessin()
+	_garantie_mur_etanche()
 	print("=== %d échec(s) sur %d vérifications ===" % [_echecs, _total])
 	get_tree().quit(1 if _echecs > 0 else 0)
 
@@ -242,6 +252,46 @@ func _garantie_cout_de_dessin() -> void:
 	# Les maillages individuels sont le vrai coût fixe : ils sont dessinés
 	# un par un. Le noyau en concentre l'essentiel, et c'est voulu.
 	_verifier("moins de 200 maillages individuels", maillages < 200, true)
+
+
+# --- GARANTIE 9 : LE MUR DU MONDE EST ÉTANCHE --------------------------
+#
+# LE DÉFAUT REDOUTÉ, ÉCRIT NOIR SUR BLANC DANS LE CODE DU MUR : « le
+# joueur ne doit jamais pouvoir se glisser entre deux mesas ». C'était une
+# intention, elle n'était vérifiée nulle part.
+#
+# Elle compte plus qu'il n'y paraît. Passer le mur ne donne pas un joueur
+# hors-jeu : cela donne un joueur qui TOMBE, écran vide, interface
+# intacte, sans mort ni message. Une partie perdue sans qu'aucune règle
+# du jeu ne l'ait décidé.
+
+func _garantie_mur_etanche() -> void:
+	var espace := _monde.get_world_3d().direct_space_state
+	if espace == null:
+		push_error("Pas d'espace physique : l'étanchéité n'est pas mesurable.")
+		_echecs += 1
+		return
+	# On tire depuis le centre vers l'extérieur, à hauteur de poitrine, sur
+	# mille quatre-cent-quarante angles — un quart de degré. Une brèche plus
+	# fine qu'un quart de degré au rayon 80 fait 35 cm : trop étroit pour un
+	# personnage d'un demi-mètre de large.
+	var fuites := 0
+	var premiere := -1.0
+	for i in 1440:
+		var a := TAU * float(i) / 1440.0
+		var d := Vector3(cos(a), 0.0, sin(a))
+		var depart := d * (PlanMonde.RAYON - 6.0) + Vector3(0, 1.1, 0)
+		var arrivee := d * (PlanMonde.RAYON + 12.0) + Vector3(0, 1.1, 0)
+		var q := PhysicsRayQueryParameters3D.create(depart, arrivee)
+		q.collision_mask = Cfg.LAYER_WORLD
+		if espace.intersect_ray(q).is_empty():
+			fuites += 1
+			if premiere < 0.0:
+				premiere = rad_to_deg(a)
+	if fuites > 0:
+		print("      ! %d angle(s) traversants, le premier à %.2f°"
+				% [fuites, premiere])
+	_verifier("aucune brèche dans le mur du monde", fuites, 0)
 
 
 func _libre(p: Vector2, rayon: float) -> bool:

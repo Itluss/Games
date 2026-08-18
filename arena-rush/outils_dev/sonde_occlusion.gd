@@ -135,6 +135,13 @@ func _balayer(degager: bool) -> Dictionary:
 ## règle plutôt que d'appeler la caméra est un choix : la sonde doit
 ## échouer si la règle change sans qu'on y pense.
 func _fraction(oeil: Vector3, course: Vector3) -> float:
+	# La caméra ne bouge QUE si le joueur est masqué. Tant qu'on le voit,
+	# elle reste au placement nominal quoi qu'il y ait autour — c'est ce qui
+	# a supprimé le zoom continuel signalé en jeu.
+	var vue := PhysicsRayQueryParameters3D.create(oeil + course, oeil)
+	vue.collision_mask = Cfg.LAYER_WORLD
+	if _espace.intersect_ray(vue).is_empty():
+		return 1.0
 	_requete.transform = Transform3D(Basis(), oeil)
 	_requete.motion = course
 	var bornes := _espace.cast_motion(_requete)

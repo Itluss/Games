@@ -237,6 +237,7 @@ func _physics_process(delta: float) -> void:
 		_protection = maxf(0.0, _protection - delta)
 	if is_local_authority():
 		_simulate(delta)
+		_rattraper_le_monde()
 		_replicate(delta)
 	else:
 		_interpolate(delta)
@@ -531,6 +532,43 @@ func revivre(position: Vector3) -> void:
 	Fx.impact(position + Vector3(0, 0.6, 0), Cfg.COL_BASIC, 1.4)
 	health_changed.emit(health.current_health, health.max_health)
 	inventory_changed.emit(slots, active_slot)
+
+
+## FILET DE SÉCURITÉ — ramène un joueur sorti du monde.
+##
+## POURQUOI CE FILET EXISTE. Une capture d'écran envoyée depuis un
+## téléphone montrait l'interface intacte — vie à 49, niveau 2 — sur un
+## dégradé violet sans le moindre décor. Ce dégradé n'est pas un bogue
+## d'affichage : c'est l'HÉMISPHÈRE BAS DU CIEL, corail près de l'horizon
+## et bleu nuit à la verticale. Autrement dit la caméra regardait vers le
+## bas, correctement orientée, et il n'y avait simplement plus de sol.
+##
+## Le sol de collision est une boîte carrée : au-delà de ses bords, on
+## tombe indéfiniment. Peu importe COMMENT on y arrive — un passage entre
+## deux mesas du mur, une esquive qui traverse, une réapparition
+## malheureuse : le résultat est une partie perdue sans mort, sans message,
+## sans retour possible. C'est le pire défaut qu'un jeu puisse avoir, parce
+## qu'il ne se signale pas.
+##
+## On ne cherche donc pas à énumérer les causes, on rend l'état
+## irrécupérable impossible.
+func _rattraper_le_monde() -> void:
+	var plan := Vector2(global_position.x, global_position.z)
+	var dehors := plan.length() > PlanMonde.RAYON + 14.0
+	var dessous := global_position.y < -4.0
+	if not dehors and not dessous:
+		return
+	# On repose le joueur au bord intérieur du monde, dans la direction d'où
+	# il vient : le renvoyer au centre serait une téléportation punitive et
+	# désorientante pour ce qui n'est pas sa faute.
+	var retour := plan.normalized() * (PlanMonde.RAYON - 8.0) \
+			if plan.length() > 0.01 else Vector2(0.0, PlanMonde.RAYON - 8.0)
+	global_position = Vector3(retour.x, 1.0, retour.y)
+	_target_pos = global_position
+	velocity = Vector3.ZERO
+	_accel = Vector3.ZERO
+	_dash_time = 0.0
+	push_warning("Joueur sorti du monde, ramené en %s." % str(global_position))
 
 
 ## Le joueur est-il actuellement protégé par son invulnérabilité de retour ?

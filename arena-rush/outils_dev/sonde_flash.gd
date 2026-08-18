@@ -43,6 +43,15 @@ var _pire_teinte := Color.BLACK
 var _pire_note := ""
 var _pire_image: Image = null
 var _morts := 0
+## AGITATION DE LA CAMÉRA. La joueuse a signalé « la caméra tremble » et
+## « des zoom et dézoom qui rendent le jeu injouable ». Ni l'aplat ni la
+## luminance ne mesurent cela : ce qui tremble, c'est la DISTANCE entre la
+## caméra et son joueur, d'une image à l'autre.
+var _dist_avant := -1.0
+var _agitation := 0.0
+var _saut_max := 0.0
+var _dist_min := 999.0
+var _dist_max := 0.0
 ## Luminance moyenne la plus basse rencontrée, et son image.
 var _noir := 1.0
 var _noir_note := ""
@@ -69,8 +78,25 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _prete:
-		_t += delta
+	if not _prete:
+		return
+	_t += delta
+	# LE JOUEUR MARCHE, il ne reste pas planté. Une sonde qui laisse le
+	# personnage immobile ne traverse jamais les colonnes des ruines ni les
+	# troncs du bosquet — c'est-à-dire jamais l'endroit où la caméra devait
+	# se dégager. Les deux premières mesures d'agitation n'ont donc rien
+	# mesuré du tout.
+	#
+	# On lui fait décrire une grande boucle qui traverse les cinq secteurs,
+	# avec de vraies commandes et de vraies collisions : c'est le trajet
+	# d'une joueuse qui explore, pas une téléportation.
+	if _joueur and not bool(_joueur.get(&"is_eliminated")):
+		var a := _t * 0.55
+		var p := Vector2(cos(a * 0.21), sin(a * 0.21)) * 62.0
+		var vers := p - Vector2(_joueur.global_position.x,
+				_joueur.global_position.z)
+		_joueur.set(&"move_input", vers.normalized())
+		_joueur.set(&"aim_input", Vector3(vers.x, 0.0, vers.y).normalized())
 
 
 func _analyser() -> void:
@@ -96,6 +122,16 @@ func _analyser() -> void:
 		_vides += 1
 		print("      ! %.0f %% d'aplat — %s (teinte %s)"
 				% [plat * 100.0, note, (mesure["teinte"] as Color).to_html(false)])
+	if cam:
+		var d := cam.global_position.distance_to(_joueur.global_position)
+		_dist_min = minf(_dist_min, d)
+		_dist_max = maxf(_dist_max, d)
+		if _dist_avant >= 0.0:
+			var saut := absf(d - _dist_avant)
+			_agitation += saut
+			if saut > _saut_max:
+				_saut_max = saut
+		_dist_avant = d
 	var lum: float = mesure["lum"]
 	if lum < _noir:
 		_noir = lum
@@ -149,6 +185,9 @@ func _conclure() -> void:
 			% [NOIR, _sombres, _images])
 	print("  image la plus sombre : luminance %.3f" % _noir)
 	print("      %s" % _noir_note)
+	print("  distance caméra/joueur : de %.1f à %.1f m" % [_dist_min, _dist_max])
+	print("  agitation : %.2f m/s cumulés · plus grand saut %.2f m"
+			% [_agitation / maxf(1.0, _t), _saut_max])
 	print("  captures : %s/pire.png et %s/plus_sombre.png" % [dossier, dossier])
 	print("=== %d échec(s) sur 1 vérification ===" % (1 if _vides > 0 else 0))
 	get_tree().quit(1 if _vides > 0 else 0)

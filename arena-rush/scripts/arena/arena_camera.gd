@@ -49,16 +49,28 @@ const YEUX := 1.4
 ## Part minimale du recul nominal. En dessous, la caméra serait dans le dos
 ## du personnage et le jeu deviendrait illisible : mieux vaut alors accepter
 ## qu'un morceau de décor passe dans le cadre.
-const DEGAGEMENT_MINI := 0.3
+##
+## REMONTÉE DE 0,3 À 0,45 APRÈS ESSAI SUR TÉLÉPHONE. Une amplitude de zoom
+## de 70 % est spectaculaire à la lecture d'un test et insupportable à
+## jouer : le jeu paraissait respirer. Moins de dégagement, mais un cadre
+## qui tient en place — et un cadre stable vaut mieux qu'un cadre parfait.
+const DEGAGEMENT_MINI := 0.45
 ## Rayon de la sonde de dégagement. Un simple rayon se faufilerait entre
 ## deux piliers et laisserait la caméra dans la pierre.
 const RAYON_SONDE := 0.7
-## Vitesse de retour vers le recul nominal une fois l'obstacle passé.
-## On rentre INSTANTANÉMENT — sinon on filme la roche — et on ressort
-## doucement, sinon chaque rocher frôlé donne un à-coup.
-const RETOUR := 2.5
+## Vitesses d'approche et de retour, en unités de lissage exponentiel.
+##
+## LA VERSION PRÉCÉDENTE RENTRAIT INSTANTANÉMENT, et c'était une erreur
+## payée en jeu : la joueuse a décrit « des zoom et dézoom qui rendent le
+## jeu injouable ». Un saut sec est justifiable quand il arrive une fois ;
+## répété chaque fois qu'un pilier frôle le trajet, il donne le mal de mer.
+## L'approche reste vive — un dixième de seconde — mais elle est amortie.
+const ENTREE := 11.0
+const RETOUR := 2.2
 ## Au-delà, la cible n'a pas marché : elle a été téléportée.
 const SAUT := 25.0
+## Période de la vérification « y a-t-il encore un monde sous moi ? ».
+const CONTROLE := 0.25
 
 var target: Node3D = null
 
@@ -75,6 +87,7 @@ var _degagement: float = 1.0
 
 var _forme := SphereShape3D.new()
 var _requete := PhysicsShapeQueryParameters3D.new()
+var _controle := 0.0
 
 func _ready() -> void:
 	# La caméra s'enregistre elle-même : les effets n'ont pas à la chercher
@@ -149,13 +162,42 @@ func _process(delta: float) -> void:
 	_ideal = _ideal.lerp(goal, 1.0 - exp(-smoothing * delta))
 
 	var oeil := _desired + Vector3(0, YEUX, 0)
-	var libre := _mesurer_degagement(oeil, _ideal - oeil)
-	if libre < _degagement:
-		_degagement = libre
-	else:
-		_degagement = lerpf(_degagement, libre, 1.0 - exp(-RETOUR * delta))
+	var vise := _mesurer_degagement(oeil, _ideal - oeil)
+	var vitesse := ENTREE if vise < _degagement else RETOUR
+	_degagement = lerpf(_degagement, vise, 1.0 - exp(-vitesse * delta))
 	global_position = oeil + placer(_ideal - oeil, _degagement)
 	look_at(_desired, Vector3.UP)
+
+	_controle -= delta
+	if _controle <= 0.0:
+		_controle = CONTROLE
+		_verifier_le_sol()
+
+## FILET DE SÉCURITÉ — une caméra qui ne voit plus le monde se recale.
+##
+## POURQUOI SANS CONNAÎTRE LA CAUSE. Une capture prise sur téléphone
+## montrait l'interface intacte sur un dégradé violet : corail en haut,
+## bleu nuit en bas. Ce dégradé est l'hémisphère BAS du ciel procédural,
+## donc une caméra correctement orientée vers le sol, avec plus aucun sol
+## devant elle. Trois sondes n'ont pas su reproduire l'état, et chercher
+## indéfiniment la cause d'un défaut qu'on ne reproduit pas revient à ne
+## rien livrer.
+##
+## On rend donc l'état IRRÉCUPÉRABLE impossible, quelle qu'en soit
+## l'origine : un rayon vers le bas toutes les quatre images, et si le
+## monde a disparu, la caméra retourne sur son joueur — lequel a de son
+## côté sa propre garantie de rester dans le monde.
+func _verifier_le_sol() -> void:
+	var espace := get_world_3d().direct_space_state
+	if espace == null:
+		return
+	var q := PhysicsRayQueryParameters3D.create(global_position,
+			global_position - Vector3(0.0, 80.0, 0.0))
+	q.collision_mask = Cfg.LAYER_WORLD
+	if espace.intersect_ray(q).is_empty():
+		push_warning("Caméra sans sol sous elle en %s — recalage."
+				% str(global_position))
+		_snap()
 
 ## Où se met la caméra quand elle ne peut reculer que d'une fraction ?
 ##
@@ -170,14 +212,31 @@ func _process(delta: float) -> void:
 static func placer(course: Vector3, part: float) -> Vector3:
 	return Vector3(course.x * part, course.y * sqrt(part), course.z * part)
 
-## Jusqu'où peut-on reculer depuis le joueur sans entrer dans un décor ?
+## Jusqu'où faut-il se rapprocher pour revoir le joueur ?
 ##
-## Renvoie une fraction du recul demandé. Le sol n'entre jamais en compte :
-## le trajet part de la poitrine du joueur et monte, il ne le rencontre pas.
+## LA QUESTION A CHANGÉ, ET C'EST TOUTE LA CORRECTION. La version
+## précédente demandait « quelque chose touche-t-il le trajet de la
+## caméra ? » et se rapprochait dès que oui. Or un pilier peut frôler ce
+## trajet sans cacher qui que ce soit : la caméra plongeait alors sans
+## raison, ressortait, replongeait. C'est l'origine du zoom continuel
+## signalé en jeu.
+##
+## On demande maintenant « le joueur est-il masqué ? ». Tant qu'on le voit,
+## la caméra ne bouge pas d'un millimètre, quoi qu'il y ait autour. C'est un
+## rayon de plus par image, et c'est ce rayon qui rend le cadre stable.
 func _mesurer_degagement(oeil: Vector3, course: Vector3) -> float:
 	var espace := get_world_3d().direct_space_state
 	if espace == null or course.length_squared() < 0.01:
 		return 1.0
+
+	var vue := PhysicsRayQueryParameters3D.create(oeil + course, oeil)
+	vue.collision_mask = Cfg.LAYER_WORLD
+	if espace.intersect_ray(vue).is_empty():
+		return 1.0
+
+	# Le joueur est bel et bien caché : on cherche jusqu'où reculer sans
+	# entrer dans le décor. Le sol n'entre jamais en compte — le trajet part
+	# de la poitrine du joueur et monte, il ne le rencontre pas.
 	_requete.transform = Transform3D(Basis(), oeil)
 	_requete.motion = course
 	var bornes := espace.cast_motion(_requete)

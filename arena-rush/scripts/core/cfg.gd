@@ -150,11 +150,45 @@ func shadows_enabled() -> bool:
 
 ## Détecte une plateforme tactile pour adapter l'interface sans deviner.
 func is_touch_platform() -> bool:
-	return OS.has_feature("mobile") or DisplayServer.is_touchscreen_available()
+	return est_mobile() or DisplayServer.is_touchscreen_available()
+
+## LE TÉLÉPHONE N'ÉTAIT PAS RECONNU COMME UN TÉLÉPHONE.
+##
+## `OS.has_feature("mobile")` est FAUX dans un export web, même ouvert sur
+## un iPhone : l'export web n'a que les étiquettes « web », « web_ios »,
+## « web_android ». Or le jeu se joue précisément comme ça — par le
+## navigateur du téléphone. Toutes les baisses de qualité prévues pour
+## mobile n'ont donc jamais été appliquées à la seule plateforme qui en
+## avait besoin : le jeu tournait en qualité HAUTE, ombres comprises, sur
+## un écran haute densité.
+##
+## C'est le genre de défaut qui ne se voit sur aucune machine de
+## développement, puisque le bureau est légitimement en qualité haute.
+func est_mobile() -> bool:
+	return OS.has_feature("mobile") \
+			or OS.has_feature("web_ios") or OS.has_feature("web_android") \
+			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
 
 func _ready() -> void:
 	# Sur mobile, on part en qualité moyenne : mieux vaut 60 FPS stables
 	# qu'un premier lancement à 30 dont le joueur ne reviendra pas.
-	if OS.has_feature("mobile"):
-		quality = Quality.MEDIUM
+	# QUALITÉ BASSE SUR TÉLÉPHONE, ET NON MOYENNE. C'est un choix, pas un
+	# réglage par défaut : la joueuse a décrit le jeu comme « injouable »
+	# sur son iPhone — image qui tremble, zoom erratique, décor qui
+	# disparaît. Ces trois symptômes sont ceux d'une cadence d'images
+	# effondrée, et ils apparaissent « à certains endroits » parce que le
+	# coût du décor varie du simple au décuple selon le secteur.
+	#
+	# Le cran BAS coupe les trois postes les plus chers : les ombres
+	# dynamiques, les contours dilatés — qui DOUBLENT les appels de rendu
+	# des personnages — et l'essentiel des particules. Rien de tout cela ne
+	# touche au jeu lui-même, conformément à la règle de ce curseur.
+	#
+	# C'est volontairement trop prudent. Le jeu doit d'abord TOURNER ; on
+	# remontera le curseur quand on saura ce que le téléphone encaisse.
+	if est_mobile():
+		quality = Quality.LOW
+	# On ne touche PAS à `scaling_3d_scale` : l'export web utilise le rendu
+	# `gl_compatibility`, où la mise à l'échelle 3D de Godot n'a aucun
+	# effet. La ligne aurait rassuré sans rien faire.
 	Engine.max_fps = 60
