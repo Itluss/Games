@@ -104,6 +104,10 @@ func _ready() -> void:
 	# dans l'arbre à chaque impact.
 	Fx.camera = self
 	current = true
+	# RETROUVABLE. Si la fenêtre se retrouve un jour sans caméra active, la
+	# veille du monde doit pouvoir en désigner une — encore faut-il qu'elle
+	# sache où chercher.
+	add_to_group(&"camera_arene")
 	fov = 58.0
 	# Champ lointain court. Ce n'est PAS « la taille de l'arène » — le monde
 	# fait 156 m — mais la portée réelle du cadre : incliné à 52° avec 29°
@@ -144,6 +148,9 @@ func _process(delta: float) -> void:
 	if target == null or not is_instance_valid(target):
 		return
 	var focus: Vector3 = target.global_position
+	if not _fini(focus) or not _fini(_focus) or not _fini(_ideal):
+		_urgence("suivi")
+		return
 
 	# UNE TÉLÉPORTATION N'EST PAS UN DÉPLACEMENT. Réapparaître envoie le
 	# joueur à l'autre bout du monde ; amortir ce saut faisait voyager la
@@ -185,7 +192,7 @@ func _process(delta: float) -> void:
 	var vitesse := ENTREE if vise < _degagement else RETOUR
 	_degagement = lerpf(_degagement, vise, 1.0 - exp(-vitesse * delta))
 	global_position = oeil + placer(_ideal - oeil, _degagement)
-	look_at(_desired, Vector3.UP)
+	_regarder(_desired)
 
 	_controle -= delta
 	if _controle <= 0.0:
@@ -238,6 +245,61 @@ func _signaler(texte: String) -> void:
 
 func _bref(v: Vector3) -> String:
 	return "(%d, %d, %d)" % [roundi(v.x), roundi(v.y), roundi(v.z)]
+
+## ORIENTE LA CAMÉRA, EN REFUSANT LES CAS QUI LA DÉTRUISENT.
+##
+## POURQUOI UN GARDE AUTOUR D'UN SIMPLE `look_at`. Un écran entièrement vide
+## — ciel visible, décor absent, interface intacte — n'a qu'une explication
+## côté rendu : un TRONC DE VISION DÉGÉNÉRÉ. Plus rien ne passe le test de
+## visibilité, tandis que le ciel, dessiné en passe pleine page, continue de
+## s'afficher. C'est exactement l'image signalée quatre fois.
+##
+## Or `look_at` produit précisément cela dans deux cas : une direction NULLE
+## — la caméra se trouve sur son point de visée — et une direction ALIGNÉE
+## sur la verticale, qui ne laisse aucune façon de choisir « le haut ». Godot
+## signale l'erreur et laisse la base de rotation dans un état invalide.
+##
+## Le troisième cas est pire parce qu'il est silencieux : une coordonnée
+## infinie ou non numérique. Une seule division mal bornée quelque part dans
+## la simulation, et toute la chaîne — position du joueur, visée lissée,
+## position de la caméra — devient non numérique en une image. La caméra ne
+## regarde alors nulle part, définitivement.
+##
+## On ne cherche plus d'où viendrait ce nombre : on refuse de s'en servir,
+## et l'on se recale.
+func _regarder(vers: Vector3) -> void:
+	if not _fini(global_position) or not _fini(vers):
+		_urgence("coordonnees")
+		return
+	var d := vers - global_position
+	if d.length_squared() < 0.0004:
+		return
+	# Direction quasi verticale : `look_at` n'a plus de repère latéral.
+	if absf(d.normalized().y) > 0.999:
+		return
+	look_at(vers, Vector3.UP)
+
+
+static func _fini(v: Vector3) -> bool:
+	return is_finite(v.x) and is_finite(v.y) and is_finite(v.z)
+
+
+## Remet la caméra dans un état sain quand son état courant ne l'est plus.
+func _urgence(cause: String) -> void:
+	push_warning("Caméra : état invalide (%s) — recalage d'urgence." % cause)
+	if target == null or not is_instance_valid(target) \
+			or not _fini(target.global_position):
+		return
+	_focus = target.global_position
+	_desired = _focus
+	_ahead = Vector3.ZERO
+	_degagement = 1.0
+	_ideal = _desired + Vector3(0, height, distance)
+	global_position = _ideal
+	look_at(_desired, Vector3.UP)
+	if MatchDirector and MatchDirector.has_signal(&"announce"):
+		MatchDirector.announce.emit("VEILLE : CAMERA RECALEE", Cfg.COL_DANGER)
+
 
 ## REPLIE TOUT L'ÉTAT DE LA CAMÉRA D'UN MONDE ENTIER, D'UN SEUL BLOC.
 ##

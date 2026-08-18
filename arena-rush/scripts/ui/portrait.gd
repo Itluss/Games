@@ -62,9 +62,20 @@ func _ready() -> void:
 	env.ambient_light_color = Color("8fa8d8")
 	env.ambient_light_energy = 0.8
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	var we := WorldEnvironment.new()
-	we.environment = env
-	scene.add_child(we)
+	# L'AMBIANCE EST PORTÉE PAR LA CAMÉRA, pas par un nœud d'ambiance.
+	#
+	# Godot n'autorise qu'UN SEUL `WorldEnvironment` par scène et prévient
+	# que deux rendent le résultat indéterminé. L'arène en possède déjà un ;
+	# en ajouter un second ici, c'était accepter que l'ambiance du JEU puisse
+	# un jour être remplacée par celle du portrait — pas de ciel, pas de
+	# brume, un fond uni et un décor privé d'éclairage indirect. Autrement
+	# dit l'image vide qui a été signalée quatre fois.
+	#
+	# La poser sur le monde de la sous-fenêtre a été essayé et NE MARCHE PAS :
+	# vérifié en capture, le portrait devenait un disque vide. `Camera3D`
+	# accepte sa propre ambiance, qui ne s'applique qu'à ce qu'elle filme —
+	# c'est l'outil prévu pour exactement ce cas, et il ne touche à rien
+	# d'autre.
 
 	var cam := Camera3D.new()
 	cam.fov = 34.0
@@ -75,8 +86,11 @@ func _ready() -> void:
 	# hauteur réelle de la tête du modèle, que seul un rendu révèle.
 	cam.position = Vector3(0.30, 1.74, 0.96)
 	scene.add_child(cam)
+	cam.environment = env
 	cam.look_at(Vector3(0.0, 1.62, 0.0), Vector3.UP)
-	cam.current = true
+	# PAS DE `current = true`. Une sous-fenêtre qui ne contient qu'une seule
+	# caméra la choisit d'elle-même ; le forcer revient à jouer avec le
+	# mécanisme qui décide aussi de la caméra du JEU, pour aucun gain.
 
 	# TROIS COUCHES, ET L'ORDRE EST LE SUJET.
 	#

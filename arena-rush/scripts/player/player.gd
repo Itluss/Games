@@ -569,6 +569,27 @@ func _replier_les_bords() -> void:
 	# détection : la position REPASSE simplement de l'autre côté. Comme le
 	# décor est périodique et que la caméra suit le même repli, l'image ne
 	# change pas d'un pixel — on continue tout droit sans rien remarquer.
+	# UNE COORDONNÉE NON NUMÉRIQUE EST FATALE, ET SILENCIEUSE.
+	#
+	# Elle ne fait pas planter le jeu : elle se propage. La position du
+	# joueur contamine la visée lissée, qui contamine la caméra, dont le
+	# tronc de vision devient invalide — et plus rien ne s'affiche, sauf le
+	# ciel et l'interface. On coupe la propagation à la source plutôt que de
+	# chercher indéfiniment quelle division l'a produite.
+	if not is_finite(global_position.x) or not is_finite(global_position.y) \
+			or not is_finite(global_position.z):
+		push_warning("Position non numérique — retour au point d'apparition.")
+		var secours := PlanMonde.enrouler3(Vector3(0.0, 1.0, 0.0))
+		global_position = secours
+		_target_pos = secours
+		velocity = Vector3.ZERO
+		_accel = Vector3.ZERO
+		_dash_time = 0.0
+		if MatchDirector and MatchDirector.has_signal(&"announce"):
+			MatchDirector.announce.emit("VEILLE : POSITION RETABLIE",
+					Cfg.COL_DANGER)
+		return
+
 	# LE JOUEUR LOCAL EST L'ORIGINE DU REPÈRE : lui seul se replie dans le
 	# carré de référence, et il y pose l'ancre autour de laquelle tout le
 	# reste du monde vivant se repliera. Les autres corps — adversaires,

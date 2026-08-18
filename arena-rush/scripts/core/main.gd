@@ -89,7 +89,11 @@ func _show_menu() -> void:
 	box.add_child(title)
 
 	var sub := Label.new()
-	sub.text = "Survivez. Pillez. Restez le dernier."
+	# LE MENU DÉCRIVAIT UN AUTRE JEU. « Restez le dernier » était la promesse
+	# du Battle Royale ; l'arène est persistante depuis, on y revient toujours
+	# et personne n'y gagne. Une accroche fausse est le premier mensonge que
+	# le joueur lit, et il la lit avant même d'avoir joué.
+	sub.text = "Un monde sans bord. Pillez, affrontez, recommencez."
 	sub.add_theme_font_size_override(&"font_size", 22)
 	sub.add_theme_color_override(&"font_color", Color(1, 1, 1, 0.7))
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

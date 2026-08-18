@@ -306,6 +306,14 @@ func _pod(icone: StringName, libelle: String, teinte: Color) -> PanelContainer:
 			UiKit.panneau(20, UiKit.PANNEAU, UiKit.PANNEAU_BORD, 3))
 	pod.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var col := VBoxContainer.new()
+	# NOM EXPLICITE, ET C'EST UN CORRECTIF. Sans nom, Godot en attribue un
+	# automatique — « @VBoxContainer@37 » — et le chemin écrit à la main ne
+	# trouvait rien. Les deux libellés de pastille restaient donc NULS, et
+	# toute la mise à jour des statistiques avortait à la première ligne :
+	# kills, série, niveau et barre d'expérience gelés à leur valeur de
+	# départ. Le journal du navigateur l'a dit en une ligne, ce qu'aucune
+	# capture d'écran n'aurait révélé — l'interface avait l'air normale.
+	col.name = "Colonne"
 	col.add_theme_constant_override(&"separation", 0)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pod.add_child(col)
@@ -330,7 +338,11 @@ func _pod(icone: StringName, libelle: String, teinte: Color) -> PanelContainer:
 
 
 func _pod_valeur(pod: PanelContainer) -> Label:
-	return pod.get_node("VBoxContainer/Valeur") as Label
+	var l := pod.get_node_or_null("Colonne/Valeur") as Label
+	if l == null:
+		push_error("Pastille sans valeur : la mise à jour des statistiques "
+				+ "serait silencieusement morte.")
+	return l
 
 
 ## Largeur et hauteur du bloc d'orientation, en pixels.

@@ -259,9 +259,77 @@ func net_collect_loot(loot_id: int, peer_id: int) -> void:
 	if l and p:
 		l.play_collect(p.global_position)
 
+# --- ENTRETIEN DU BUTIN --------------------------------------------------
+
+## Durée de vie d'une arme laissée au sol, en secondes.
+##
+## Assez longue pour qu'on puisse repartir chercher ce qu'on a lâché, assez
+## courte pour que la carte ne se transforme pas en brocante. Quarante-cinq
+## secondes valent une traversée du monde aller-retour.
+const DUREE_BUTIN := 45.0
+## Plafond absolu, quelle que soit la durée. C'est la ceinture par-dessus les
+## bretelles : si un jour les mobs mouraient dix fois plus vite, la durée
+## seule ne suffirait plus à borner quoi que ce soit.
+const MAX_BUTIN := 26
+## Période de l'entretien. Une fois par seconde suffit très largement pour
+## une chose qui vit quarante-cinq secondes.
+const PERIODE_ENTRETIEN := 1.0
+
+var _entretien := 0.0
+
+## EFFACE LE BUTIN OUBLIÉ — le correctif d'une fuite mesurée.
+##
+## Une arme au sol ne disparaissait qu'en étant ramassée. Les mobs meurent
+## sans discontinuer et lâchent la leur : cent-trois butins s'accumulaient
+## en cinq minutes, et la courbe ne redescendait jamais. C'est cette fuite
+## qui faisait grossir la scène, chuter la cadence, et finir par un monde
+## qui ne s'affiche plus.
+func _entretenir_le_butin(delta: float) -> void:
+	if not Net.is_server():
+		return
+	_entretien -= delta
+	if _entretien > 0.0:
+		return
+	_entretien = PERIODE_ENTRETIEN
+
+	var maintenant := Time.get_ticks_msec() / 1000.0
+	var vivants: Array[LootPickup] = []
+	for n in entities.get_children():
+		var l := n as LootPickup
+		if l != null and is_instance_valid(l):
+			vivants.append(l)
+
+	var condamnes: Array[LootPickup] = []
+	for l in vivants:
+		if maintenant - l.ne_le > DUREE_BUTIN:
+			condamnes.append(l)
+	# Au-delà du plafond, on efface les PLUS ANCIENS : ce sont ceux dont on
+	# a le moins de chances de se souvenir, et jamais celui qu'on vient de
+	# lâcher en changeant d'arme.
+	if vivants.size() - condamnes.size() > MAX_BUTIN:
+		var restants: Array[LootPickup] = []
+		for l in vivants:
+			if not condamnes.has(l):
+				restants.append(l)
+		restants.sort_custom(func(a, b): return a.ne_le < b.ne_le)
+		var trop := restants.size() - MAX_BUTIN
+		for i in trop:
+			condamnes.append(restants[i])
+
+	for l in condamnes:
+		Net.broadcast(self, &"net_effacer_butin", [l.loot_id])
+
+
+@rpc("authority", "call_local", "reliable")
+func net_effacer_butin(loot_id: int) -> void:
+	var l := entities.get_node_or_null("Loot_%d" % loot_id) as LootPickup
+	if l:
+		l.disparaitre()
+
 # --- RÉPLICATION DES MOBS ------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	_entretenir_le_butin(delta)
 	if not Net.is_networked() or not Net.is_server():
 		return
 	_sync_accum += delta

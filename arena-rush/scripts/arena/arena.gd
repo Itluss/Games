@@ -171,16 +171,114 @@ var _ancres: Array[Vector2] = []
 var _conteneurs: Array[Node3D] = []
 ## Conteneur courant des `_ajouter` — nul pour poser directement sur le monde.
 var _groupe: Node3D = null
+## Ambiance et soleil, gardés sous la main par la veille — voir `_veiller`.
+var _ambiance: WorldEnvironment
+var _soleil: DirectionalLight3D
+var _veille := 0.0
+var _plaintes: Dictionary = {}
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
+		_veiller(null)
 		return
 	var c := Vector2(cam.global_position.x, cam.global_position.z)
 	for i in _conteneurs.size():
 		var d := PlanMonde.ecart(c, _ancres[i])
 		_conteneurs[i].position = Vector3(c.x + d.x, 0.0, c.y + d.y)
+
+	_veille -= delta
+	if _veille <= 0.0:
+		_veille = 1.0
+		_veiller(cam)
+
+
+# --- VEILLE DU MONDE -----------------------------------------------------
+
+## VÉRIFIE UNE FOIS PAR SECONDE QUE LE MONDE EST ENCORE MONTRABLE.
+##
+## POURQUOI CETTE VEILLE EXISTE, ET CE QU'ELLE AVOUE.
+##
+## Un écran entièrement vide a été signalé quatre fois depuis un téléphone.
+## Huit sondes l'ont cherché : trous de carte, décrochages de caméra, images
+## plates, luminance, étanchéité du mur, cellules autour de l'œil, et enfin
+## le vrai export web joué dans un vrai navigateur. Aucune ne l'a reproduit.
+## La dernière capture a pourtant tranché sur un point : la MINICARTE
+## fonctionnait, montrant la joueuse entourée de décor et d'adversaires. Le
+## monde existait donc, à sa place — il n'était simplement pas dessiné.
+##
+## Chercher plus longtemps à l'aveugle sur une machine qui n'a pas le défaut
+## coûterait des heures pour, au mieux, une hypothèse de plus. On change de
+## méthode : le monde vérifie lui-même, chaque seconde, les quatre
+## conditions SANS LESQUELLES IL NE PEUT PAS S'AFFICHER. Si l'une manque,
+## elle est réparée sur-le-champ et nommée à l'écran.
+##
+## Deux issues, et les deux sont un progrès : ou le défaut disparaît de
+## lui-même, ou la prochaine capture porte le nom de sa cause.
+func _veiller(cam: Camera3D) -> void:
+	# 1. UNE CAMÉRA ACTIVE. Sans elle, rien n'est rendu du tout, et le
+	#    repositionnement du décor s'arrête aussi — donc même en la
+	#    retrouvant plus tard, le monde resterait garé où il était.
+	if cam == null:
+		var reprise := _retrouver_camera()
+		_signaler("camera", "CAMERA ABSENTE%s" % ("" if reprise else " (ECHEC)"))
+		return
+
+	# 2. UNE AMBIANCE. Le ciel, la brume et la lumière ambiante en
+	#    dépendent : sans elle, le fond devient un aplat et le décor perd
+	#    tout éclairage indirect.
+	var monde3d := get_viewport().world_3d
+	if monde3d != null and _ambiance != null and _ambiance.environment != null \
+			and monde3d.environment != _ambiance.environment:
+		monde3d.environment = _ambiance.environment
+		_signaler("ambiance", "AMBIANCE PERDUE")
+
+	# 3. UN SOLEIL. Éteint, tout le décor tombe au noir tandis que le ciel,
+	#    lui, continue de s'afficher — ce qui donne exactement une image
+	#    vide sur un dégradé.
+	if _soleil == null or not is_instance_valid(_soleil):
+		_signaler("soleil", "SOLEIL DISPARU")
+	elif not _soleil.visible or _soleil.light_energy <= 0.01:
+		_soleil.visible = true
+		_soleil.light_energy = maxf(_soleil.light_energy, 1.15)
+		_signaler("soleil", "SOLEIL ETEINT")
+
+	# 4. DU DÉCOR AUTOUR DE L'ŒIL. C'est la garantie du monde enroulé, et
+	#    elle ne peut faillir que si la boucle de repositionnement ne tourne
+	#    plus. On la vérifie quand même : une garantie qu'on ne mesure pas
+	#    est une garantie qu'on croit tenir.
+	if _conteneurs.is_empty():
+		_signaler("cellules", "MONDE NON CONSTRUIT")
+		return
+	var proche := false
+	for n in _conteneurs:
+		if n.global_position.distance_to(cam.global_position) < 60.0:
+			proche = true
+			break
+	if not proche:
+		_signaler("cellules", "DECOR HORS DE PORTEE")
+
+
+## Rend une caméra au monde quand il n'en a plus.
+func _retrouver_camera() -> bool:
+	for n in get_tree().get_nodes_in_group(&"camera_arene"):
+		var c := n as Camera3D
+		if c != null and is_instance_valid(c):
+			c.make_current()
+			return true
+	return false
+
+
+## Chaque défaut n'est annoncé QU'UNE FOIS. Un bandeau qui se répète soixante
+## fois par seconde masquerait le jeu au lieu de renseigner sur lui.
+func _signaler(cle: String, texte: String) -> void:
+	push_warning("Veille du monde : %s" % texte)
+	if _plaintes.has(cle):
+		return
+	_plaintes[cle] = true
+	if MatchDirector and MatchDirector.has_signal(&"announce"):
+		MatchDirector.announce.emit("VEILLE : %s" % texte, Cfg.COL_DANGER)
 
 
 ## Position de référence de la cellule (ix, iz) — son centre.
@@ -361,6 +459,7 @@ func _build_environment() -> void:
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
+	_ambiance = we
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-34, -38, 0)
@@ -379,6 +478,7 @@ func _build_environment() -> void:
 	sun.shadow_bias = 0.09
 	sun.shadow_normal_bias = 3.2
 	add_child(sun)
+	_soleil = sun
 
 # --- SOL -----------------------------------------------------------------
 

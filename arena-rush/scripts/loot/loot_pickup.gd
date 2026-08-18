@@ -39,7 +39,13 @@ func setup(id: StringName, index: int, dropped_by: int = 0) -> void:
 	ignore_peer = dropped_by
 	name = "Loot_%d" % index
 
+## Instant d'apparition, en secondes d'horloge réelle. C'est le serveur qui
+## décide de la disparition, mais chaque exemplaire porte son âge : il n'y a
+## ainsi rien à tenir à jour ailleurs, donc rien à désynchroniser.
+var ne_le: float = 0.0
+
 func _ready() -> void:
+	ne_le = Time.get_ticks_msec() / 1000.0
 	add_to_group(&"loot")
 	_data = Registry.weapon(weapon_id)
 	if _data == null:
@@ -148,4 +154,28 @@ func play_collect(toward: Vector3) -> void:
 	# Jamais exactement zéro : une échelle nulle rend la matrice de
 	# transformation non inversible et le moteur hurle à chaque image.
 	tw.tween_property(self, "scale", Vector3.ONE * 0.01, 0.18)
+	tw.chain().tween_callback(queue_free)
+
+
+## DISPARITION D'UN BUTIN OUBLIÉ.
+##
+## POURQUOI ELLE MANQUAIT, ET CE QU'ELLE A COÛTÉ. Une arme au sol ne
+## s'effaçait QUE lorsqu'on la ramassait. Or les mobs meurent en continu et
+## lâchent la leur : au bout de cinq minutes, cent-trois butins traînaient
+## dans la scène, et le nombre montait sans fin. Mesuré : l'arbre passait de
+## 2 446 à 4 611 nœuds, la mémoire de 74 à 92 Mo, et la cadence s'effondrait
+## jusqu'à ce que le monde cesse d'être dessiné.
+##
+## Elle se distingue du ramassage : pas d'aspiration vers le joueur, pas
+## d'effet — l'objet s'affaisse sur place. Un butin qui part vers personne
+## se lirait comme un vol.
+func disparaitre() -> void:
+	if _taken:
+		return
+	_taken = true
+	set_deferred(&"monitoring", false)
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(self, "scale", Vector3.ONE * 0.01, 0.35) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "position:y", position.y - 0.4, 0.35)
 	tw.chain().tween_callback(queue_free)
