@@ -237,7 +237,7 @@ func _physics_process(delta: float) -> void:
 		_protection = maxf(0.0, _protection - delta)
 	if is_local_authority():
 		_simulate(delta)
-		_rattraper_le_monde()
+		_replier_les_bords()
 		_replicate(delta)
 	else:
 		_interpolate(delta)
@@ -534,7 +534,7 @@ func revivre(position: Vector3) -> void:
 	inventory_changed.emit(slots, active_slot)
 
 
-## FILET DE SÉCURITÉ — ramène un joueur sorti du monde.
+## REPLIE LA POSITION DANS LE MONDE — c'est ici que le monde s'enroule.
 ##
 ## POURQUOI CE FILET EXISTE. Une capture d'écran envoyée depuis un
 ## téléphone montrait l'interface intacte — vie à 49, niveau 2 — sur un
@@ -552,29 +552,31 @@ func revivre(position: Vector3) -> void:
 ##
 ## On ne cherche donc pas à énumérer les causes, on rend l'état
 ## irrécupérable impossible.
-func _rattraper_le_monde() -> void:
-	var plan := Vector2(global_position.x, global_position.z)
-	var dehors := plan.length() > PlanMonde.RAYON + 14.0
-	var dessous := global_position.y < -4.0
-	if not dehors and not dessous:
-		return
-	# On repose le joueur au bord intérieur du monde, dans la direction d'où
-	# il vient : le renvoyer au centre serait une téléportation punitive et
-	# désorientante pour ce qui n'est pas sa faute.
-	var retour := plan.normalized() * (PlanMonde.RAYON - 8.0) \
-			if plan.length() > 0.01 else Vector2(0.0, PlanMonde.RAYON - 8.0)
-	global_position = Vector3(retour.x, 1.0, retour.y)
-	_target_pos = global_position
-	velocity = Vector3.ZERO
-	_accel = Vector3.ZERO
-	_dash_time = 0.0
-	# Le signalement est VISIBLE, pas seulement journalisé : c'est le
-	# téléphone de la joueuse qui sait produire le défaut, pas cette
-	# machine. Une bannière à l'écran vaut six sondes qui ne trouvent rien.
-	var texte := "JOUEUR HORS MONDE %s" % ("sous le sol" if dessous else "au large")
-	push_warning("%s — ramené en %s." % [texte, str(global_position)])
-	if MatchDirector and MatchDirector.has_signal(&"announce"):
-		MatchDirector.announce.emit(texte, Cfg.COL_DANGER)
+func _replier_les_bords() -> void:
+	# L'ENROULEMENT, VU DU JOUEUR : deux lignes, et c'est tout.
+	#
+	# Franchir la limite du monde ne demande ni portail, ni chargement, ni
+	# détection : la position REPASSE simplement de l'autre côté. Comme le
+	# décor est périodique et que la caméra suit le même repli, l'image ne
+	# change pas d'un pixel — on continue tout droit sans rien remarquer.
+	var replie := PlanMonde.enrouler3(global_position)
+	if not replie.is_equal_approx(global_position):
+		global_position = replie
+		_target_pos = replie
+
+	# TOMBER SOUS LE SOL RESTE UNE ANOMALIE, elle. Le repli horizontal ne
+	# peut rien pour elle, et un joueur qui tombe indéfiniment perd sa
+	# partie sans mourir, sans message et sans retour possible.
+	if global_position.y < -4.0:
+		global_position = Vector3(global_position.x, 1.0, global_position.z)
+		_target_pos = global_position
+		velocity = Vector3.ZERO
+		_accel = Vector3.ZERO
+		_dash_time = 0.0
+		push_warning("Joueur passé sous le sol — remonté en %s."
+				% str(global_position))
+		if MatchDirector and MatchDirector.has_signal(&"announce"):
+			MatchDirector.announce.emit("JOUEUR SOUS LE SOL", Cfg.COL_DANGER)
 
 
 ## Le joueur est-il actuellement protégé par son invulnérabilité de retour ?

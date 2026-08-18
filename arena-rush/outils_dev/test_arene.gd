@@ -42,7 +42,6 @@ func _ready() -> void:
 	_garantie_tout_dans_le_monde()
 	_garantie_foyers_de_mobs()
 	_garantie_cout_de_dessin()
-	_garantie_mur_etanche()
 	print("=== %d échec(s) sur %d vérifications ===" % [_echecs, _total])
 	get_tree().quit(1 if _echecs > 0 else 0)
 
@@ -105,26 +104,32 @@ func _verifier(libelle: String, obtenu, attendu) -> void:
 # d'eux se retrouvait sans aucun point d'apparition.
 
 func _garantie_pavage() -> void:
-	var somme := 0.0
-	for s: Dictionary in PlanMonde.SECTEURS:
-		somme += PlanMonde.ouverture_de(s["id"])
-	_verifier("les secteurs couvrent exactement le cercle",
-			is_equal_approx(somme, TAU), true)
-
-	# Aucun secteur ne doit en recouvrir un autre : on échantillonne le tour
-	# et on vérifie qu'à chaque angle, un seul secteur revendique le point.
-	var manquants := 0
+	# LE DÉCOUPAGE PAR CENTRES NE PEUT PAS LAISSER DE TROU — chaque point a
+	# exactement un centre le plus proche. Ce qu'on vérifie ici, c'est que
+	# personne n'a été OUBLIÉ : un secteur dont le poids serait trop faible,
+	# ou dont le centre serait posé sur celui d'un voisin, n'aurait aucun
+	# territoire et disparaîtrait du monde sans que rien ne le signale.
 	var vus: Dictionary = {}
-	for i in 720:
-		var a := TAU * float(i) / 720.0
-		var p := Vector2(cos(a), sin(a)) * (PlanMonde.RAYON * 0.7)
-		var s := PlanMonde.secteur_de(p)
-		if s == &"":
-			manquants += 1
-		vus[s] = true
-	_verifier("aucun angle sans secteur", manquants, 0)
-	_verifier("les cinq secteurs sont atteignables",
+	var manquants := 0
+	for iz in 60:
+		for ix in 60:
+			var p := Vector2(
+					-PlanMonde.DEMI + (float(ix) + 0.5) * PlanMonde.COTE / 60.0,
+					-PlanMonde.DEMI + (float(iz) + 0.5) * PlanMonde.COTE / 60.0)
+			var s := PlanMonde.secteur_de(p)
+			if s == &"":
+				manquants += 1
+			vus[s] = int(vus.get(s, 0)) + 1
+	_verifier("aucun point sans secteur", manquants, 0)
+	_verifier("tous les secteurs existent sur la carte",
 			vus.size(), PlanMonde.SECTEURS.size())
+	var mini := 99999
+	for s in vus:
+		mini = mini(mini, int(vus[s]))
+	print("      part du plus petit secteur : %.1f %%"
+			% [100.0 * float(mini) / 3600.0])
+	_verifier("aucun secteur ne fait moins de 3 % du monde",
+			float(mini) / 3600.0 > 0.03, true)
 
 
 # --- GARANTIE 2 : CHAQUE REPÈRE EST DANS SON SECTEUR --------------------
@@ -149,8 +154,13 @@ func _garantie_repartition_des_apparitions() -> void:
 		var s := PlanMonde.secteur_de(Vector2(sp.x, sp.z))
 		par_secteur[s] = int(par_secteur.get(s, 0)) + 1
 	print("      répartition : %s" % str(par_secteur))
-	_verifier("chaque secteur a des apparitions",
-			par_secteur.size(), PlanMonde.SECTEURS.size())
+	# TOUS LES SECTEURS SAUF UN. On ne réapparaît jamais dans le Creuset :
+	# c'est le point le plus disputé du monde, et y renvoyer un joueur qui
+	# vient d'y mourir transformerait chaque mort en série de morts.
+	_verifier("chaque secteur habitable a des apparitions",
+			par_secteur.size(), PlanMonde.SECTEURS.size() - 1)
+	_verifier("aucune apparition dans le Creuset",
+			par_secteur.has(&"creuset"), false)
 	var mini := 999
 	for s in par_secteur:
 		mini = mini(mini, int(par_secteur[s]))
@@ -187,19 +197,56 @@ func _garantie_apparitions_espacees() -> void:
 # --- GARANTIE 6 : TOUT TIENT DANS LE MONDE ------------------------------
 
 func _garantie_tout_dans_le_monde() -> void:
-	var dehors := 0
-	for poi: Dictionary in PlanMonde.POINTS_INTERET:
-		var p := PlanMonde.position_poi(poi)
-		if p.length() + float(poi["rayon_actif"]) > PlanMonde.RAYON - 3.0:
-			dehors += 1
-			print("      ! %s déborde du monde" % poi["id"])
-	_verifier("tous les repères tiennent dans le monde", dehors, 0)
+	# IL N'Y A PLUS DE BORD DONT ON PUISSE DÉBORDER. La question devient
+	# l'inverse : le monde se RECOLLE-T-IL sur lui-même ?
+	#
+	# C'est la garantie centrale du monde enroulé, et la seule chose qui
+	# puisse la casser est une périodicité mal choisie. L'ondulation qui
+	# adoucit les frontières de secteur est faite de sinus ; si l'une de
+	# leurs périodes ne divise pas le côté du monde, la couture réapparaît —
+	# une seule fois, en pleine carte, sous la forme d'une frontière nette
+	# là où il ne devrait rien y avoir.
+	var ruptures := 0
+	var premiere := 0.0
+	for i in 600:
+		var t := -PlanMonde.DEMI + PlanMonde.COTE * float(i) / 600.0
+		# Deux points séparés de 2 cm SUR LE TORE, de part et d'autre de la
+		# limite du carré de référence. Ils doivent appartenir au même
+		# secteur, comme n'importe quels voisins immédiats.
+		if PlanMonde.secteur_de(Vector2(t, PlanMonde.DEMI - 0.01)) \
+				!= PlanMonde.secteur_de(Vector2(t, -PlanMonde.DEMI + 0.01)):
+			ruptures += 1
+			if premiere == 0.0:
+				premiere = t
+		if PlanMonde.secteur_de(Vector2(PlanMonde.DEMI - 0.01, t)) \
+				!= PlanMonde.secteur_de(Vector2(-PlanMonde.DEMI + 0.01, t)):
+			ruptures += 1
+			if premiere == 0.0:
+				premiere = t
+	if ruptures > 0:
+		print("      ! %d rupture(s) à la couture, la première en %.1f m"
+				% [ruptures, premiere])
+	_verifier("le monde se recolle sur lui-même", ruptures, 0)
 
-	var hors := 0
-	for sp: Vector3 in _monde.player_spawn_points:
-		if Vector2(sp.x, sp.z).length() > PlanMonde.RAYON - 5.0:
-			hors += 1
-	_verifier("aucune apparition contre le bord", hors, 0)
+	# ET LES COLLISIONS SE RECOLLENT AUSSI. Un rocher posé à un mètre du
+	# bord doit arrêter un joueur qui arrive de l'autre côté : sans copie,
+	# la physique les croit séparés de 142 m et on traverse le décor.
+	var pres_du_bord := 0
+	var doubles := 0
+	for b in _boites:
+		var c: Vector2 = b["pos"]
+		if absf(c.x) < PlanMonde.DEMI - 3.0 and absf(c.y) < PlanMonde.DEMI - 3.0:
+			continue
+		pres_du_bord += 1
+		for autre in _boites:
+			var d: Vector2 = autre["pos"]
+			if d != c and PlanMonde.distance(c, d) < 0.05:
+				doubles += 1
+				break
+	print("      %d obstacles à moins de 3 m d'une couture, %d recollés"
+			% [pres_du_bord, doubles])
+	_verifier("tous les obstacles de la couture ont leur jumeau",
+			doubles, pres_du_bord)
 
 
 # --- GARANTIE 7 : DES MOBS PEUVENT APPARAÎTRE PARTOUT -------------------
@@ -211,8 +258,7 @@ func _garantie_foyers_de_mobs() -> void:
 		var p := Vector2(f.x, f.z)
 		if _libre(p, 0.9):
 			libres += 1
-			var s := &"noyau" if p.length() <= PlanMonde.RAYON_NOYAU \
-					else PlanMonde.secteur_de(p)
+			var s := PlanMonde.secteur_de(p)
 			par_secteur[s] = int(par_secteur.get(s, 0)) + 1
 	print("      %d foyers libres sur %d · %s"
 			% [libres, _monde.mob_spawn_points.size(), str(par_secteur)])
@@ -254,50 +300,20 @@ func _garantie_cout_de_dessin() -> void:
 	_verifier("moins de 200 maillages individuels", maillages < 200, true)
 
 
-# --- GARANTIE 9 : LE MUR DU MONDE EST ÉTANCHE --------------------------
+# --- GARANTIE 9 : IL N'Y A PLUS DE MUR ---------------------------------
 #
-# LE DÉFAUT REDOUTÉ, ÉCRIT NOIR SUR BLANC DANS LE CODE DU MUR : « le
-# joueur ne doit jamais pouvoir se glisser entre deux mesas ». C'était une
-# intention, elle n'était vérifiée nulle part.
+# La garantie précédente vérifiait qu'aucune brèche ne laissait passer le
+# joueur à travers le mur du monde. Elle a fait son travail — le mur était
+# étanche sur 1 440 angles — puis le mur a été supprimé, et avec lui la
+# question. On ne garde pas un test qui rassure sur ce qui n'existe plus.
 #
-# Elle compte plus qu'il n'y paraît. Passer le mur ne donne pas un joueur
-# hors-jeu : cela donne un joueur qui TOMBE, écran vide, interface
-# intacte, sans mort ni message. Une partie perdue sans qu'aucune règle
-# du jeu ne l'ait décidé.
-
-func _garantie_mur_etanche() -> void:
-	var espace := _monde.get_world_3d().direct_space_state
-	if espace == null:
-		push_error("Pas d'espace physique : l'étanchéité n'est pas mesurable.")
-		_echecs += 1
-		return
-	# On tire depuis le centre vers l'extérieur, à hauteur de poitrine, sur
-	# mille quatre-cent-quarante angles — un quart de degré. Une brèche plus
-	# fine qu'un quart de degré au rayon 80 fait 35 cm : trop étroit pour un
-	# personnage d'un demi-mètre de large.
-	var fuites := 0
-	var premiere := -1.0
-	for i in 1440:
-		var a := TAU * float(i) / 1440.0
-		var d := Vector3(cos(a), 0.0, sin(a))
-		var depart := d * (PlanMonde.RAYON - 6.0) + Vector3(0, 1.1, 0)
-		var arrivee := d * (PlanMonde.RAYON + 12.0) + Vector3(0, 1.1, 0)
-		var q := PhysicsRayQueryParameters3D.create(depart, arrivee)
-		q.collision_mask = Cfg.LAYER_WORLD
-		if espace.intersect_ray(q).is_empty():
-			fuites += 1
-			if premiere < 0.0:
-				premiere = rad_to_deg(a)
-	if fuites > 0:
-		print("      ! %d angle(s) traversants, le premier à %.2f°"
-				% [fuites, premiere])
-	_verifier("aucune brèche dans le mur du monde", fuites, 0)
-
+# Ce qui la remplace est dans `_garantie_tout_dans_le_monde` : le monde
+# doit se RECOLLER sur lui-même, secteurs et collisions compris.
 
 func _libre(p: Vector2, rayon: float) -> bool:
 	for b in _boites:
 		var centre: Vector2 = b["pos"]
 		var r: float = b["rayon"]
-		if p.distance_to(centre) < r + rayon:
+		if PlanMonde.distance(p, centre) < r + rayon:
 			return false
 	return true

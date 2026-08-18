@@ -1,42 +1,105 @@
 extends RefCounted
 class_name PlanMonde
-## PLAN DU MONDE — secteurs, points d'intérêt, densités.
+## PLAN DU MONDE — un monde SANS BORD, qui s'enroule sur lui-même.
 ##
-## CE FICHIER EST UNE DONNÉE. On peut y déplacer un secteur, déplacer un
-## repère ou changer une densité sans lire une ligne de logique. C'est la
-## même règle que pour l'ancien plan d'arène, et elle a déjà prouvé sa
-## valeur : le niveau se discute là où il est écrit.
+## ─── POURQUOI LE MONDE N'EST PLUS UN DISQUE ─────────────────────────────
+##
+## Le monde était un disque de 78 m entouré d'un mur invisible. Ce mur a
+## coûté cher : c'est autour de lui que la caméra se retrouvait coincée
+## dans la pierre, c'est lui qui rabattait le cadre sans raison, et c'est
+## en s'en approchant que l'écran devenait violet. Chaque correction en
+## amenait une autre, parce qu'on soignait les symptômes d'une limite qui
+## n'aurait pas dû exister.
+##
+## Le monde s'ENROULE désormais. On part tout droit, on ne rencontre jamais
+## de bord, et on revient à son point de départ. C'est ce qu'on ressent en
+## faisant le tour d'une planète — sans en payer le prix.
+##
+## ─── POURQUOI UN TORE ET NON UNE SPHÈRE ─────────────────────────────────
+##
+## Une vraie sphère demanderait de refaire la gravité, le déplacement, la
+## visée, la caméra et toute l'IA en coordonnées sphériques : le jeu entier.
+## Un carré dont les bords se recollent — un tore — donne EXACTEMENT la
+## même sensation (partir tout droit, revenir chez soi) en gardant un sol
+## plat, une gravité vers le bas et un code de déplacement inchangé.
+##
+## La règle qui rend l'illusion parfaite : le monde est PÉRIODIQUE. Se
+## téléporter d'un côté à l'autre ne change rien à l'image, puisque ce qu'on
+## voit au-delà du bord est précisément ce qui se trouve de l'autre côté.
 ##
 ## ─── CE QUI FAIT QU'UN MONDE PARAÎT OUVERT ──────────────────────────────
 ##
-## Ce n'est pas la taille. Un grand disque vide paraît PLUS petit qu'une
+## Ce n'est pas la taille. Un grand terrain vide paraît PLUS petit qu'une
 ## petite carte dense, parce que rien n'y marque la distance parcourue.
-## Quatre choses fabriquent la sensation, et elles sont toutes ici :
 ##
 ##   1. DES SOLS DIFFÉRENTS. Vu de dessus, le sol occupe les trois quarts
-##      de l'écran. Changer sa teinte change le secteur bien plus sûrement
-##      que n'importe quel prop. C'est le levier n° 1, et le moins cher.
-##
-##   2. DES REPÈRES HAUTS, VISIBLES DE LOIN. Sans eux, un grand terrain
-##      devient désorientant au lieu d'être ouvert. Ce sont eux qui donnent
-##      envie d'aller voir, et eux qui permettent de dire « retrouve-moi à
-##      la tour ».
-##
-##   3. UN GRADIENT DE DANGER du bord vers le centre. Il donne une
-##      DIRECTION à l'exploration : on sait toujours où aller pour trouver
-##      mieux, et ce que cela coûtera.
-##
-##   4. DE L'IRRÉGULARITÉ. Des secteurs de tailles inégales, des repères
-##      jamais alignés. Une carte régulière se devine ; une carte
+##      de l'écran : c'est le levier n° 1, et le moins cher.
+##   2. DES REPÈRES HAUTS, VISIBLES DE LOIN. Sans eux, un monde sans bord
+##      devient désorientant au lieu d'être ouvert — et sur un tore, où
+##      aucun bord ne dit où l'on est, ils comptent DEUX FOIS plus.
+##   3. UN DANGER INÉGAL. Il donne une direction à l'exploration. Le disque
+##      la tirait du centre ; le tore n'a pas de centre, c'est donc un
+##      secteur — le Creuset — qui joue ce rôle.
+##   4. DE L'IRRÉGULARITÉ. Une carte régulière se devine ; une carte
 ##      irrégulière s'apprend, et c'est en l'apprenant qu'on l'habite.
 
-## Rayon du monde. 78 m contre 34 pour l'ancienne arène : 5,3 fois la
-## surface. Assez grand pour marcher une trentaine de secondes sans
-## traverser, assez petit pour qu'on croise du monde en permanence — un
-## monde vide n'est pas un monde ouvert, c'est un désert.
-const RAYON := 78.0
-## Rayon du noyau central, l'ancienne arène.
-const RAYON_NOYAU := 24.0
+## Côté du monde, en mètres. Le monde fait donc 144 × 144 m.
+##
+## VOLONTAIREMENT MODESTE POUR COMMENCER. Faire immense tout de suite,
+## c'est découvrir les problèmes d'un monde qui s'enroule sur une carte où
+## chaque essai coûte une minute de marche. À 144 m, le tour complet prend
+## une vingtaine de secondes : on voit immédiatement si l'enroulement est
+## sans couture. La surface est agrandir ensuite se fait en changeant CE
+## nombre, et rien d'autre.
+const COTE := 144.0
+const DEMI := COTE * 0.5
+
+## Taille des cellules de semis. Un diviseur de COTE, sans quoi le pavage
+## du décor ne se recollerait pas d'un bord à l'autre.
+const CELLULE := 24.0
+
+# --- ENROULEMENT ---------------------------------------------------------
+#
+# TOUT le jeu doit passer par ces trois fonctions. Une seule distance
+# calculée « à plat » suffit à casser l'illusion : un bot qui vous croit à
+# 140 m alors que vous êtes à 4 m derrière lui ne vous verra jamais.
+
+## Ramène une position dans le carré de référence [-DEMI, DEMI[.
+static func enrouler(p: Vector2) -> Vector2:
+	return Vector2(wrapf(p.x, -DEMI, DEMI), wrapf(p.y, -DEMI, DEMI))
+
+
+static func enrouler3(p: Vector3) -> Vector3:
+	return Vector3(wrapf(p.x, -DEMI, DEMI), p.y, wrapf(p.z, -DEMI, DEMI))
+
+
+## Le plus court chemin de `a` vers `b`, en tenant compte de l'enroulement.
+##
+## C'est LA fonction du fichier. Sur un tore, deux points ne sont jamais
+## séparés de plus d'un demi-côté sur chaque axe : le trajet qui traverse
+## le bord est souvent le plus court, et c'est celui-là qui compte.
+static func ecart(a: Vector2, b: Vector2) -> Vector2:
+	return Vector2(wrapf(b.x - a.x, -DEMI, DEMI), wrapf(b.y - a.y, -DEMI, DEMI))
+
+
+static func ecart3(a: Vector3, b: Vector3) -> Vector3:
+	return Vector3(wrapf(b.x - a.x, -DEMI, DEMI), b.y - a.y,
+			wrapf(b.z - a.z, -DEMI, DEMI))
+
+
+static func distance(a: Vector2, b: Vector2) -> float:
+	return ecart(a, b).length()
+
+
+static func distance3(a: Vector3, b: Vector3) -> float:
+	return ecart3(a, b).length()
+
+
+## Distance maximale possible entre deux points du monde : la diagonale du
+## demi-carré. Sert de borne supérieure sûre à toute recherche de minimum.
+static func distance_max() -> float:
+	return Vector2(DEMI, DEMI).length()
+
 
 ## Densités de mobs, en mobs visés par secteur. Elles ne sont pas
 ## proportionnelles à la surface : c'est justement l'écart qui crée des
@@ -46,34 +109,54 @@ enum Densite { CALME, MOYENNE, FORTE, EXTREME }
 
 ## LES SECTEURS.
 ##
-## CHAQUE SECTEUR DÉCLARE UNE PART DU CERCLE, PAS UN ANGLE.
+## CHAQUE SECTEUR DÉCLARE UN CENTRE, PAS UNE FORME. Un point appartient au
+## secteur dont le centre est le plus proche — en distance enroulée.
 ##
-## La première version donnait à chacun un angle et une ouverture écrits à
-## la main. Mesuré : leur somme dépassait le tour complet de 13 %, le Camp
-## et les Ruines se chevauchaient sur 32°, et le secteur des Ruines s'est
-## retrouvé SANS AUCUN point d'apparition — avalé par son voisin, qui le
-## précédait dans la liste. Le sol des deux se superposait aussi, l'un
-## repeignant l'autre.
+## POURQUOI CE DÉCOUPAGE-LÀ. Le disque découpait le tour en parts d'angle,
+## ce qui n'a plus aucun sens sans centre. Découper à la main en rectangles
+## aurait ramené le défaut déjà payé une fois : des morceaux qui se
+## chevauchent, des interstices sans propriétaire, un secteur avalé par son
+## voisin. Un découpage par centres ne PEUT pas laisser de trou ni de
+## recouvrement — chaque point du monde a exactement un centre le plus
+## proche — et il se recolle tout seul d'un bord à l'autre puisque la
+## distance employée est celle du tore.
 ##
-## Les parts, elles, sont normalisées puis cumulées : les secteurs pavent
-## le cercle exactement, et il devient IMPOSSIBLE d'en oublier un ou de les
-## faire se recouvrir. Les tailles restent volontairement inégales — un
-## découpage régulier se devine, un découpage irrégulier s'apprend.
+## `poids` règle la taille sans toucher aux positions : plus il est petit,
+## plus le secteur est resserré. C'est ce qui permet de garder le Creuset
+## exigu, donc disputé, sans le coincer dans un coin.
 const SECTEURS: Array[Dictionary] = [
+	{
+		"id": &"creuset",
+		"nom": "LE CREUSET",
+		"centre": Vector2(-56.0, 14.0),
+		"poids": 0.62,
+		"sol": Cfg.SOL_NOYAU,
+		"danger": Densite.EXTREME,
+		"familles": [&"pilier", &"ruine", &"caillou"],
+		# DENSITÉ BASSE, ET C'EST VOULU. Le Creuset porte DÉJÀ tout le plan
+		# de l'ancienne arène — ses structures, ses abris, sa garniture. Y
+		# semer en plus au tarif d'un secteur ordinaire empilait deux décors
+		# au même endroit : mesuré, le joueur y devenait invisible depuis la
+		# caméra une fois sur sept. On ne meuble pas deux fois la même pièce.
+		"densite_decor": 0.025,
+		"note": "Le point chaud du monde. Densité maximale, meilleur butin, aucun endroit où se cacher longtemps. Il remplace le noyau du disque : sur un tore, le danger ne peut plus venir du centre, il vient d'un LIEU.",
+	},
 	{
 		"id": &"ruines",
 		"nom": "LES RUINES",
-		"part": 0.15,
+		"centre": Vector2(-46.0, -38.0),
+		"poids": 0.85,
 		"sol": Cfg.SOL_RUINES,
 		"danger": Densite.FORTE,
 		"familles": [&"ruine", &"pilier", &"caillou", &"touffe"],
 		"densite_decor": 0.065,
-		"note": "Le plus étroit et le plus couvert. Bon butin, mauvaises retraites.",
+		"note": "Étroit et couvert. Bon butin, mauvaises retraites.",
 	},
 	{
 		"id": &"camp",
 		"nom": "LE CAMP",
-		"part": 0.23,
+		"centre": Vector2(32.0, -50.0),
+		"poids": 1.25,
 		"sol": Cfg.SOL_CAMP,
 		"danger": Densite.CALME,
 		"familles": [&"tente", &"caisse", &"cloture", &"tonneau", &"caillou"],
@@ -83,7 +166,8 @@ const SECTEURS: Array[Dictionary] = [
 	{
 		"id": &"canyon",
 		"nom": "LE CANYON",
-		"part": 0.19,
+		"centre": Vector2(54.0, 26.0),
+		"poids": 1.05,
 		"sol": Cfg.SOL_CANYON,
 		"danger": Densite.MOYENNE,
 		"familles": [&"mesa", &"rocher", &"caillou", &"touffe"],
@@ -93,7 +177,8 @@ const SECTEURS: Array[Dictionary] = [
 	{
 		"id": &"bosquet",
 		"nom": "LE BOSQUET",
-		"part": 0.22,
+		"centre": Vector2(-20.0, 46.0),
+		"poids": 1.1,
 		"sol": Cfg.SOL_BOSQUET,
 		"danger": Densite.MOYENNE,
 		"familles": [&"arbre", &"pin", &"buisson", &"touffe", &"caillou"],
@@ -103,7 +188,8 @@ const SECTEURS: Array[Dictionary] = [
 	{
 		"id": &"fonderie",
 		"nom": "LA FONDERIE",
-		"part": 0.21,
+		"centre": Vector2(6.0, -6.0),
+		"poids": 1.0,
 		"sol": Cfg.SOL_FONDERIE,
 		"danger": Densite.FORTE,
 		"familles": [&"caisse", &"tonneau", &"barricade", &"caillou"],
@@ -112,94 +198,94 @@ const SECTEURS: Array[Dictionary] = [
 	},
 ]
 
-## Angle où commence le découpage. Le décaler fait pivoter tout le monde
-## d'un bloc, sans jamais rompre le pavage.
-const ANGLE_DEPART := -PI * 0.62
 
-static var _angles_cache: Dictionary = {}
-
-## Angles calculés de chaque secteur : { id -> { centre, ouverture } }.
-static func angles() -> Dictionary:
-	if not _angles_cache.is_empty():
-		return _angles_cache
-	var somme := 0.0
+## Le secteur qui contient une position.
+##
+## L'ONDULATION N'EST PAS UN ORNEMENT. Un découpage par centres donne des
+## frontières parfaitement droites, qui se lisent au sol comme les coutures
+## d'un patron de couture. On perturbe donc le point testé par deux sinus de
+## périodes différentes : les limites deviennent sinueuses sans qu'aucune ne
+## puisse se croiser ou laisser de trou — la règle « le centre le plus
+## proche gagne » reste intacte, on la teste juste ailleurs.
+##
+## Les périodes DIVISENT le côté du monde : sans cela l'ondulation ne se
+## recollerait pas d'un bord à l'autre, et la couture qu'on cherche à
+## masquer réapparaîtrait, une seule fois, à l'endroit le plus visible.
+static func secteur_de(p: Vector2) -> StringName:
+	var q := p + Vector2(
+			sin(p.y * TAU / 48.0) * 4.5 + sin(p.y * TAU / 144.0) * 3.0,
+			sin(p.x * TAU / 36.0) * 4.0 + sin(p.x * TAU / 144.0) * 3.5)
+	var meilleur: StringName = SECTEURS[0]["id"]
+	var meilleure := INF
 	for s: Dictionary in SECTEURS:
-		somme += float(s["part"])
-	var curseur := ANGLE_DEPART
+		var d := distance(q, s["centre"]) / float(s["poids"])
+		if d < meilleure:
+			meilleure = d
+			meilleur = s["id"]
+	return meilleur
+
+
+static func secteur(id: StringName) -> Dictionary:
 	for s: Dictionary in SECTEURS:
-		# NORMALISATION : même si les parts ne totalisent pas 1, le pavage
-		# reste exact. Une somme fausse ne peut donc plus laisser de trou.
-		var ouverture := TAU * float(s["part"]) / somme
-		_angles_cache[s["id"]] = {
-			"centre": curseur + ouverture * 0.5,
-			"ouverture": ouverture,
-		}
-		curseur += ouverture
-	return _angles_cache
-
-
-static func angle_de(id: StringName) -> float:
-	return float((angles().get(id, {"centre": 0.0}))["centre"])
-
-
-static func ouverture_de(id: StringName) -> float:
-	return float((angles().get(id, {"ouverture": 1.0}))["ouverture"])
+		if s["id"] == id:
+			return s
+	return {}
 
 
 ## LES POINTS D'INTÉRÊT.
 ##
-## Ils ne déclarent PLUS de position absolue : ils déclarent leur secteur,
-## une distance au centre et un écart angulaire. Leur position en découle.
+## Ils déclarent un DÉPORT depuis le centre de leur secteur, pas une
+## position absolue : déplacer un secteur emmène son repère avec lui, et
+## aucun ne peut se retrouver chez le voisin après une retouche.
 ##
-## POURQUOI : une position absolue écrite à la main peut tomber dans le
-## mauvais secteur dès qu'on retouche un découpage — et c'est exactement ce
-## qui venait d'arriver. Dérivée, elle suit toujours son secteur.
-##
-## `hauteur` est ce qui compte le plus : c'est elle qui rend le repère
-## visible d'un secteur à l'autre, donc utile. Un point d'intérêt bas n'est
-## pas un repère, c'est de la décoration.
+## `hauteur` est ce qui compte le plus. Sur un monde qui s'enroule, aucun
+## bord ne dit où l'on se trouve : les silhouettes hautes sont la SEULE
+## façon de se repérer, et c'est à elles qu'on doit de pouvoir dire
+## « retrouve-moi à la tour ».
 const POINTS_INTERET: Array[Dictionary] = [
 	{
 		"id": &"tour", "nom": "TOUR DE GUET", "secteur": &"camp",
-		"rayon": 52.0, "ecart": -0.18, "hauteur": 17.0, "rayon_actif": 13.0,
+		"deport": Vector2(-9.0, 7.0), "hauteur": 17.0, "rayon_actif": 13.0,
 		"note": "LE repère du monde. La plus haute chose de la carte, visible de partout : c'est elle qui permet de se réorienter.",
 	},
 	{
 		"id": &"pont", "nom": "LE PONT DE PIERRE", "secteur": &"canyon",
-		"rayon": 55.0, "ecart": 0.12, "hauteur": 11.0, "rayon_actif": 12.0,
+		"deport": Vector2(6.0, -8.0), "hauteur": 11.0, "rayon_actif": 12.0,
 		"note": "Une arche que l'on franchit par-dessous. Un passage obligé fabrique des rencontres.",
 	},
 	{
 		"id": &"temple", "nom": "LE TEMPLE ENGLOUTI", "secteur": &"bosquet",
-		"rayon": 50.0, "ecart": -0.1, "hauteur": 9.5, "rayon_actif": 14.0,
+		"deport": Vector2(8.0, 5.0), "hauteur": 9.5, "rayon_actif": 14.0,
 		"note": "Le seul volume clair du bosquet, donc son unique repère.",
 	},
 	{
 		"id": &"depot", "nom": "LE DÉPÔT", "secteur": &"fonderie",
-		"rayon": 53.0, "ecart": 0.16, "hauteur": 12.0, "rayon_actif": 15.0,
-		"note": "Halle ouverte et grue. Le meilleur butin hors noyau.",
+		"deport": Vector2(-7.0, 9.0), "hauteur": 12.0, "rayon_actif": 15.0,
+		"note": "Halle ouverte et grue. Le meilleur butin hors Creuset.",
 	},
 	{
 		"id": &"carcasse", "nom": "LA CARCASSE", "secteur": &"ruines",
-		"rayon": 49.0, "ecart": 0.0, "hauteur": 10.0, "rayon_actif": 12.0,
+		"deport": Vector2(5.0, 6.0), "hauteur": 10.0, "rayon_actif": 12.0,
 		"note": "Un vaisseau échoué, planté de travers. Une silhouette qu'on ne confond avec rien.",
 	},
 	{
-		"id": &"place", "nom": "LA PLACE", "secteur": &"noyau",
-		"rayon": 0.0, "ecart": 0.0, "hauteur": 14.0, "rayon_actif": RAYON_NOYAU,
-		"note": "Le cœur. Densité maximale, meilleur butin, aucun endroit où se cacher longtemps.",
+		"id": &"place", "nom": "LA PLACE", "secteur": &"creuset",
+		"deport": Vector2(0.0, 0.0), "hauteur": 14.0, "rayon_actif": 16.0,
+		"note": "Le cœur du Creuset. C'est là qu'on va quand on veut se battre.",
 	},
 ]
 
 
 ## Position au sol d'un point d'intérêt, dérivée de son secteur.
 static func position_poi(poi: Dictionary) -> Vector2:
-	var r := float(poi["rayon"])
-	if r <= 0.0:
-		return Vector2.ZERO
-	var a := angle_de(poi["secteur"]) \
-			+ float(poi["ecart"]) * ouverture_de(poi["secteur"])
-	return Vector2(cos(a) * r, sin(a) * r)
+	return enrouler(Vector2(secteur(poi["secteur"])["centre"]) + Vector2(poi["deport"]))
+
+
+static func point_interet(id: StringName) -> Dictionary:
+	for p: Dictionary in POINTS_INTERET:
+		if p["id"] == id:
+			return p
+	return {}
 
 
 ## Écart minimal entre deux points d'apparition, en mètres.
@@ -215,48 +301,15 @@ static func mobs_vises(danger: int) -> int:
 		_: return 12
 
 
-## Le secteur qui contient une position. Retourne `&"noyau"` au centre.
-##
-## On teste le RAYON avant l'angle : au centre, l'angle n'a plus de sens
-## géométrique — à un mètre du milieu, un pas suffit à changer de secteur,
-## et le sol clignoterait.
-static func secteur_de(p: Vector2) -> StringName:
-	if p.length() <= RAYON_NOYAU:
-		return &"noyau"
-	# Les secteurs PAVENT le cercle : le plus proche en angle est forcément
-	# celui qui contient le point. Plus besoin de repli sur un « interstice »
-	# — il n'y en a plus.
-	var a := atan2(p.y, p.x)
-	var meilleur: StringName = SECTEURS[0]["id"]
-	var meilleur_ecart := INF
-	for s: Dictionary in SECTEURS:
-		var ecart: float = absf(wrapf(a - angle_de(s["id"]), -PI, PI))
-		if ecart < meilleur_ecart:
-			meilleur_ecart = ecart
-			meilleur = s["id"]
-	return meilleur
-
-
-static func secteur(id: StringName) -> Dictionary:
-	for s: Dictionary in SECTEURS:
-		if s["id"] == id:
-			return s
-	return {}
-
-
-static func point_interet(id: StringName) -> Dictionary:
-	for p: Dictionary in POINTS_INTERET:
-		if p["id"] == id:
-			return p
-	return {}
-
-
 ## POINTS D'APPARITION DES JOUEURS.
 ##
-## Répartis sur TOUT le monde, et jamais au cœur : réapparaître dans le
-## secteur le plus dangereux transformerait chaque mort en série de morts.
-## Deux points par secteur plus quelques intermédiaires, à des rayons
-## inégaux — alignés sur un cercle parfait, ils se devineraient.
+## Deux par secteur, jamais dans le Creuset : réapparaître au point le plus
+## disputé du monde transformerait chaque mort en série de morts.
+##
+## TIRAGE AVEC REJET, et la distance employée est celle du TORE. Avec une
+## distance à plat, deux points séparés par la couture se croiraient à
+## l'opposé du monde alors qu'ils sont voisins — et deux joueurs
+## reviendraient au même endroit.
 static func apparitions_joueurs() -> Array[Vector3]:
 	var points: Array[Vector3] = []
 	var rng := RandomNumberGenerator.new()
@@ -264,25 +317,24 @@ static func apparitions_joueurs() -> Array[Vector3]:
 	# partie à l'autre. Un monde qu'on ne peut pas apprendre ne s'habite pas.
 	rng.seed = 20260818
 	for s: Dictionary in SECTEURS:
+		if s["id"] == &"creuset":
+			continue
 		for k in 2:
-			# TIRAGE AVEC REJET. Mesuré sur la première version : les deux
-			# apparitions les plus proches n'étaient qu'à 6,4 m l'une de
-			# l'autre — assez pour que deux joueurs reviennent au même
-			# endroit, ce qui annule tout l'intérêt de les répartir.
-			#
-			# Vingt essais suffisent très largement sur un monde de 78 m de
-			# rayon ; le repli sur le dernier tirage garantit qu'on rend
-			# toujours le bon nombre de points, même si la contrainte
-			# devenait un jour trop serrée.
 			var choisi := Vector3.ZERO
-			for essai in 20:
-				var a: float = angle_de(s["id"]) \
-						+ rng.randf_range(-0.38, 0.38) * ouverture_de(s["id"])
-				var r := rng.randf_range(RAYON * 0.55, RAYON * 0.86)
-				choisi = Vector3(cos(a) * r, 0.2, sin(a) * r)
+			for essai in 40:
+				var c: Vector2 = s["centre"]
+				var p := enrouler(c + Vector2(rng.randf_range(-18.0, 18.0),
+						rng.randf_range(-18.0, 18.0)))
+				choisi = Vector3(p.x, 0.2, p.y)
+				# On exige AUSSI que le point soit resté dans son secteur :
+				# un tirage large près d'une frontière peut déborder chez le
+				# voisin, et l'on se retrouverait avec quatre apparitions
+				# dans le même secteur et zéro dans un autre.
+				if secteur_de(p) != s["id"]:
+					continue
 				var trop_pres := false
-				for p: Vector3 in points:
-					if p.distance_to(choisi) < ECART_APPARITIONS:
+				for q: Vector3 in points:
+					if distance(Vector2(q.x, q.z), p) < ECART_APPARITIONS:
 						trop_pres = true
 						break
 				if not trop_pres:

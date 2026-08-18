@@ -44,12 +44,10 @@ class_name Arena
 ##      touffes disparaissent au loin ; les repères, jamais — c'est
 ##      précisément à distance qu'ils servent.
 
-const PLAYER_SPAWN_RADIUS := PlanMonde.RAYON * 0.7
-
-## Côté d'une tuile de semis. 26 m est un compromis mesuré : plus petit, on
-## multiplie les nœuds et donc le coût fixe ; plus grand, chaque tuile
-## traîne trop de props hors champ.
-const TAILLE_TUILE := 26.0
+## Nombre de cellules par côté du monde. C'est aussi la maille du semis et
+## celle du sol : une seule grille pour tout, donc un seul endroit où
+## l'enroulement peut se tromper.
+const NB_CELLULES := int(PlanMonde.COTE / PlanMonde.CELLULE)
 
 var mob_spawn_points: Array[Vector3] = []
 var player_spawn_points: Array[Vector3] = []
@@ -57,13 +55,10 @@ var player_spawn_points: Array[Vector3] = []
 var _zone_ring: MeshInstance3D
 var _zone_mat: StandardMaterial3D
 var _obstacles: StaticBody3D
-## Corps distinct pour le mur du monde : la caméra l'ignore volontairement.
-var _enceinte: StaticBody3D
 var _semis: int = 0
 var _props: int = 0
 
 func _ready() -> void:
-	_enceinte = null
 	_obstacles = StaticBody3D.new()
 	_obstacles.name = "Obstacles"
 	_obstacles.collision_layer = Cfg.LAYER_WORLD
@@ -72,14 +67,148 @@ func _ready() -> void:
 
 	_build_environment()
 	_build_ground()
-	_build_perimeter()
 	_batir_secteurs()
 	_batir_points_interet()
 	_build_pieces()
 	_build_zone_ring()
+	_replier_les_collisions()
 	_compute_spawns()
-	print("Monde : rayon %.0f m · %d props en %d semis · %d apparitions."
-			% [PlanMonde.RAYON, _props, _semis, player_spawn_points.size()])
+	print("Monde : %.0f × %.0f m sans bord · %d props en %d semis · %d apparitions."
+			% [PlanMonde.COTE, PlanMonde.COTE, _props, _semis,
+			player_spawn_points.size()])
+
+
+# --- ENROULEMENT ---------------------------------------------------------
+
+## RECOLLE LES COLLISIONS À LA COUTURE.
+##
+## LE DÉCOR SE REPLIE, PAS LA PHYSIQUE. Les cellules visuelles se
+## repositionnent autour de la caméra à chaque image ; les corps, eux,
+## doivent rester immobiles — déplacer des corps statiques soixante fois par
+## seconde ruinerait le moteur physique et ferait traverser les murs.
+##
+## Les collisions vivent donc à leur place dans le carré de référence. Mais
+## un rocher posé à un mètre du bord doit arrêter un joueur qui arrive de
+## l'AUTRE côté, à un mètre de lui — et pour la physique, ces deux-là sont
+## séparés de 142 m.
+##
+## On duplique donc les formes proches d'un bord dans les huit cases
+## voisines. La bande fait 12 m, ce qui couvre largement la plus grosse
+## pièce du monde ; en dehors, aucune forme ne peut atteindre l'autre rive.
+const MARGE_COUTURE := 12.0
+
+func _replier_les_collisions() -> void:
+	var doubles := 0
+	var bord := PlanMonde.DEMI + MARGE_COUTURE
+	for n in _obstacles.get_children().duplicate():
+		var forme := n as CollisionShape3D
+		# Le sol est déjà large de trois mondes : le dupliquer n'aurait
+		# aucun sens, et sa boîte est justement celle qu'il ne faut pas
+		# multiplier par neuf.
+		if forme == null or forme.position.y <= 0.0:
+			continue
+		for dz in [-1, 0, 1]:
+			for dx in [-1, 0, 1]:
+				if dx == 0 and dz == 0:
+					continue
+				var q := Vector3(forme.position.x + float(dx) * PlanMonde.COTE,
+						forme.position.y,
+						forme.position.z + float(dz) * PlanMonde.COTE)
+				if absf(q.x) > bord or absf(q.z) > bord:
+					continue
+				var copie := CollisionShape3D.new()
+				copie.shape = forme.shape
+				copie.position = q
+				copie.rotation = forme.rotation
+				_obstacles.add_child(copie)
+				doubles += 1
+	print("Couture : %d formes de collision dupliquées." % doubles)
+
+
+
+## CE QUI REND LE MONDE SANS COUTURE, ET COMMENT.
+##
+## Le contenu du monde est rangé dans des CELLULES : une grille de 6 × 6
+## conteneurs de 24 m. Chaque cellule connaît sa position de référence, et
+## tout ce qu'elle porte est exprimé RELATIVEMENT à elle.
+##
+## À chaque image, on repose chaque cellule à celle de ses images qui est la
+## plus proche de la caméra. Une cellule située à 70 m « à l'ouest » est donc
+## dessinée à 74 m à l'est si c'est plus court — et comme le monde est
+## périodique, l'image est rigoureusement la même.
+##
+## La bascule d'une image à l'autre se produit à un demi-monde de la caméra,
+## soit 72 m, alors que le cadre n'en montre qu'une trentaine. Elle est donc
+## toujours invisible : c'est ce qui fait qu'on ne voit jamais la couture.
+##
+## Rien de tout cela ne concerne les COLLISIONS. Les corps, eux, gardent
+## leur position dans le carré de référence et c'est leur position qui
+## s'enroule — voir `_replier_les_bords`.
+var _cellules: Dictionary = {}
+var _ancres: Array[Vector2] = []
+var _conteneurs: Array[Node3D] = []
+## Conteneur courant des `_ajouter` — nul pour poser directement sur le monde.
+var _groupe: Node3D = null
+
+
+func _process(_delta: float) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var c := Vector2(cam.global_position.x, cam.global_position.z)
+	for i in _conteneurs.size():
+		var d := PlanMonde.ecart(c, _ancres[i])
+		_conteneurs[i].position = Vector3(c.x + d.x, 0.0, c.y + d.y)
+
+
+## Position de référence de la cellule (ix, iz) — son centre.
+func _base_cellule(ix: int, iz: int) -> Vector2:
+	return Vector2(
+			-PlanMonde.DEMI + (float(ix) + 0.5) * PlanMonde.CELLULE,
+			-PlanMonde.DEMI + (float(iz) + 0.5) * PlanMonde.CELLULE)
+
+
+## Position de référence de la cellule qui contient un point du monde.
+func _base_cellule_de(p: Vector2) -> Vector2:
+	var q := PlanMonde.enrouler(p)
+	return _base_cellule(
+			floori((q.x + PlanMonde.DEMI) / PlanMonde.CELLULE),
+			floori((q.y + PlanMonde.DEMI) / PlanMonde.CELLULE))
+
+
+## Le conteneur d'une cellule, créé à la demande.
+func _cellule(base: Vector2) -> Node3D:
+	var cle := "%.0f_%.0f" % [base.x, base.y]
+	if _cellules.has(cle):
+		return _cellules[cle]
+	return _ancrer(base, cle)
+
+
+## Crée un conteneur ancré en `base`. Sert aussi aux repères, qui ne suivent
+## pas la grille : un repère est son propre point d'ancrage.
+func _ancrer(base: Vector2, cle := "") -> Node3D:
+	var n := Node3D.new()
+	n.position = Vector3(base.x, 0.0, base.y)
+	add_child(n)
+	_conteneurs.append(n)
+	_ancres.append(PlanMonde.enrouler(base))
+	if cle != "":
+		_cellules[cle] = n
+	return n
+
+
+## Pose un élément de décor dans le groupe courant, en convertissant sa
+## position du monde vers celle du groupe.
+##
+## LA POSITION DOIT ÊTRE RÉGLÉE AVANT L'APPEL — c'est la convention de tous
+## les constructeurs de ce fichier, et elle est ce qui rend ce raccordement
+## possible sans les réécrire un par un.
+func _ajouter(n: Node3D) -> void:
+	if _groupe == null:
+		add_child(n)
+		return
+	n.position -= _groupe.position
+	_groupe.add_child(n)
 
 # --- AMBIANCE ------------------------------------------------------------
 
@@ -164,244 +293,124 @@ func _build_environment() -> void:
 
 # --- SOL -----------------------------------------------------------------
 
+## LE SOL D'UN MONDE QUI S'ENROULE.
+##
+## L'ancien sol était fait de quartiers en camembert : un disque de fond,
+## cinq parts angulaires, un noyau par-dessus. Rien de tout cela n'a de sens
+## sans centre ni bord.
+##
+## Le sol est maintenant une MOSAÏQUE de cellules carrées, une par cellule
+## du monde. Chaque cellule porte une grille de sommets, et chaque sommet
+## prend la couleur du secteur qui le contient. Les triangles interpolent :
+## les frontières se fondent au lieu de se découper, et le tout tient en un
+## seul matériau — la couleur voyage dans les sommets, pas dans une texture.
+##
+## L'avantage décisif est ailleurs : découpé en cellules, le sol s'enroule
+## par le même mécanisme que le décor. Il n'y a pas de « bord du sol » à
+## traiter à part, donc pas d'endroit où il puisse manquer.
 func _build_ground() -> void:
+	# UNE SEULE BOÎTE DE COLLISION, LARGE. Les corps vivent toujours dans le
+	# carré de référence — c'est leur POSITION qui s'enroule, pas le sol
+	# sous eux. Trois fois le côté laisse de la marge à tout ce qui sort
+	# momentanément du carré avant d'être ramené.
 	var col := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	# 3,0 ET NON 2,4. Une boîte carrée de 2,4 rayons ne couvre que 93 m sur
-	# ses axes, alors que le disque VISIBLE en fait 107 : il existait une
-	# couronne où l'on voyait du sol sans qu'il y en ait sous les pieds.
-	# Passer à 3,0 met la collision partout où il y a quelque chose à voir.
-	box.size = Vector3(PlanMonde.RAYON * 3.0, 1.0, PlanMonde.RAYON * 3.0)
+	box.size = Vector3(PlanMonde.COTE * 3.0, 1.0, PlanMonde.COTE * 3.0)
 	col.shape = box
 	col.position = Vector3(0, -0.5, 0)
 	_obstacles.add_child(col)
 
-	# Disque de fond, sous tout le reste : il bouche les interstices entre
-	# les quartiers de secteur, qu'aucun ajustement d'angle ne rendrait
-	# parfaitement jointifs.
-	var fond := MeshInstance3D.new()
-	var disque := CylinderMesh.new()
-	# 1,38 et non 1,16 : le disque doit passer SOUS la ceinture de mesas,
-	# repoussée à 94-99 m. Sans cela, elles se dresseraient au-dessus du
-	# vide et l'horizon montrerait le ciel entre leurs pieds.
-	disque.top_radius = PlanMonde.RAYON * 1.38
-	disque.bottom_radius = PlanMonde.RAYON * 1.38
-	disque.height = 0.4
-	disque.radial_segments = 56
-	fond.mesh = disque
-	fond.material_override = VisualKit.mat(Cfg.SOL_NOYAU.darkened(0.1), 0.0, 0.92)
-	# EMPILEMENT VERTICAL, ET IL COMPTE. Un CylinderMesh est centré sur sa
-	# position : à -0,24 avec 0,4 de haut, sa face SUPÉRIEURE est à -0,04.
-	# Les quartiers de secteur, posés à -0,18, se retrouvaient donc DEDANS —
-	# invisibles. Vérifié en image : le monde entier était d'une seule
-	# teinte, et toute l'identité des secteurs avait disparu.
+	var mat := VisualKit.mat(Color.WHITE, 0.0, 0.93)
+	mat.vertex_color_use_as_albedo = true
+	# FACES VISIBLES DES DEUX CÔTÉS. Premier jet : le sol n'apparaissait pas
+	# du tout, vérifié en image — les props flottaient sur le ciel. Les
+	# normales pointaient pourtant vers le haut ; c'est l'orientation des
+	# triangles qui les faisait écarter avant même d'être éclairés.
 	#
-	# L'ordre est désormais explicite : fond (-0,20) < quartiers (-0,02)
-	# < noyau (0,00). Les props reposent à 0, donc jamais enterrés.
-	fond.position = Vector3(0, -0.4, 0)
-	fond.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(fond)
-
-	# UN QUARTIER DE SOL PAR SECTEUR. C'est le levier n° 1 de l'identité :
-	# on reconnaît un secteur à la couleur sous ses pieds bien avant de
-	# reconnaître ses props.
-	for s: Dictionary in PlanMonde.SECTEURS:
-		var mi := MeshInstance3D.new()
-		# 1,04 et non 1,06 : les secteurs pavent désormais exactement, un
-		# recouvrement trop généreux ferait repeindre chaque voisin par le
-		# suivant. Un chouïa suffit à masquer la couture.
-		mi.mesh = _quartier(PlanMonde.angle_de(s["id"]),
-				PlanMonde.ouverture_de(s["id"]) * 1.04,
-				PlanMonde.RAYON_NOYAU * 0.8, PlanMonde.RAYON * 1.1)
-		mi.material_override = VisualKit.mat(s["sol"], 0.0, 0.93)
-		mi.position = Vector3(0, -0.02, 0)
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi)
-
-	# Le noyau par-dessus : il doit rester net et refermé sur lui-même.
-	var noyau := MeshInstance3D.new()
-	var d2 := CylinderMesh.new()
-	d2.top_radius = PlanMonde.RAYON_NOYAU
-	d2.bottom_radius = PlanMonde.RAYON_NOYAU
-	d2.height = 0.3
-	d2.radial_segments = 44
-	noyau.mesh = d2
-	noyau.material_override = VisualKit.mat(Cfg.SOL_NOYAU, 0.0, 0.9)
-	noyau.position = Vector3(0, -0.15, 0)
-	noyau.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(noyau)
-
-	_marquer_noyau()
+	# Plutôt que de deviner la convention d'enroulement, on la retire du
+	# problème. Sur une dalle plate posée au sol et jamais vue par en
+	# dessous, désactiver l'élimination des faces arrière ne coûte rien —
+	# aucune face cachée n'est dessinée en plus.
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for iz in NB_CELLULES:
+		for ix in NB_CELLULES:
+			var base := _base_cellule(ix, iz)
+			var mi := MeshInstance3D.new()
+			mi.mesh = _tapis(base)
+			mi.material_override = mat
+			mi.position = Vector3(0, -0.02, 0)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_cellule(base).add_child(mi)
 
 
-## Quartier d'anneau — la forme exacte d'un secteur.
-##
-## POURQUOI IL ONDULE. La première version traçait un éventail à bords
-## parfaitement radiaux. Vu de dessus, le monde lisait « camembert » : cinq
-## parts égales et rectilignes trahissent la découpe, et une carte dont on
-## devine la construction cesse d'être un monde.
-##
-## Les bords sont donc déviés par une fonction qui ne dépend QUE de l'angle
-## du bord et du rayon. Deux secteurs voisins partageant une frontière
-## évaluent la même fonction sur la même valeur : ils ondulent donc
-## ensemble, et restent jointifs. C'est ce qui permet d'avoir une limite
-## organique sans avoir à coudre les secteurs entre eux.
-func _quartier(centre: float, ouverture: float, r0: float,
-		r1: float) -> ArrayMesh:
+## Nombre de sous-divisions par cellule de sol. 8 donne un sommet tous les
+## trois mètres : assez fin pour que les frontières de secteur ondulent,
+## assez grossier pour que tout le sol du monde tienne en 2 300 quadrilatères.
+const FINESSE_SOL := 8
+
+## Une dalle de sol, en coordonnées LOCALES à sa cellule.
+func _tapis(base: Vector2) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var na := 18
-	var nr := 9
-	var a_deb := centre - ouverture * 0.5
-	var a_fin := centre + ouverture * 0.5
-	for j in nr:
-		var ra := lerpf(r0, r1, float(j) / float(nr))
-		var rb := lerpf(r0, r1, float(j + 1) / float(nr))
-		var da0 := _ondulation(a_deb, ra)
-		var da1 := _ondulation(a_fin, ra)
-		var db0 := _ondulation(a_deb, rb)
-		var db1 := _ondulation(a_fin, rb)
-		for i in na:
-			var t0 := float(i) / float(na)
-			var t1 := float(i + 1) / float(na)
-			var p00 := _point(lerpf(a_deb + da0, a_fin + da1, t0), ra)
-			var p01 := _point(lerpf(a_deb + da0, a_fin + da1, t1), ra)
-			var p10 := _point(lerpf(a_deb + db0, a_fin + db1, t0), rb)
-			var p11 := _point(lerpf(a_deb + db0, a_fin + db1, t1), rb)
-			for v in [p00, p10, p11, p00, p11, p01]:
-				st.set_normal(Vector3.UP)
-				st.add_vertex(v)
+	var pas := PlanMonde.CELLULE / float(FINESSE_SOL)
+	var demi := PlanMonde.CELLULE * 0.5
+	var teintes: Array[Color] = []
+	for j in FINESSE_SOL + 1:
+		for i in FINESSE_SOL + 1:
+			var local := Vector2(-demi + float(i) * pas, -demi + float(j) * pas)
+			var s := PlanMonde.secteur(PlanMonde.secteur_de(
+					PlanMonde.enrouler(base + local)))
+			teintes.append(s["sol"] if s.has("sol") else Cfg.SOL_NOYAU)
+	var largeur := FINESSE_SOL + 1
+	for j in FINESSE_SOL:
+		for i in FINESSE_SOL:
+			var a := j * largeur + i
+			var b := a + 1
+			var c := a + largeur
+			var d := c + 1
+			_triangle(st, base, i, j, a, c, b, teintes, pas, demi)
+			_triangle(st, base, i, j, b, c, d, teintes, pas, demi)
+	st.generate_normals()
 	return st.commit()
 
 
-func _point(a: float, r: float) -> Vector3:
-	return Vector3(cos(a) * r, 0.0, sin(a) * r)
-
-
-## Déviation d'une frontière. Deux sinusoïdes incommensurables : leur somme
-## ne se répète pas à l'échelle de la carte, donc l'œil n'y lit aucun motif.
-static func _ondulation(angle_bord: float, r: float) -> float:
-	return 0.13 * sin(r * 0.13 + angle_bord * 3.1) \
-			+ 0.07 * sin(r * 0.31 + angle_bord * 7.7)
-
-
-## Marquages lumineux du noyau — repris de l'ancienne arène, restreints au
-## centre. Étendus au monde entier, ils auraient annulé l'identité des
-## secteurs qu'on vient de leur donner.
-func _marquer_noyau() -> void:
-	for i in 2:
-		var r := 9.0 + i * 7.5
-		var ring := MeshInstance3D.new()
-		var torus := TorusMesh.new()
-		torus.inner_radius = r - 0.16
-		torus.outer_radius = r
-		torus.rings = 40
-		torus.ring_segments = 6
-		ring.mesh = torus
-		var m := VisualKit.glow_mat(Cfg.COL_NEON_CYAN, 1.25)
-		m.albedo_color.a = 0.5
-		ring.material_override = m
-		ring.position = Vector3(0, 0.03, 0)
-		ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(ring)
-
-	var bord := MeshInstance3D.new()
-	var t := TorusMesh.new()
-	t.inner_radius = PlanMonde.RAYON_NOYAU - 0.35
-	t.outer_radius = PlanMonde.RAYON_NOYAU
-	t.rings = 56
-	t.ring_segments = 6
-	bord.mesh = t
-	var mb := VisualKit.glow_mat(Cfg.COL_NEON_MAGENTA, 1.9)
-	mb.albedo_color.a = 0.66
-	bord.material_override = mb
-	bord.position = Vector3(0, 0.04, 0)
-	bord.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(bord)
+func _triangle(st: SurfaceTool, base: Vector2, i: int, j: int,
+		i0: int, i1: int, i2: int, teintes: Array[Color],
+		pas: float, demi: float) -> void:
+	var largeur := FINESSE_SOL + 1
+	for idx: int in [i0, i1, i2]:
+		var gx := idx % largeur
+		var gz := idx / largeur
+		st.set_color(teintes[idx])
+		st.add_vertex(Vector3(-demi + float(gx) * pas, 0.0,
+				-demi + float(gz) * pas))
 
 # --- LIMITE DU MONDE -----------------------------------------------------
-
-## L'ENCEINTE N'EST PLUS UN MUR, C'EST UN RELIEF.
-##
-## Un mur régulier dit « arène » à chaque coup d'œil — c'est exactement la
-## sensation dont on veut sortir. Une ligne de mesas irrégulières dit
-## « le terrain s'arrête là », ce qui est la même information sans l'aveu.
-## La brume achève le travail : on ne voit jamais la limite en entier.
-## LE MUR D'ENCEINTE A SON PROPRE CORPS, ET C'EST LA CAMÉRA QUI L'EXIGE.
-##
-## Ce mur est une boîte de 14 m de haut et 5 m d'épaisseur, INVISIBLE : les
-## mesas qu'il représente se dressent 15 m plus loin. Or la caméra se tient
-## 10 m derrière le joueur sur l'axe Z du monde : collée au bord, elle a
-## forcément ce mur entre elle et le personnage.
-##
-## Le dégagement le prenait donc pour un obstacle et rabattait la caméra —
-## puis la relâchait au pas suivant, puis la rabattait. C'est le « zoom
-## désagréable au bord de la carte » signalé en jeu, et il se calcule : la
-## sphère de sonde, partie de la poitrine du joueur plaqué contre la face
-## intérieure, chevauche le mur dès le premier instant, ce qui envoie le
-## dégagement directement à son minimum.
-##
-## Se cacher derrière une limite du monde n'a aucun sens. Le mur reste un
-## obstacle pour les corps, il cesse d'en être un pour le regard.
-func _build_perimeter() -> void:
-	_enceinte = StaticBody3D.new()
-	_enceinte.name = "Enceinte"
-	_enceinte.collision_layer = Cfg.LAYER_WORLD
-	_enceinte.collision_mask = 0
-	_enceinte.add_to_group(&"enceinte")
-	add_child(_enceinte)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 424242
-	var segments := 52
-	var formes: Array[Transform3D] = []
-	for i in segments:
-		var a := TAU * float(i) / float(segments)
-		# REPOUSSÉES ET RESSERRÉES. Mesuré en image : à 2,2-3,4 de large et
-		# posées au rayon exact, les mesas formaient un mur de dents pâles
-		# qui occupait la moitié de l'horizon depuis n'importe quel secteur.
-		# Une limite doit se DEVINER au loin, pas dominer chaque plan.
-		#
-		# REPOUSSÉES UNE SECONDE FOIS, ET CETTE FOIS PAS POUR LA BEAUTÉ. La
-		# caméra se tient 10 m DERRIÈRE le joueur, sur l'axe Z du monde. Le
-		# mur de collision arrête le joueur à 77,5 m ; la caméra, elle,
-		# arrivait donc à 87,5 m — c'est-à-dire À L'INTÉRIEUR de la ceinture
-		# de mesas, alors posée entre 82 et 87 m. Une sonde d'occlusion l'a
-		# chiffré : au bord nord, le cadre était bouché à 100 %, la roche
-		# remplissait l'écran entier. La ceinture commence maintenant à 94 m,
-		# soit 6,5 m au-delà du point le plus reculé que la caméra atteint.
-		var r := PlanMonde.RAYON + rng.randf_range(16.0, 21.0)
-		var pos := Vector3(cos(a) * r, 0, sin(a) * r)
-		var base := Basis.from_euler(Vector3(0, rng.randf() * TAU, 0))
-		# La hauteur varie du simple au double : une crête régulière se lit
-		# comme une palissade, une crête irrégulière comme du relief.
-		base = base.scaled(Vector3(rng.randf_range(1.5, 2.4),
-				rng.randf_range(1.3, 2.9), rng.randf_range(1.5, 2.4)))
-		formes.append(Transform3D(base, pos))
-
-		# La COLLISION reste régulière et généreuse, elle. Le joueur ne doit
-		# jamais pouvoir se glisser entre deux mesas : c'est laid à voir et
-		# c'est un bogue à corriger plus tard.
-		var shape := CollisionShape3D.new()
-		var cbox := BoxShape3D.new()
-		cbox.size = Vector3(12.0, 14.0, 5.0)
-		shape.shape = cbox
-		shape.position = Vector3(cos(a) * (PlanMonde.RAYON + 2.0), 6.0,
-				sin(a) * (PlanMonde.RAYON + 2.0))
-		shape.rotation.y = -a - PI / 2.0
-		_enceinte.add_child(shape)
-
-	var mur := KitDecor.semer(&"mesa", formes, 0.0, false)
-	add_child(mur)
-	_semis += 1
-	_props += formes.size()
+#
+# IL N'Y EN A PLUS, ET C'EST TOUT L'INTÉRÊT.
+#
+# Le monde était ceint d'un mur invisible de 14 m de haut doublé d'une
+# ceinture de mesas. Ce mur a coûté trois corrections successives : la
+# caméra s'y retrouvait enfermée dans la pierre, il rabattait le cadre sans
+# raison visible, et c'est en s'en approchant que l'écran devenait violet.
+#
+# On ne soigne plus les symptômes d'une limite : on l'a supprimée. Partir
+# tout droit ramène au point de départ.
 
 # --- SECTEURS ------------------------------------------------------------
 
-## SÈME LE DÉCOR DE CHAQUE SECTEUR, EN TUILES.
+## SÈME LE DÉCOR, PAR CELLULE DU MONDE.
 ##
-## Le bucketing par tuile est le cœur de la tenue en performance : sans
-## lui, un semis couvrant un secteur entier serait dessiné dès qu'un seul
-## de ses rochers entre dans le champ de la caméra.
+## Le semis ne parcourt plus les secteurs un par un — un secteur n'a plus de
+## forme analytique dont on saurait tirer une surface. Il parcourt le CARRÉ
+## sur une grille régulière, demande à chaque point son secteur, et y pose
+## un prop avec la densité de ce secteur. Le résultat est identique et la
+## règle tient en trois lignes, quel que soit le découpage.
+##
+## Le regroupement par cellule reste le cœur de la tenue en performance :
+## chaque famille est dessinée en un appel par cellule, et une cellule hors
+## champ ne coûte rien. C'est aussi ce regroupement qui fait l'enroulement,
+## puisque ce sont les cellules qu'on repositionne autour de la caméra.
 func _batir_secteurs() -> void:
 	var rng := RandomNumberGenerator.new()
 	# Graine FIXE : le monde doit être le même pour tout le monde et d'une
@@ -409,31 +418,28 @@ func _batir_secteurs() -> void:
 	# jamais — et deux joueurs verraient des décors différents.
 	rng.seed = 20260818
 
-	# famille -> { cellule -> [Transform3D] }
+	# cellule -> { famille -> [Transform3D] }
 	var tuiles: Dictionary = {}
 	var collisions: Array[Dictionary] = []
-
-	for s: Dictionary in PlanMonde.SECTEURS:
-		var ouverture: float = PlanMonde.ouverture_de(s["id"])
-		var angle: float = PlanMonde.angle_de(s["id"])
-		var familles: Array = s["familles"]
-		var surface: float = 0.5 * ouverture \
-				* (PlanMonde.RAYON * PlanMonde.RAYON
-				- PlanMonde.RAYON_NOYAU * PlanMonde.RAYON_NOYAU)
-		var total := int(surface * float(s["densite_decor"]))
-
-		for i in total:
-			var a := angle + rng.randf_range(-0.5, 0.5) * ouverture
-			# Racine carrée du tirage : sans elle, les points s'entassent
-			# près du centre, où l'anneau est plus étroit. C'est le piège
-			# classique du semis en coordonnées polaires.
-			var t := rng.randf()
-			var r := sqrt(lerpf(PlanMonde.RAYON_NOYAU * PlanMonde.RAYON_NOYAU,
-					PlanMonde.RAYON * PlanMonde.RAYON, t))
-			var p := Vector2(cos(a) * r, sin(a) * r)
+	# Pas d'échantillonnage. Chaque point tiré porte donc une surface de
+	# PAS_SEMIS², et la densité déclarée par le secteur devient directement
+	# une probabilité.
+	var pas := PAS_SEMIS
+	var n := int(PlanMonde.COTE / pas)
+	for iz in n:
+		for ix in n:
+			var p := PlanMonde.enrouler(Vector2(
+					-PlanMonde.DEMI + (float(ix) + rng.randf()) * pas,
+					-PlanMonde.DEMI + (float(iz) + rng.randf()) * pas))
+			var s := PlanMonde.secteur(PlanMonde.secteur_de(p))
+			if s.is_empty():
+				continue
+			if rng.randf() > float(s["densite_decor"]) * pas * pas:
+				continue
 			if not _emplacement_libre(p):
 				continue
 
+			var familles: Array = s["familles"]
 			var famille: StringName = familles[rng.randi() % familles.size()]
 			var ech := rng.randf_range(0.75, 1.45)
 			# ÉCHELLE NON UNIFORME : c'est elle, et non des maillages
@@ -442,28 +448,33 @@ func _batir_secteurs() -> void:
 			base = base.scaled(Vector3(ech * rng.randf_range(0.85, 1.2),
 					ech * rng.randf_range(0.85, 1.25),
 					ech * rng.randf_range(0.85, 1.2)))
-			var tr := Transform3D(base, Vector3(p.x, 0.0, p.y))
 
-			if not tuiles.has(famille):
-				tuiles[famille] = {}
-			var cle := "%d_%d" % [floori(p.x / TAILLE_TUILE),
-					floori(p.y / TAILLE_TUILE)]
-			var par_cellule: Dictionary = tuiles[famille]
-			if not par_cellule.has(cle):
-				par_cellule[cle] = ([] as Array[Transform3D])
-			(par_cellule[cle] as Array[Transform3D]).append(tr)
+			var ancre := _base_cellule_de(p)
+			var cle := "%.0f_%.0f" % [ancre.x, ancre.y]
+			if not tuiles.has(cle):
+				tuiles[cle] = {"ancre": ancre, "familles": {}}
+			var par_famille: Dictionary = tuiles[cle]["familles"]
+			if not par_famille.has(famille):
+				par_famille[famille] = ([] as Array[Transform3D])
+			# Les transformations sont LOCALES à leur cellule : c'est ce qui
+			# permet de déplacer la cellule entière d'un côté du monde à
+			# l'autre sans toucher à son contenu.
+			var local := p - ancre
+			(par_famille[famille] as Array[Transform3D]).append(
+					Transform3D(base, Vector3(local.x, 0.0, local.y)))
 
 			if famille in FAMILLES_SOLIDES:
 				collisions.append({"pos": p, "rayon": ech * RAYON_SOLIDE[famille],
 						"haut": ech * HAUTEUR_SOLIDE[famille]})
 
-	for famille: StringName in tuiles:
-		var par_cellule: Dictionary = tuiles[famille]
-		for cle: String in par_cellule:
-			var liste: Array[Transform3D] = par_cellule[cle]
+	for cle: String in tuiles:
+		var ancre: Vector2 = tuiles[cle]["ancre"]
+		var par_famille: Dictionary = tuiles[cle]["familles"]
+		for famille: StringName in par_famille:
+			var liste: Array[Transform3D] = par_famille[famille]
 			var noeud := KitDecor.semer(famille, liste,
 					_portee(famille), famille in FAMILLES_SOLIDES)
-			add_child(noeud)
+			_cellule(ancre).add_child(noeud)
 			_semis += 1
 			_props += liste.size()
 
@@ -471,9 +482,9 @@ func _batir_secteurs() -> void:
 		_poser_collision_ronde(c["pos"], c["rayon"], c["haut"])
 
 
-## Familles qui BLOQUENT. Les autres — cailloux, touffes, buissons — sont
-## traversables, et c'est délibéré : un buisson qui arrête un joueur
-## transforme le bosquet en labyrinthe frustrant, et chaque forme de
+## Pas d'échantillonnage du semis, en mètres.
+const PAS_SEMIS := 2.0
+
 ## collision se paie sur un téléphone.
 const FAMILLES_SOLIDES := [&"mesa", &"rocher", &"arbre", &"pin", &"ruine",
 		&"pilier", &"tente"]
@@ -520,19 +531,16 @@ func _poser_collision_ronde(p: Vector2, rayon: float, haut: float) -> void:
 
 ## Un emplacement est-il libre pour du décor ?
 ##
-## On écarte le noyau (déjà meublé par le plan de l'ancienne arène), les
-## abords immédiats des points d'intérêt (qui doivent rester praticables)
+## On écarte les abords immédiats des points d'intérêt (qui doivent rester praticables)
 ## et les points d'apparition (naître dans un arbre serait un défaut
 ## immédiat).
 func _emplacement_libre(p: Vector2) -> bool:
-	if p.length() < PlanMonde.RAYON_NOYAU + 2.0:
-		return false
 	for poi: Dictionary in PlanMonde.POINTS_INTERET:
 		var c := PlanMonde.position_poi(poi)
-		if p.distance_to(c) < float(poi["rayon_actif"]) * 0.52:
+		if PlanMonde.distance(p, c) < float(poi["rayon_actif"]) * 0.52:
 			return false
 	for sp: Vector3 in PlanMonde.apparitions_joueurs():
-		if p.distance_to(Vector2(sp.x, sp.z)) < 4.5:
+		if PlanMonde.distance(p, Vector2(sp.x, sp.z)) < 4.5:
 			return false
 	return true
 
@@ -553,15 +561,22 @@ func _batir_points_interet() -> void:
 	for poi: Dictionary in PlanMonde.POINTS_INTERET:
 		var p := PlanMonde.position_poi(poi)
 		var socle := Vector3(p.x, 0.0, p.y)
+		# CHAQUE REPÈRE EST SON PROPRE ANCRAGE, et non un locataire de la
+		# cellule où il tombe. Une tour de 17 m posée près d'une frontière
+		# de cellule déborderait sur sa voisine : à l'instant où les deux
+		# cellules basculent d'une image à l'autre, la tour se couperait en
+		# deux. Ancrée sur elle-même, elle se déplace d'un bloc.
+		_groupe = _ancrer(p)
 		match poi["id"]:
 			&"tour": _poi_tour(socle)
 			&"pont": _poi_pont(socle)
 			&"temple": _poi_temple(socle)
 			&"depot": _poi_depot(socle)
 			&"carcasse": _poi_carcasse(socle)
-			&"place": pass   # le noyau est meublé par le plan d'origine
+			&"place": pass   # meublé par le plan d'origine, voir _build_pieces
 		if poi["id"] != &"place":
 			_balise(socle, float(poi["hauteur"]))
+		_groupe = null
 
 
 ## BALISE — une lueur au sommet de chaque repère.
@@ -580,7 +595,7 @@ func _balise(base: Vector3, hauteur: float) -> void:
 	orbe.material_override = VisualKit.glow_mat(Cfg.COL_NEON_CYAN, 3.2)
 	orbe.position = base + Vector3(0, hauteur + 0.8, 0)
 	orbe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(orbe)
+	_ajouter(orbe)
 
 
 func _bloc(taille: Vector3, pos: Vector3, teinte: Color, rot := 0.0,
@@ -592,7 +607,7 @@ func _bloc(taille: Vector3, pos: Vector3, teinte: Color, rot := 0.0,
 	mi.material_override = VisualKit.mat(teinte, 0.0, 0.9)
 	mi.position = pos
 	mi.rotation.y = rot
-	add_child(mi)
+	_ajouter(mi)
 	if not solide:
 		return
 	var shape := CollisionShape3D.new()
@@ -625,7 +640,7 @@ func _poi_tour(base: Vector3) -> void:
 		mi.material_override = VisualKit.mat(bois, 0.0, 0.9)
 		mi.position = base + d * 2.1 + Vector3(0, 6.5, 0)
 		mi.rotation = Vector3(d.z * 0.1, 0, -d.x * 0.1)
-		add_child(mi)
+		_ajouter(mi)
 	for niveau in 3:
 		var y := 4.0 + niveau * 4.0
 		_bloc(Vector3(5.6, 0.3, 5.6), base + Vector3(0, y, 0),
@@ -646,7 +661,7 @@ func _poi_tour(base: Vector3) -> void:
 	toit.material_override = VisualKit.mat(Cfg.COL_KAEL_ACCENT.darkened(0.2),
 			0.0, 0.85)
 	toit.position = base + Vector3(0, 16.0, 0)
-	add_child(toit)
+	_ajouter(toit)
 
 
 ## LE PONT DE PIERRE — une arche que l'on franchit PAR-DESSOUS.
@@ -715,7 +730,7 @@ func _poi_depot(base: Vector3) -> void:
 	mat.material_override = VisualKit.mat(Cfg.COL_KAEL_ACCENT.darkened(0.15),
 			0.0, 0.7)
 	mat.position = base + Vector3(9.5, 5.5, 4.0)
-	add_child(mat)
+	_ajouter(mat)
 	_bloc(Vector3(9.0, 0.6, 0.8), base + Vector3(5.6, 10.6, 4.0),
 			Cfg.COL_KAEL_ACCENT.darkened(0.15), 0.0, false)
 
@@ -738,7 +753,7 @@ func _poi_carcasse(base: Vector3) -> void:
 	mi.material_override = VisualKit.mat(coque, 0.0, 0.66)
 	mi.position = base + Vector3(0, 4.2, 0)
 	mi.rotation = Vector3(0.42, 0.6, 0.22)
-	add_child(mi)
+	_ajouter(mi)
 	var shape := CollisionShape3D.new()
 	var cb := BoxShape3D.new()
 	cb.size = Vector3(9.0, 5.0, 5.0)
@@ -758,11 +773,16 @@ func _poi_carcasse(base: Vector3) -> void:
 
 # --- NOYAU ---------------------------------------------------------------
 
-## Le noyau REPREND l'ancienne arène telle quelle : son plan, ses abris,
+## Le Creuset REPREND l'ancienne arène telle quelle : son plan, ses abris,
 ## ses modèles Meshy. C'est délibéré — c'est le seul secteur déjà réglé et
 ## déjà validé par un test, et il devient naturellement le lieu le plus
 ## construit du monde, donc le plus disputé.
+##
+## Il ne se trouve plus au centre du monde, puisqu'un tore n'en a pas : il
+## est posé au centre de SON secteur, comme n'importe quel autre lieu.
 func _build_pieces() -> void:
+	_centre_creuset = PlanMonde.secteur(&"creuset")["centre"]
+	_groupe = _ancrer(_centre_creuset)
 	for piece in PlanArene.STRUCTURES:
 		_poser(piece, Cfg.COL_METAL)
 	for piece in PlanArene.ABRIS:
@@ -773,19 +793,27 @@ func _build_pieces() -> void:
 		if i % pas == 0:
 			_poser(piece, Cfg.COL_METAL, false)
 		i += 1
+	_groupe = null
+
+## Position du Creuset dans le monde, lue une fois à la construction.
+var _centre_creuset := Vector2.ZERO
 
 func _poser(piece: Dictionary, teinte: Color, solide := true) -> void:
 	var plan_pos: Vector2 = piece["pos"]
 	var rot: float = piece["rot"]
 	var taille: Vector3 = piece["taille"]
-	var pos := Vector3(plan_pos.x, 0.0, plan_pos.y)
+	# Le plan de l'ancienne arène est écrit autour de l'origine : on le
+	# translate au Creuset, puis on enroule — s'il déborde d'un bord, il
+	# ressort de l'autre, exactement comme le reste du monde.
+	var plat := PlanMonde.enrouler(_centre_creuset + plan_pos)
+	var pos := Vector3(plat.x, 0.0, plat.y)
 
 	var rendu := PropKit.instancier(piece["modele"], taille, teinte)
 	var noeud: Node3D = rendu["noeud"]
 	var reelle: Vector3 = rendu["taille"]
 	noeud.position = pos
 	noeud.rotation.y = rot
-	add_child(noeud)
+	_ajouter(noeud)
 	_props += 1
 	if rendu.get("reel", false):
 		_pieces_habillees += 1
@@ -819,7 +847,7 @@ func _flaque(pos: Vector3, taille: Vector3, rot: float) -> void:
 	flaque.position = pos + Vector3(0, 0.05, 0)
 	flaque.rotation.y = rot
 	flaque.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(flaque)
+	_ajouter(flaque)
 
 static func _sans_ombre(n: Node) -> void:
 	var gi := n as GeometryInstance3D
@@ -907,11 +935,13 @@ func _compute_spawns() -> void:
 
 	# Quelques foyers de rase campagne : sans eux, tout se passerait aux
 	# points d'intérêt et les trajets entre eux seraient morts.
+	# Quatorze foyers tirés dans TOUT le carré, et non sur un anneau : un
+	# anneau n'a de sens qu'autour d'un centre, et le monde n'en a plus.
 	for i in 14:
-		var a := TAU * float(i) / 14.0 + 0.21
-		var r := rng.randf_range(PlanMonde.RAYON_NOYAU + 8.0,
-				PlanMonde.RAYON - 12.0)
-		mob_spawn_points.append(Vector3(cos(a) * r, 0.2, sin(a) * r))
+		var q := PlanMonde.enrouler(Vector2(
+				rng.randf_range(-PlanMonde.DEMI, PlanMonde.DEMI),
+				rng.randf_range(-PlanMonde.DEMI, PlanMonde.DEMI)))
+		mob_spawn_points.append(Vector3(q.x, 0.2, q.y))
 
 	# Les foyers de mobs sont dégagés eux aussi : un mob qui naît dans un
 	# rocher y reste coincé, occupe le plafond et n'affronte personne.
@@ -935,9 +965,11 @@ func _degager(p: Vector3, rayon: float) -> Vector3:
 		var d := 1.5 * float(pas)
 		for k in 8:
 			var a := TAU * float(k) / 8.0 + float(pas) * 0.4
-			var essai := Vector2(p.x + cos(a) * d, p.z + sin(a) * d)
-			if essai.length() > PlanMonde.RAYON - 6.0:
-				continue
+			# PLUS AUCUNE POSITION N'EST « TROP LOIN ». L'ancien monde
+			# rejetait les essais qui sortaient du disque ; ici il n'y a
+			# pas de dehors, seulement un point qui repasse de l'autre côté.
+			var essai := PlanMonde.enrouler(
+					Vector2(p.x + cos(a) * d, p.z + sin(a) * d))
 			if _libre_monde(essai, rayon):
 				return Vector3(essai.x, p.y, essai.y)
 	push_warning("Point d'apparition non dégagé en %s" % str(p))
@@ -946,8 +978,8 @@ func _degager(p: Vector3, rayon: float) -> Vector3:
 
 ## Une position est-elle libre de tout obstacle SOLIDE ?
 ##
-## Le sol est exclu par sa hauteur : sa boîte de collision fait 187 m de
-## large et se centre sur l'origine ; comptée comme un obstacle, elle
+## Le sol est exclu par sa hauteur : sa boîte de collision couvre trois fois
+## le monde et se centre sur l'origine ; comptée comme un obstacle, elle
 ## déclarerait le monde entier bloqué. Tout obstacle réel a son centre
 ## au-dessus de zéro, le sol est enterré.
 func _libre_monde(p: Vector2, rayon: float) -> bool:
@@ -963,7 +995,8 @@ func _libre_monde(p: Vector2, rayon: float) -> bool:
 			r = (forme.shape as CylinderShape3D).radius
 		else:
 			continue
-		if p.distance_to(Vector2(forme.position.x, forme.position.z)) < r + rayon:
+		if PlanMonde.distance(p, Vector2(forme.position.x, forme.position.z)) \
+				< r + rayon:
 			return false
 	return true
 
@@ -990,7 +1023,8 @@ func mob_spawn(players: Array) -> Vector3:
 		var nearest := INF
 		for p in players:
 			if is_instance_valid(p) and p.get(&"is_eliminated") != true:
-				nearest = minf(nearest, point.distance_to(p.global_position))
+				nearest = minf(nearest,
+						PlanMonde.distance3(point, p.global_position))
 		# Aucun joueur en vue : ce foyer n'intéresse personne pour l'instant.
 		if nearest == INF:
 			continue

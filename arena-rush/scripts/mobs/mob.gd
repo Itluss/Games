@@ -166,7 +166,7 @@ func _server_think(delta: float) -> void:
 	_face_movement(delta)
 
 func _face_movement(delta: float) -> void:
-	var look := target.global_position - global_position if target \
+	var look := PlanMonde.ecart3(global_position, target.global_position) if target \
 			else Vector3(velocity.x, 0, velocity.z)
 	look.y = 0.0
 	if look.length() > 0.1:
@@ -181,7 +181,7 @@ func _acquire_target() -> void:
 	for node in get_tree().get_nodes_in_group(&"players"):
 		if not is_instance_valid(node) or node.get(&"is_eliminated") == true:
 			continue
-		var d: float = global_position.distance_to(node.global_position)
+		var d: float = PlanMonde.distance3(global_position, node.global_position)
 		if d < best_d:
 			best_d = d
 			best = node
@@ -194,7 +194,7 @@ func _chase(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, 30.0 * delta)
 		velocity.z = move_toward(velocity.z, 0.0, 30.0 * delta)
 		return
-	var to := target.global_position - global_position
+	var to := PlanMonde.ecart3(global_position, target.global_position)
 	to.y = 0.0
 	var dist := to.length()
 	var dir := to.normalized() if dist > 0.01 else Vector3.FORWARD
@@ -256,7 +256,7 @@ func _telegraph(delta: float) -> void:
 	match data.behavior:
 		"charger":
 			_timer = data.charge_duration
-			var to := (target.global_position - global_position) if target \
+			var to := PlanMonde.ecart3(global_position, target.global_position) if target \
 					else Vector3.FORWARD
 			to.y = 0.0
 			_charge_dir = to.normalized()
@@ -283,7 +283,7 @@ func _act(delta: float) -> void:
 		_end_action()
 		return
 
-	if target and global_position.distance_to(target.global_position) < 1.6:
+	if target and PlanMonde.distance3(global_position, target.global_position) < 1.6:
 		if target.has_method(&"server_take_damage"):
 			target.call(&"server_take_damage", data.damage,
 					global_position, 0, Cfg.Team.MOB)
@@ -302,7 +302,7 @@ func _fire_shot() -> void:
 	if target == null:
 		return
 	var origin := global_position + Vector3(0, 1.15 * data.scale, 0)
-	var to := target.global_position + Vector3(0, 1.0, 0) - origin
+	var to := PlanMonde.ecart3(origin, target.global_position + Vector3(0, 1.0, 0))
 	to.y = 0.0
 	Net.broadcast(self, &"net_shoot", [origin, to.normalized()])
 
@@ -337,7 +337,7 @@ func _explode() -> void:
 		for hit in space.intersect_shape(params, 8):
 			var body = hit.get("collider")
 			if body and body.has_method(&"server_take_damage"):
-				var d: float = body.global_position.distance_to(global_position)
+				var d: float = PlanMonde.distance3(body.global_position, global_position)
 				var falloff := clampf(1.0 - d / data.explosion_radius, 0.3, 1.0)
 				body.call(&"server_take_damage", data.damage * falloff,
 						global_position, 0, Cfg.Team.MOB)

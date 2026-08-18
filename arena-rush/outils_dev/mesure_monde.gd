@@ -29,9 +29,9 @@ func _ready() -> void:
 	print("=== MONDE ===")
 	print("  Montage                 : %d ms" % montage)
 	print("  Rayon                   : %.0f m (%.0f m de large)"
-			% [PlanMonde.RAYON, PlanMonde.RAYON * 2.0])
+			% [PlanMonde.DEMI, PlanMonde.COTE])
 	print("  Surface                 : %.0f m² (ancienne arène : %.0f m²)"
-			% [PI * PlanMonde.RAYON * PlanMonde.RAYON,
+			% [PlanMonde.COTE * PlanMonde.COTE,
 			PI * Cfg.ARENA_RADIUS * Cfg.ARENA_RADIUS])
 	print("  Semis MultiMesh         : %d" % c["semis"])
 	print("  Props semés             : %d" % c["instances"])

@@ -78,20 +78,17 @@ func _ready() -> void:
 func _reperer() -> void:
 	var espace := get_viewport().world_3d.direct_space_state
 	var par_secteur: Dictionary = {}
-	var r_max := PlanMonde.RAYON - 4.0
-	var n := int(r_max / PAS)
-	for ix in range(-n, n + 1):
-		for iz in range(-n, n + 1):
-			var p := Vector3(float(ix) * PAS, 0.0, float(iz) * PAS)
+	var n := int(PlanMonde.COTE / PAS)
+	for ix in n:
+		for iz in n:
+			var p := Vector3(-PlanMonde.DEMI + float(ix) * PAS, 0.0,
+					-PlanMonde.DEMI + float(iz) * PAS)
 			var plan := Vector2(p.x, p.z)
-			if plan.length() > r_max:
-				continue
 			var cam := p + Vector3(0.0, 13.0, 10.0)
 			var part := _part_bouchee(espace, cam, p)
 			if part <= 0.2:
 				continue
-			var s := &"noyau" if plan.length() <= PlanMonde.RAYON_NOYAU \
-					else PlanMonde.secteur_de(plan)
+			var s := PlanMonde.secteur_de(plan)
 			if not par_secteur.has(s):
 				par_secteur[s] = [] as Array[Dictionary]
 			(par_secteur[s] as Array).append({"pos": p, "part": part})

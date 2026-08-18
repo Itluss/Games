@@ -91,7 +91,7 @@ func _recycler(delta: float) -> void:
 		for j in joueurs:
 			if is_instance_valid(j) and j.get(&"is_eliminated") != true:
 				plus_proche = minf(plus_proche,
-						m.global_position.distance_to(j.global_position))
+						PlanMonde.distance3(m.global_position, j.global_position))
 		if plus_proche > OUBLI:
 			m.queue_free()
 

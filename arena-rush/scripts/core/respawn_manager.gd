@@ -104,7 +104,8 @@ func choisir_position(mort: Node3D) -> Vector3:
 	for point: Vector3 in arene.player_spawn_points:
 		var plus_proche := INF
 		for v in vivants:
-			plus_proche = minf(plus_proche, point.distance_to(v.global_position))
+			plus_proche = minf(plus_proche,
+					PlanMonde.distance3(point, v.global_position))
 		# Sans personne en vue, tous les points se valent : on garde le
 		# premier plutôt que de tirer au sort, pour que le comportement
 		# reste reproductible en test.

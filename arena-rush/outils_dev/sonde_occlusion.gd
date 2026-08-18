@@ -100,13 +100,13 @@ func _balayer(degager: bool) -> Dictionary:
 	var remplis := 0
 	var pire := 0.0
 	var pires: Array[Dictionary] = []
-	var r_max := PlanMonde.RAYON - 4.0
-	var n := int(r_max / PAS)
-	for ix in range(-n, n + 1):
-		for iz in range(-n, n + 1):
-			var p := Vector3(float(ix) * PAS, 0.0, float(iz) * PAS)
-			if Vector2(p.x, p.z).length() > r_max:
-				continue
+	# LE MONDE EST UN CARRÉ SANS BORD : on le balaye en entier, il n'y a
+	# plus de « dehors » à écarter.
+	var n := int(PlanMonde.COTE / PAS)
+	for ix in n:
+		for iz in n:
+			var p := Vector3(-PlanMonde.DEMI + float(ix) * PAS, 0.0,
+					-PlanMonde.DEMI + float(iz) * PAS)
 			testes += 1
 			var oeil := p + Vector3(0.0, ArenaCamera.YEUX, 0.0)
 			var but := p + Vector3(0.0, HAUTEUR, RECUL)

@@ -31,15 +31,17 @@ var _dossier := ""
 var _vue := 0
 var _chauffe := 0
 
-## Les vues suivent désormais l'échelle du MONDE, pas celle de l'ancienne
-## arène. La vue de dessus doit contenir 156 m de large ; les deux autres
-## se placent dans un secteur, là où le joueur vit réellement.
+## Les vues suivent le MONDE CARRÉ. La plongée doit contenir ses 144 m de
+## côté ; les autres se posent dans un secteur, là où le joueur vit. La
+## dernière regarde droit vers la limite du monde — celle qui n'existe pas :
+## c'est la vue où une couture se verrait, si elle se voyait.
 var _vues := [
 	{"nom": "jeu", "pos": Vector3(14.0, 15.0, 20.0), "cible": Vector3(0, 1.0, 0)},
-	{"nom": "plongee", "pos": Vector3(1.0, 210.0, 1.2), "cible": Vector3(0, 0, 0)},
-	{"nom": "camp", "pos": Vector3(34.0, 16.0, -34.0), "cible": Vector3(24, 3.0, -46)},
-	{"nom": "canyon", "pos": Vector3(38.0, 14.0, 14.0), "cible": Vector3(54, 4.0, 2)},
-	{"nom": "bosquet", "pos": Vector3(-8.0, 14.0, 34.0), "cible": Vector3(-16, 3.0, 50)},
+	{"nom": "plongee", "pos": Vector3(1.0, 200.0, 1.2), "cible": Vector3(0, 0, 0)},
+	{"nom": "creuset", "pos": Vector3(-46.0, 16.0, 4.0), "cible": Vector3(-56, 3.0, 14)},
+	{"nom": "camp", "pos": Vector3(42.0, 15.0, -60.0), "cible": Vector3(32, 3.0, -50)},
+	{"nom": "bosquet", "pos": Vector3(-10.0, 14.0, 36.0), "cible": Vector3(-20, 3.0, 46)},
+	{"nom": "couture", "pos": Vector3(0.0, 15.0, 62.0), "cible": Vector3(0, 1.0, 72)},
 ]
 
 func _ready() -> void:

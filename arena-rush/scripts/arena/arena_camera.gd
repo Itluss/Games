@@ -98,10 +98,6 @@ var _degagement: float = 1.0
 var _forme := SphereShape3D.new()
 var _requete := PhysicsShapeQueryParameters3D.new()
 var _controle := 0.0
-## Corps ignorés par le regard : le mur du monde, invisible, n'a rien à
-## cacher. Résolu une seule fois, à la première image utile.
-var _ignores: Array[RID] = []
-var _ignores_prets := false
 
 func _ready() -> void:
 	# La caméra s'enregistre elle-même : les effets n'ont pas à la chercher
@@ -150,10 +146,15 @@ func _process(delta: float) -> void:
 	var focus: Vector3 = target.global_position
 
 	# UNE TÉLÉPORTATION N'EST PAS UN DÉPLACEMENT. Réapparaître envoie le
-	# joueur jusqu'à 150 m plus loin ; amortir ce saut faisait voyager la
+	# joueur à l'autre bout du monde ; amortir ce saut faisait voyager la
 	# caméra à l'horizontale pendant un tiers de seconde, cadre plein de
 	# ciel et de brume. On recale sec : personne ne regrette une coupe.
-	if _focus.distance_to(focus) > SAUT:
+	#
+	# LA DISTANCE EST CELLE DU TORE. Franchir la limite du monde déplace le
+	# joueur de 144 m d'un coup : mesuré à plat, chaque passage de couture
+	# serait pris pour une réapparition et provoquerait une coupe. Mesuré
+	# sur le tore, ce déplacement vaut quelques centimètres — ce qu'il est.
+	if PlanMonde.distance3(_focus, focus) > SAUT:
 		_snap()
 		return
 
@@ -168,7 +169,11 @@ func _process(delta: float) -> void:
 	# sans amortir son point de visée laisse l'orientation copier la
 	# position brute du joueur, qui avance par pas de physique pendant que
 	# l'écran affiche à une autre cadence : l'image tremble.
-	_focus = _focus.lerp(focus, 1.0 - exp(-smoothing * delta))
+	# On suit le PLUS COURT CHEMIN, celui qui traverse la limite du monde
+	# quand c'est plus court. Un `lerp` ordinaire renverrait la caméra faire
+	# tout le tour de la carte à chaque franchissement.
+	_focus += PlanMonde.ecart3(_focus, focus) * (1.0 - exp(-smoothing * delta))
+	_replier()
 	_desired = _focus + _ahead
 	var goal := _desired + Vector3(0, height, distance)
 	# Lissage exponentiel : indépendant du framerate, contrairement à un
@@ -186,25 +191,6 @@ func _process(delta: float) -> void:
 	if _controle <= 0.0:
 		_controle = CONTROLE
 		_verifier_le_sol()
-
-## Le mur du monde est un obstacle pour les corps, pas pour le regard.
-##
-## Il mesure 14 m de haut et 5 m d'épaisseur, et il est INVISIBLE : les
-## mesas qu'il figure se dressent quinze mètres plus loin. Collée au bord,
-## la caméra l'avait forcément entre elle et le joueur — et se rabattait
-## sur lui sans raison visible, puis se relâchait, en boucle.
-func _resoudre_ignores() -> void:
-	if _ignores_prets:
-		return
-	var murs := get_tree().get_nodes_in_group(&"enceinte")
-	if murs.is_empty():
-		return
-	for m in murs:
-		var corps := m as CollisionObject3D
-		if corps:
-			_ignores.append(corps.get_rid())
-	_ignores_prets = true
-
 
 ## FILET DE SÉCURITÉ — une caméra qui ne voit plus le monde se recale.
 ##
@@ -253,6 +239,29 @@ func _signaler(texte: String) -> void:
 func _bref(v: Vector3) -> String:
 	return "(%d, %d, %d)" % [roundi(v.x), roundi(v.y), roundi(v.z)]
 
+## REPLIE TOUT L'ÉTAT DE LA CAMÉRA D'UN MONDE ENTIER, D'UN SEUL BLOC.
+##
+## En suivant le plus court chemin, le point de visée franchit la limite du
+## monde sans s'en apercevoir et s'éloigne indéfiniment du carré de
+## référence : au bout d'une longue partie, les coordonnées finiraient par
+## perdre leur précision.
+##
+## On le ramène donc périodiquement — mais en translatant EN MÊME TEMPS la
+## position lissée et la position réelle, exactement du même vecteur. Un
+## déplacement rigide d'une période entière ne change rien à ce qui est
+## visible, puisque le monde se répète : la coupe est mathématiquement
+## invisible. Replier la seule cible, en revanche, ferait traverser la carte
+## à la caméra.
+func _replier() -> void:
+	var saut := PlanMonde.enrouler3(_focus) - _focus
+	if saut.length_squared() < 0.0001:
+		return
+	_focus += saut
+	_desired += saut
+	_ideal += saut
+	global_position += saut
+
+
 ## Où se met la caméra quand elle ne peut reculer que d'une fraction ?
 ##
 ## PAS SUR LE SEGMENT. Rabattre proportionnellement les trois axes plaque la
@@ -282,11 +291,8 @@ func _mesurer_degagement(oeil: Vector3, course: Vector3) -> float:
 	var espace := get_world_3d().direct_space_state
 	if espace == null or course.length_squared() < 0.01:
 		return 1.0
-	_resoudre_ignores()
-
 	var vue := PhysicsRayQueryParameters3D.create(oeil + course, oeil)
 	vue.collision_mask = Cfg.LAYER_WORLD
-	vue.exclude = _ignores
 	if espace.intersect_ray(vue).is_empty():
 		return 1.0
 
@@ -295,7 +301,6 @@ func _mesurer_degagement(oeil: Vector3, course: Vector3) -> float:
 	# de la poitrine du joueur et monte, il ne le rencontre pas.
 	_requete.transform = Transform3D(Basis(), oeil)
 	_requete.motion = course
-	_requete.exclude = _ignores
 	var bornes := espace.cast_motion(_requete)
 	if bornes.size() < 1:
 		return 1.0

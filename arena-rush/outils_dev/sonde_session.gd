@@ -52,7 +52,7 @@ func _process(delta: float) -> void:
 		if r > _r_max:
 			_r_max = r
 			_r_max_qui = nom
-		if r > PlanMonde.RAYON + 6.0:
+		if r > PlanMonde.DEMI * 1.5:
 			_hors_monde += 1
 		if cam != null and p.get(&"peer_id") == Net.local_id():
 			var attendu := p.global_position + Vector3(0, 13.0, 10.0)
@@ -87,7 +87,7 @@ func _conclure() -> void:
 	print("=== SONDE DE SESSION (%.0f s) ===" % _t)
 	print("  hauteur la plus basse atteinte : %.2f m (%s)" % [_y_min, _y_min_qui])
 	print("  distance au centre maximale    : %.1f m (%s) — limite %.0f m"
-			% [_r_max, _r_max_qui, PlanMonde.RAYON])
+			% [_r_max, _r_max_qui, PlanMonde.DEMI])
 	print("  images passées sous le sol     : %d" % _sous_le_sol)
 	print("  images passées hors du monde   : %d" % _hors_monde)
 	print("  écart caméra/cible maximal     : %.1f m" % _ecart_max)

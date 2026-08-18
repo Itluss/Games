@@ -39,7 +39,11 @@ func _physics_process(delta: float) -> void:
 	var desired := Vector3.ZERO
 
 	if _target and is_instance_valid(_target):
-		var to: Vector3 = _target.global_position - pos
+		# LE PLUS COURT CHEMIN, PAS LA SOUSTRACTION. Un adversaire situé à
+		# quatre mètres derrière la couture est à 140 m « à plat » : le bot
+		# viserait dans la direction exactement opposée, et jugerait la
+		# cible hors de portée alors qu'elle est sur lui.
+		var to := PlanMonde.ecart3(pos, _target.global_position)
 		to.y = 0.0
 		var dist := to.length()
 		var dir := to.normalized() if dist > 0.01 else Vector3.FORWARD
@@ -58,23 +62,26 @@ func _physics_process(delta: float) -> void:
 		desired += dir.cross(Vector3.UP) * _strafe * 0.85
 	else:
 		player.want_fire = false
-		if _wander.length() < 0.1 or pos.distance_to(_wander) < 3.0:
+		if _wander.length_squared() < 0.01 \
+				or PlanMonde.distance3(pos, _wander) < 3.0:
 			_wander = _pick_wander_point()
-		desired = (_wander - pos)
+		# LE PLUS COURT CHEMIN PASSE SOUVENT PAR LE BORD. Un bot qui vise sa
+		# destination « à plat » ferait tout le tour du monde pour rejoindre
+		# un point situé à quatre mètres derrière la couture — et prendrait
+		# la direction exactement opposée à la bonne.
+		desired = PlanMonde.ecart3(pos, _wander)
 		desired.y = 0.0
 		desired = desired.normalized()
 
-	# LIMITE DU MONDE. En Battle Royale c'est la zone qui contraint ; en
-	# arène persistante il n'y a plus de zone, mais il y a un bord de carte
-	# — un bot qui s'y colle reste bloqué contre les mesas sans jamais
-	# comprendre pourquoi.
-	var limite: float = PlanMonde.RAYON - 8.0
+	# PLUS AUCUNE LIMITE À RESPECTER EN MODE PERSISTANT. Le monde s'enroule :
+	# il n'y a plus de bord contre lequel se coller, donc plus rien à
+	# repousser. Seule la zone du Battle Royale contraint encore.
 	if not MatchDirector.est_persistant():
-		limite = MatchDirector.zone_radius - 4.0
-	var flat := Vector2(pos.x, pos.z)
-	if flat.length() > limite:
-		desired = Vector3(-flat.normalized().x, 0.0, -flat.normalized().y) * 1.5
-		_wander = Vector3.ZERO
+		var flat := Vector2(pos.x, pos.z)
+		if flat.length() > MatchDirector.zone_radius - 4.0:
+			desired = Vector3(-flat.normalized().x, 0.0,
+					-flat.normalized().y) * 1.5
+			_wander = Vector3.ZERO
 
 	player.move_input = Vector2(desired.x, desired.z).limit_length(1.0)
 
@@ -94,7 +101,7 @@ func _retarget() -> void:
 			var hc = node.get(&"health")
 			if hc != null and hc.is_dead:
 				continue
-			var d: float = pos.distance_to(node.global_position)
+			var d: float = PlanMonde.distance3(pos, node.global_position)
 			var weight: float = 1.0 if group == &"mobs" else 1.35
 			# 34 m et non 30 : sur une carte cinq fois plus grande, un bot
 			# myope ne rencontre plus personne. On reste toutefois sous la
@@ -121,9 +128,12 @@ func _retarget() -> void:
 ## bots suivraient les mêmes six routes et le monde paraîtrait scripté.
 func _pick_wander_point() -> Vector3:
 	if randf() < 0.25 or PlanMonde.POINTS_INTERET.is_empty():
-		var a := randf() * TAU
-		var r := randf_range(PlanMonde.RAYON_NOYAU, PlanMonde.RAYON * 0.88)
-		return Vector3(cos(a) * r, 0.0, sin(a) * r)
+		# N'importe où dans le carré : un monde sans bord n'a ni couronne
+		# ni centre à éviter.
+		var q := PlanMonde.enrouler(Vector2(
+				randf_range(-PlanMonde.DEMI, PlanMonde.DEMI),
+				randf_range(-PlanMonde.DEMI, PlanMonde.DEMI)))
+		return Vector3(q.x, 0.0, q.y)
 	var poi: Dictionary = PlanMonde.POINTS_INTERET[
 			randi() % PlanMonde.POINTS_INTERET.size()]
 	var c := PlanMonde.position_poi(poi)
@@ -131,4 +141,5 @@ func _pick_wander_point() -> Vector3:
 	# se marchent dessus en arrivant, et le lieu devient un embouteillage.
 	var ecart := float(poi["rayon_actif"]) * randf_range(0.4, 1.1)
 	var b := randf() * TAU
-	return Vector3(c.x + cos(b) * ecart, 0.0, c.y + sin(b) * ecart)
+	var q := PlanMonde.enrouler(c + Vector2(cos(b) * ecart, sin(b) * ecart))
+	return Vector3(q.x, 0.0, q.y)

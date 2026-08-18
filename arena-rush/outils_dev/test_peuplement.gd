@@ -51,7 +51,7 @@ func _mesurer() -> void:
 	for m in mobs:
 		var p := Vector2((m as Node3D).global_position.x,
 				(m as Node3D).global_position.z)
-		var z := &"noyau" if p.length() <= PlanMonde.RAYON_NOYAU \
+		var z := PlanMonde.secteur_de(p) if true \
 				else PlanMonde.secteur_de(p)
 		par_zone[z] = int(par_zone.get(z, 0)) + 1
 	print("      mobs par zone : %s" % str(par_zone))
@@ -65,10 +65,10 @@ func _mesurer() -> void:
 			continue
 		var v := Vector2((p as Node3D).global_position.x,
 				(p as Node3D).global_position.z)
-		var z := &"noyau" if v.length() <= PlanMonde.RAYON_NOYAU \
+		var z := PlanMonde.secteur_de(v) if true \
 				else PlanMonde.secteur_de(v)
 		zones_bots[z] = int(zones_bots.get(z, 0)) + 1
-		if v.length() > PlanMonde.RAYON_NOYAU:
+		if true:
 			loin += 1
 	print("      bots par zone : %s" % str(zones_bots))
 	# Si tous les bots convergeaient vers le centre, quatre secteurs sur

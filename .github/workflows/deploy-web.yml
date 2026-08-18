@@ -207,6 +207,39 @@ jobs:
           fi
           echo "Dégagement de la caméra conforme."
 
+      # LA COUTURE DU MONDE — la garantie propre au monde sans bord.
+      #
+      # Le monde s'enroule : on part tout droit et on revient à son point
+      # de départ. Toute l'illusion tient à une condition — la limite ne
+      # doit pas se VOIR. Cela ne se démontre pas par le calcul, cela se
+      # constate en image.
+      #
+      # Le test photographie le jeu à cinq centimètres d'un bord, puis à
+      # cinq centimètres du bord opposé. Sur un tore ces deux points sont
+      # voisins : les deux images doivent être quasi identiques. Une
+      # périodicité mal choisie dans le décor et l'écart explose.
+      - name: Vérifier la couture du monde
+        run: |
+          set -uo pipefail
+          timeout 300 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
+            --path arena-rush res://outils_dev/sonde_couture.tscn \
+            --rendering-driver opengl3 -- --solo 2>&1 | tee couture.log || true
+          if grep -qE "Parse Error|Failed to load script" couture.log; then
+            echo "::error::La sonde de couture ne compile pas."
+            grep -E "Parse Error|Failed to load script" -A2 couture.log
+            exit 1
+          fi
+          if ! grep -q "vérification ===" couture.log; then
+            echo "::warning::La sonde de couture n'a pas pu s'exécuter (rendu indisponible ?)."
+            exit 0
+          fi
+          grep -E "écart moyen|traversées visibles" couture.log || true
+          if grep -qE "=== [1-9][0-9]* échec\(s\)" couture.log; then
+            echo "::error::La limite du monde est redevenue visible."
+            exit 1
+          fi
+          echo "Monde sans couture."
+
       # PROGRESSION ET BOUCLE PERSISTANTE — deux barrières de plus.
       #
       # La première vérifie la courbe de niveaux et, surtout, que la
