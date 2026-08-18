@@ -39,16 +39,29 @@ func _ready() -> void:
 	_mesh.mesh = m
 	add_child(_mesh)
 
-	# HALO — une sphère translucide plus large autour du noyau opaque.
-	# Un seul appel de dessin de plus par projectile, et c'est lui qui
-	# donne l'impression d'énergie ; le noyau, lui, garantit qu'on lise la
-	# couleur de l'arme même sur le sable le plus clair.
+	# TRAÎNÉE — un cône effilé PLACÉ DERRIÈRE le noyau, pas une enveloppe
+	# autour de lui.
+	#
+	# Le premier jet étirait le noyau lui-même et l'entourait d'un halo
+	# étiré : deux formes floues superposées, sans début ni fin nets. En
+	# jeu, cela donnait un trait sale — « brouillon et moins détaillé »
+	# qu'avant, et c'était juste. Une balle se lit comme un POINT NET suivi
+	# d'une queue qui s'efface : deux formes distinctes, chacune avec son
+	# rôle. Le point dit où elle est, la queue dit d'où elle vient.
 	_halo = MeshInstance3D.new()
-	var hm := SphereMesh.new()
+	var hm := CylinderMesh.new()
+	hm.top_radius = 0.0
+	hm.bottom_radius = 1.0
+	hm.height = 1.0
 	hm.radial_segments = 8
-	hm.rings = 4
-	_halo.mesh = hm
+	hm.cap_top = false
+	hm.cap_bottom = false
+	# L'axe d'un cylindre est +Y ; une rotation de +90° autour de X l'envoie
+	# sur +Z, c'est-à-dire DERRIÈRE le projectile — dont l'avant est -Z.
+	# La pointe traîne donc dans le dos de la balle, comme il se doit.
+	_halo.rotation = Vector3(PI / 2.0, 0.0, 0.0)
 	_halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_halo.mesh = hm
 	add_child(_halo)
 
 	_sphere = SphereShape3D.new()
@@ -106,29 +119,29 @@ func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
 	# invisible sur un téléphone. On grossit donc ce qu'on voit d'un tiers
 	# sans toucher d'un millimètre à ce qui touche — la précision de tir
 	# reste exactement celle d'avant.
-	var rv := r * 1.35
+	# LE NOYAU RESTE ROND. Il n'est plus étiré : c'est lui qui porte la
+	# netteté, et une sphère déformée n'a plus de contour franc.
+	var rv := r * 1.3
 	(_mesh.mesh as SphereMesh).radius = rv
 	(_mesh.mesh as SphereMesh).height = rv * 2.0
+	(_mesh.mesh as SphereMesh).radial_segments = 12
+	(_mesh.mesh as SphereMesh).rings = 6
 	_mesh.material_override = VisualKit.noyau_mat(data.color)
-	(_halo.mesh as SphereMesh).radius = rv * 1.9
-	(_halo.mesh as SphereMesh).height = rv * 3.8
-	_halo.material_override = VisualKit.glow_mat(data.color, 2.0, 0.34)
+	_mesh.scale = Vector3.ONE
 
-	# ÉTIREMENT DANS L'AXE DE VOL — la traînée du pauvre, et la seule qui
-	# tienne sur un téléphone.
-	#
-	# Les traînées de particules sont coupées en qualité basse : à trente
-	# mètres par seconde, un projectile parcourt un demi-mètre entre deux
-	# images, et une bille ronde saute d'un point à l'autre sans qu'on
-	# puisse suivre sa course. Étiré dans son axe, il redevient un TRAIT :
-	# on lit sa direction, sa vitesse et son origine d'un seul regard, pour
-	# zéro particule et zéro appel de dessin supplémentaire.
-	#
-	# Les grenades gardent leur forme ronde : elles décrivent une cloche et
-	# rebondissent, un trait mentirait sur leur trajectoire.
-	_allonge = 1.0 if data.bounces > 0 or data.gravity > 0.0 else 3.2
-	_mesh.scale = Vector3(1.0, 1.0, _allonge)
-	_halo.scale = Vector3(1.0, 1.0, maxf(1.0, _allonge * 0.8))
+	# La queue : longue de six calibres, effilée, franchement transparente.
+	# Les grenades n'en ont pas — elles décrivent une cloche et
+	# rebondissent, une queue rectiligne mentirait sur leur trajectoire.
+	_allonge = 0.0 if data.bounces > 0 or data.gravity > 0.0 else rv * 6.0
+	_halo.visible = _allonge > 0.0
+	if _halo.visible:
+		var cone := _halo.mesh as CylinderMesh
+		cone.bottom_radius = rv * 0.85
+		cone.height = _allonge
+		# Le cône est centré sur son axe : on le décale d'une demi-longueur
+		# pour que sa base touche le noyau au lieu de le traverser.
+		_halo.position = Vector3(0.0, 0.0, _allonge * 0.5)
+		_halo.material_override = VisualKit.glow_mat(data.color, 1.8, 0.42)
 	_orienter()
 
 	_setup_trail()
@@ -138,7 +151,7 @@ func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
 ## Aligne le corps du projectile sur sa vitesse réelle, pas sur la
 ## direction de tir : une grenade qui retombe doit pointer vers le bas.
 func _orienter() -> void:
-	if _allonge <= 1.0:
+	if _allonge <= 0.0:
 		return
 	var v := _velocity
 	if v.length_squared() < 0.01:

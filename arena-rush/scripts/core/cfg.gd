@@ -18,6 +18,10 @@ const LAYER_PLAYER := 2
 const LAYER_MOB := 4
 const LAYER_PROJECTILE := 8
 const LAYER_PICKUP := 16
+## VOLUMES QUI CACHENT LE JOUEUR VU DE DESSUS — tabliers de pont, halles,
+## plateformes. Ils n'arrêtent RIEN : ni les corps, ni les tirs. Ils
+## n'existent que pour que la caméra sache qu'elle regarde à travers un toit.
+const LAYER_TOIT := 32
 
 # --- ÉQUIPES -------------------------------------------------------------
 enum Team { PLAYER, MOB }

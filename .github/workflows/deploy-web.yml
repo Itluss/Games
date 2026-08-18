@@ -57,6 +57,13 @@ jobs:
           - nom: Dégagement de la caméra
             scene: res://outils_dev/sonde_occlusion.tscn
             rendu: false
+          # LA BARRIÈRE QUI MANQUAIT. Les repères sous lesquels on passe —
+          # pont, dépôt, tour — remplissaient l'écran de pierre. Aucune
+          # sonde ne le voyait : elles cherchaient au rayon sur la couche du
+          # monde, or ces tabliers sont bâtis en pièces non solides.
+          - nom: Repères effaçables
+            scene: res://outils_dev/sonde_toits.tscn
+            rendu: false
           - nom: Couture du monde
             scene: res://outils_dev/sonde_couture.tscn
             rendu: true

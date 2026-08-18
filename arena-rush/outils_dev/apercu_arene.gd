@@ -42,6 +42,10 @@ var _vues := [
 	# juger la masse et la couleur, une au ras pour juger la lisibilité.
 	{"nom": "ruines", "pos": Vector3(-34.0, 14.0, -26.0), "cible": Vector3(-46, 2.0, -38)},
 	{"nom": "ruines_pres", "pos": Vector3(-42.0, 9.0, -30.0), "cible": Vector3(-46, 1.2, -37)},
+	# SOUS LE PONT, AU PLACEMENT EXACT DE LA CAMÉRA DE JEU. Le tablier est à
+	# 8,3 m, la caméra à 10,4 m : cette vue répond en une image à la question
+	# « que voit le joueur quand il franchit l'arche par-dessous ? ».
+	{"nom": "sous_pont", "pos": Vector3(60.0, 10.4, 26.0), "cible": Vector3(60, 1.4, 18)},
 	{"nom": "creuset", "pos": Vector3(-46.0, 16.0, 4.0), "cible": Vector3(-56, 3.0, 14)},
 	{"nom": "bosquet", "pos": Vector3(-10.0, 14.0, 36.0), "cible": Vector3(-20, 3.0, 46)},
 ]

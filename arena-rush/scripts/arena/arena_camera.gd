@@ -69,6 +69,11 @@ class_name ArenaCamera
 ## rapprochement reste ce qu'il est : un rapprochement, pas un compromis.
 @export var look_ahead: float = 3.4
 
+## Réglage nominal, mémorisé au démarrage. `adapt_to_zone` s'en écarte au
+## lieu d'écrire des valeurs en dur.
+var _hauteur_nominale := 10.4
+var _recul_nominal := 8.0
+
 ## Hauteur de l'œil visé sur le joueur : la ligne de vue part de sa
 ## poitrine, pas de ses pieds, sinon le moindre muret la coupe.
 const YEUX := 1.4
@@ -130,6 +135,10 @@ func _ready() -> void:
 	# dans l'arbre à chaque impact.
 	Fx.camera = self
 	current = true
+	# On mémorise le réglage nominal AVANT que quoi que ce soit y touche :
+	# c'est la référence de `adapt_to_zone`.
+	_hauteur_nominale = height
+	_recul_nominal = distance
 	# RETROUVABLE. Si la fenêtre se retrouve un jour sans caméra active, la
 	# veille du monde doit pouvoir en désigner une — encore faut-il qu'elle
 	# sache où chercher.
@@ -219,6 +228,7 @@ func _process(delta: float) -> void:
 	_degagement = lerpf(_degagement, vise, 1.0 - exp(-vitesse * delta))
 	global_position = oeil + placer(_ideal - oeil, _degagement)
 	_regarder(_desired)
+	_gerer_les_toits(oeil)
 
 	_controle -= delta
 	if _controle <= 0.0:
@@ -402,5 +412,49 @@ func _mesurer_degagement(oeil: Vector3, course: Vector3) -> float:
 ## joue dans un espace réduit, la caméra doit le montrer entièrement.
 func adapt_to_zone(zone_radius: float) -> void:
 	var t := clampf(zone_radius / Cfg.ARENA_RADIUS, 0.35, 1.0)
-	height = lerpf(10.5, 13.0, t)
-	distance = lerpf(8.0, 10.0, t)
+	# ON RECULE PAR RAPPORT AU RÉGLAGE, ON NE LE REMPLACE PAS.
+	#
+	# Ces deux lignes écrivaient 13,0 et 10,0 en dur : les valeurs d'AVANT
+	# le rapprochement. Autrement dit, la première fermeture de zone
+	# annulait silencieusement le rapprochement de caméra et le joueur
+	# rapetissait sans que rien ne l'explique. Un réglage exporté qu'une
+	# autre fonction réécrit en dur n'est plus un réglage.
+	#
+	# La zone qui se referme doit MONTRER PLUS, donc reculer : on garde le
+	# réglage nominal quand la zone est entière et on s'en écarte de 25 %
+	# au plus quand elle est au plus petit.
+	height = _hauteur_nominale * lerpf(1.25, 1.0, t)
+	distance = _recul_nominal * lerpf(1.25, 1.0, t)
+
+## EFFACE LE REPÈRE SOUS LEQUEL ON PASSE.
+##
+## Le dégagement gère ce qui est DERRIÈRE le joueur ; ceci gère ce qui est
+## AU-DESSUS. Les deux sont nécessaires et aucun ne remplace l'autre : on ne
+## recule pas pour sortir de sous un pont, on ne monte pas non plus — un
+## tablier de pierre est un plafond, et un plafond, on le traverse du regard
+## ou on ne voit rien.
+##
+## Un seul rayon par image, sur une couche que rien d'autre n'occupe.
+func _gerer_les_toits(oeil: Vector3) -> void:
+	if _arene == null or not is_instance_valid(_arene):
+		_arene = get_tree().get_first_node_in_group(&"arene")
+		if _arene == null:
+			return
+	var espace := get_world_3d().direct_space_state
+	if espace == null:
+		return
+	var q := PhysicsRayQueryParameters3D.create(oeil, global_position)
+	q.collision_mask = Cfg.LAYER_TOIT
+	# ON COMPTE AUSSI LES DÉPARTS DE L'INTÉRIEUR. Sans cela, un rayon qui
+	# NAÎT dans le volume — c'est-à-dire le cas où l'on est déjà sous le
+	# toit, donc le seul qui nous intéresse — ne rend aucune touche.
+	q.hit_from_inside = true
+	var touche := espace.intersect_ray(q)
+	if touche.is_empty():
+		_arene.call(&"devoiler_toits")
+	else:
+		_arene.call(&"voiler_toit", touche["collider"])
+
+
+## L'arène, retrouvée une seule fois puis conservée.
+var _arene: Node = null

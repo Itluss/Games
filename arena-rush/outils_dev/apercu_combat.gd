@@ -41,6 +41,7 @@ func _ready() -> void:
 	await _installer()
 	for arme: StringName in ARMES:
 		await _photographier_arme(arme)
+	await _photographier_le_pont()
 	get_tree().quit()
 
 
@@ -149,3 +150,31 @@ func _photographier_arme(arme: StringName) -> void:
 		await get_tree().process_frame
 	if ctrl:
 		ctrl.set_process(true)
+
+
+## SOUS LE PONT — la capture de non-régression du défaut « écran opaque ».
+##
+## Le pont est décrit comme « une arche que l'on franchit par-dessous » et
+## son tablier passe à 8,3 m, sous la caméra. C'est l'endroit qui a rempli
+## l'écran de pierre pendant cinq signalements. Toute modification de la
+## caméra ou des repères doit repasser par cette image.
+func _photographier_le_pont() -> void:
+	var j := _joueur()
+	if j == null:
+		return
+	var pont := PlanMonde.point_interet(&"pont")
+	var p := PlanMonde.position_poi(pont)
+	var ou := Vector3(p.x, 0.6, p.y)
+	# ON LE REMET DEBOUT. Le banc a mis quatre minutes à faire ses quatre
+	# premières photos, et les bots avaient eu le temps de le tuer : la
+	# capture montrait l'écran d'élimination, pas le pont.
+	j.revivre(ou)
+	PlanMonde.ancre = ou
+	# Le temps que la caméra se recale et que le voile s'applique.
+	for i in 14:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	var nom := _dossier + "/combat_sous_pont.png"
+	img.save_png(nom)
+	print("→ ", nom)

@@ -66,6 +66,9 @@ func _ready() -> void:
 	_obstacles.collision_mask = 0
 	add_child(_obstacles)
 
+	# RETROUVABLE PAR LA CAMÉRA. Elle a besoin de nous dire quel repère
+	# effacer ; sans groupe, elle devrait deviner un chemin dans l'arbre.
+	add_to_group(&"arene")
 	_build_environment()
 	_build_ground()
 	_batir_secteurs()
@@ -775,6 +778,7 @@ func _batir_points_interet() -> void:
 		# cellules basculent d'une image à l'autre, la tour se couperait en
 		# deux. Ancrée sur elle-même, elle se déplace d'un bloc.
 		_groupe = _ancrer(p)
+		_toit_boites.clear()
 		_ouvrir_fusion()
 		match poi["id"]:
 			&"tour": _poi_tour(socle)
@@ -786,6 +790,9 @@ func _batir_points_interet() -> void:
 		if poi["id"] != &"place":
 			_balise(socle, float(poi["hauteur"]))
 		_fermer_fusion()
+		# Le repère devient effaçable : c'est ce qui empêche son tablier ou
+		# sa halle de remplir l'écran quand on passe dessous.
+		_declarer_toit()
 		_groupe = null
 
 
@@ -813,6 +820,10 @@ func _bloc(taille: Vector3, pos: Vector3, teinte: Color, rot := 0.0,
 	var b := BoxMesh.new()
 	b.size = taille
 	_fondre(b, Transform3D(Basis.from_euler(Vector3(0, rot, 0)), pos), teinte)
+	# Une pièce dont le dessous passe au-dessus des têtes est un TOIT : on
+	# la retient pour pouvoir l'effacer quand on passera dessous.
+	if pos.y - taille.y * 0.5 >= SOUS_TOIT:
+		_toit_boites.append({"taille": taille, "pos": pos, "rot": rot})
 	if not solide:
 		return
 	var shape := CollisionShape3D.new()
@@ -988,6 +999,7 @@ func _poi_carcasse(base: Vector3) -> void:
 func _build_pieces() -> void:
 	_centre_creuset = PlanMonde.secteur(&"creuset")["centre"]
 	_groupe = _ancrer(_centre_creuset)
+	_toit_boites.clear()
 	_ouvrir_fusion()
 	for piece in PlanArene.STRUCTURES:
 		_poser(piece, Cfg.COL_METAL)
@@ -1000,7 +1012,167 @@ func _build_pieces() -> void:
 			_poser(piece, Cfg.COL_METAL, false)
 		i += 1
 	_fermer_fusion()
+	_declarer_toit()
 	_groupe = null
+
+
+# --- TOITS ----------------------------------------------------------------
+#
+# LE DÉFAUT QUE CECI CORRIGE, ET POURQUOI IL A TENU SI LONGTEMPS.
+#
+# Un écran entièrement opaque a été signalé cinq fois depuis un téléphone,
+# et huit sondes ne l'ont pas reproduit. La cause tient dans une phrase de
+# la fiche du pont : « une arche que l'on franchit PAR-DESSOUS ». Son
+# tablier est à 8,3 m, la caméra de jeu à 10,4 m. Franchir l'arche met donc
+# le tablier et ses deux piles entre la caméra et le joueur, et l'écran se
+# remplit de pierre. Vérifié en image, au placement EXACT de la caméra de
+# jeu : plus de sol, plus de ciel, plus de personnage.
+#
+# La halle du Dépôt, le temple et la Place posent le même problème. Ce sont
+# tous des lieux CONÇUS pour qu'on passe dessous — le défaut est donc dans
+# la caméra, pas dans le niveau.
+#
+# POURQUOI LES SONDES NE L'ONT PAS VU. Elles cherchaient au RAYON, sur la
+# couche du monde. Or les tabliers sont bâtis en pièces NON SOLIDES, pour
+# qu'on puisse passer dessous : aucun rayon ne les rencontre. L'instrument
+# était aveugle exactement à la géométrie qui produit le défaut.
+#
+# POURQUOI LE DÉGAGEMENT NE SUFFISAIT PAS. La caméra sait se rapprocher
+# quand le joueur est masqué, mais jamais en dessous de 80 % de son recul —
+# un plancher mesuré, qui évite les plongeons incessants. Or il faudrait
+# descendre à 59 % pour passer sous un tablier à 8,3 m. Le garde-fou
+# existait ; il ne pouvait simplement pas aller assez loin.
+#
+# CE QU'ON FAIT À LA PLACE, et c'est la solution du genre : on n'évite pas
+# le toit, ON L'EFFACE. Chaque repère reçoit un volume invisible sur une
+# couche à lui ; quand le rayon qui va du joueur à la caméra le traverse,
+# les maillages du repère passent en fantôme. Le joueur se voit à travers
+# la structure, qui reste lisible en transparence.
+
+## Hauteur du dessous d'une pièce à partir de laquelle elle devient un
+## toit : au-dessus des têtes, donc entre le joueur et sa caméra.
+const SOUS_TOIT := 2.6
+
+## Repères effaçables : volumes, maillages, et leurs deux tenues.
+var _toits: Array[Dictionary] = []
+var _toit_voile := -1
+## Pièces en surplomb du repère en cours de construction.
+var _toit_boites: Array[Dictionary] = []
+
+
+## Déclare le repère courant comme effaçable, d'après SES pièces en
+## surplomb.
+##
+## LE VOLUME DESCEND JUSQU'AU SOL, et c'est le point délicat.
+##
+## Un premier jet n'a retenu que la pièce elle-même — le tablier, à 8,3 m.
+## Le rayon qui va du joueur à sa caméra passe alors SOUS le tablier et ne
+## le rencontre jamais : la caméra est en arrière, pas au-dessus. Or l'écran
+## était bel et bien plein, non pas d'une chose entre les deux, mais de la
+## STRUCTURE ENTIÈRE — les deux piles de part et d'autre, le tablier
+## au-dessus. On est dedans.
+##
+## Chaque surplomb devient donc une colonne descendant jusqu'au sol : y
+## être, c'est être sous un toit. Un second jet avait pris un cylindre
+## couvrant tout le repère, mais il effaçait la tour de guet dès qu'on
+## passait à dix mètres, en plein air — le repère du monde devenait
+## fantôme sans raison.
+func _declarer_toit() -> void:
+	if _groupe == null or _toit_boites.is_empty():
+		_toit_boites.clear()
+		return
+	var maillages: Array[MeshInstance3D] = []
+	var pleins: Array[Material] = []
+	var fantomes: Array[Material] = []
+	for enfant in _groupe.get_children():
+		var mi := enfant as MeshInstance3D
+		if mi == null or mi.material_override == null:
+			continue
+		maillages.append(mi)
+		pleins.append(mi.material_override)
+		fantomes.append(_fantome(mi.material_override))
+	if maillages.is_empty():
+		_toit_boites.clear()
+		return
+
+	var corps := StaticBody3D.new()
+	corps.collision_layer = Cfg.LAYER_TOIT
+	# Il ne DÉTECTE rien : il se contente d'être détecté par la caméra. Ni
+	# les corps ni les tirs ne le rencontrent — on passe toujours dessous.
+	corps.collision_mask = 0
+	for b: Dictionary in _toit_boites:
+		var taille: Vector3 = b["taille"]
+		var pos: Vector3 = b["pos"]
+		var haut: float = pos.y + taille.y * 0.5
+		var forme := CollisionShape3D.new()
+		var boite := BoxShape3D.new()
+		# Un peu débordant en plan : on veut effacer AVANT que la pierre ne
+		# remplisse le cadre, pas au moment où elle le remplit déjà.
+		boite.size = Vector3(taille.x + 1.6, haut, taille.z + 1.6)
+		forme.shape = boite
+		forme.position = Vector3(pos.x, haut * 0.5, pos.z) - _groupe.position
+		forme.rotation.y = float(b["rot"])
+		corps.add_child(forme)
+	_groupe.add_child(corps)
+	_toit_boites.clear()
+
+	_toits.append({"corps": corps, "maillages": maillages,
+			"pleins": pleins, "fantomes": fantomes})
+
+
+## Version translucide d'un matériau de décor.
+##
+## ON PRÉPARE LA TENUE DE RECHANGE À LA CONSTRUCTION. Fabriquer un matériau
+## au moment où l'on passe sous le pont provoquerait une compilation de
+## shader en pleine partie, c'est-à-dire un à-coup à l'endroit précis où
+## l'on veut que rien ne bouge.
+static func _fantome(plein: Material) -> Material:
+	var src := plein as StandardMaterial3D
+	if src == null:
+		return plein
+	var m: StandardMaterial3D = src.duplicate()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color.a = 0.22
+	# Sans cela, les faces arrière se dessinent par-dessus les faces avant
+	# et le fantôme devient une bouillie.
+	m.cull_mode = BaseMaterial3D.CULL_BACK
+	m.shadow_casting_setting = 0
+	return m
+
+
+## Voile le repère désigné par un corps, et RÉTABLIT tous les autres.
+##
+## Un seul repère est voilé à la fois : la caméra ne regarde qu'à un
+## endroit, et rétablir systématiquement les autres évite qu'un repère
+## reste fantôme parce qu'on s'en est éloigné trop vite.
+func voiler_toit(corps: Node) -> void:
+	var cible := -1
+	for i in _toits.size():
+		if _toits[i]["corps"] == corps:
+			cible = i
+			break
+	if cible == _toit_voile:
+		return
+	_appliquer_toit(_toit_voile, false)
+	_toit_voile = cible
+	_appliquer_toit(cible, true)
+
+
+func devoiler_toits() -> void:
+	voiler_toit(null)
+
+
+func _appliquer_toit(i: int, fantome: bool) -> void:
+	if i < 0 or i >= _toits.size():
+		return
+	var t: Dictionary = _toits[i]
+	var maillages: Array = t["maillages"]
+	var tenue: Array = t["fantomes"] if fantome else t["pleins"]
+	for k in maillages.size():
+		var mi: MeshInstance3D = maillages[k]
+		if is_instance_valid(mi):
+			mi.material_override = tenue[k]
+
 
 ## Position du Creuset dans le monde, lue une fois à la construction.
 var _centre_creuset := Vector2.ZERO
