@@ -202,6 +202,69 @@ func death(pos: Vector3, color: Color) -> void:
 	# l'évènement le plus FRÉQUENT du jeu, donc le pire candidat.
 	
 
+## GAIN D'EXPÉRIENCE FLOTTANT — le chiffre qui monte au-dessus du mob mort.
+##
+## POURQUOI CE CHIFFRE COMPTE. La progression était jusqu'ici invisible en
+## jeu : l'XP montait dans une barre au coin de l'écran, qu'on ne regarde
+## pas au moment où on la gagne. Le geste et sa récompense étaient séparés
+## de deux secondes et de quinze centimètres d'écran — assez pour que le
+## lien ne se fasse pas. Un « +5 XP » qui monte à l'endroit exact du coup
+## referme cet écart, et c'est tout ce qu'on lui demande.
+##
+## UN `Label3D`, ET NON UN ÉLÉMENT D'INTERFACE PROJETÉ. Il se tourne vers
+## la caméra tout seul, porte son contour sans shader, et se range dans le
+## monde — donc il suit le décor, disparaît derrière un rocher, et
+## s'enroule avec la carte sans qu'on ait rien à faire.
+func gain_xp(pos: Vector3, montant: int, couleur: Color = Color("7fd4ff")) -> void:
+	if montant <= 0:
+		return
+	var parent := _parent_for(self)
+	var t := Label3D.new()
+	t.text = "+%d XP" % montant
+	# CONTOUR MINCE. À 34 pixels pour un corps de 96, il ne détachait plus le
+	# chiffre : il le REMPLISSAIT. Vérifié en capture — le « +20 XP » sortait
+	# bleu marine presque noir, alors que la couleur demandée était un bleu
+	# clair. Un contour sert à séparer du fond, pas à repeindre la lettre.
+	t.outline_size = 11
+	t.outline_modulate = Color(0.03, 0.05, 0.13, 0.95)
+	t.modulate = couleur
+	# Le texte est déjà clair ET modulé : sans cela, la teinte multiplie un
+	# blanc cassé et sort systématiquement plus sombre que demandé.
+	t.font_size = 96
+	t.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	# PAS DE TEST DE PROFONDEUR EN LECTURE SEULE : le chiffre doit rester
+	# lisible même à moitié dans un rocher. Le perdre derrière le décor
+	# exactement au moment où le mob s'y effondre le rendrait inutile une
+	# fois sur trois.
+	t.no_depth_test = true
+	t.render_priority = 4
+	# TAILLE MESURÉE EN IMAGE, pas choisie. Un `Label3D` se dimensionne en
+	# MÈTRES : sa taille à l'écran dépend de la distance à la caméra, pas de
+	# `font_size`. Premier réglage : douze pixels de haut, illisible.
+	#
+	# Le calcul est refait à l'endroit qui compte — la distance de combat.
+	# La caméra regarde le sol à une quinzaine de mètres avec 58° de champ,
+	# ce qui donne environ quarante pixels par mètre sur un écran de 720
+	# lignes. Un chiffre de 1,15 m de haut fait donc une quarantaine de
+	# pixels : lisible d'un coup d'œil sans couvrir le combat.
+	t.pixel_size = 0.012
+	t.position = pos
+	parent.add_child(t)
+
+	# Il monte de quatre-vingts centimètres en une seconde, part légèrement
+	# de côté pour que deux gains simultanés ne se superposent pas, et
+	# s'efface sur la fin. La montée est amortie : un chiffre à vitesse
+	# constante se lit comme un objet qui tombe à l'envers.
+	var ecart := randf_range(-0.35, 0.35)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(t, "position",
+			pos + Vector3(ecart, 0.85, 0.0), 0.95) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(t, "modulate:a", 0.0, 0.4).set_delay(0.55)
+	tw.chain().tween_callback(t.queue_free)
+
+
 ## Explosion de zone : lance-grenades et mob Exploder.
 func explosion(pos: Vector3, radius: float, color: Color) -> void:
 	var parent := _parent_for(self)

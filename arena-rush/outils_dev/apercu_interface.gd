@@ -52,6 +52,13 @@ func _mettre_en_scene() -> void:
 	j.server_pickup(&"shotgun")
 	await get_tree().process_frame
 
+	# DEUX GAINS D'XP FLOTTANTS, à deux distances. Un chiffre posé dans le
+	# monde n'a pas de taille fixe à l'écran : celui qui est lisible à trois
+	# mètres peut être illisible à douze, et seule une capture le dit.
+	Fx.gain_xp(j.global_position + Vector3(3.0, 1.5, -1.5), 5)
+	Fx.gain_xp(j.global_position + Vector3(-4.5, 1.5, -5.5), 20)
+	await get_tree().process_frame
+
 	# Vie entamée : une barre pleine ne dit rien de la jauge ni du dégradé.
 	var pv = j.get(&"health")
 	if pv != null:

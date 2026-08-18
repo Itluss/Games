@@ -203,7 +203,11 @@ func _crediter_mob(mob: Mob, killer_id: int) -> void:
 	var arme: StringName = &""
 	if local_player.weapon != null and local_player.weapon.data != null:
 		arme = local_player.weapon.data.id
-	Profil.enregistrer_kill_mob(categorie, arme)
+	var gagne := Profil.enregistrer_kill_mob(categorie, arme)
+	# LE CHIFFRE S'AFFICHE OÙ LE MOB EST MORT, pas au centre de l'écran :
+	# c'est le lien entre le geste et la récompense qui est recherché, et un
+	# gain détaché de son origine ne le fabrique pas.
+	Fx.gain_xp(mob.global_position + Vector3(0, 1.5, 0), gagne)
 
 # --- LOOT ----------------------------------------------------------------
 
