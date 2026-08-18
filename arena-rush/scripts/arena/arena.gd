@@ -191,6 +191,9 @@ func _process(delta: float) -> void:
 		var d := PlanMonde.ecart(c, _ancres[i])
 		_conteneurs[i].position = Vector3(c.x + d.x, 0.0, c.y + d.y)
 
+	if _repit > 0.0:
+		_repit -= delta
+
 	_veille -= delta
 	if _veille <= 0.0:
 		_veille = 1.0
@@ -1144,12 +1147,32 @@ static func _fantome(plein: Material) -> Material:
 ## Un seul repère est voilé à la fois : la caméra ne regarde qu'à un
 ## endroit, et rétablir systématiquement les autres évite qu'un repère
 ## reste fantôme parce qu'on s'en est éloigné trop vite.
+##
+## ON VOILE TOUT DE SUITE, ON RÉTABLIT AVEC RETARD, et ce n'est pas une
+## coquetterie. Le rayon de la caméra est binaire : au ras d'un volume, un
+## pas de côté de dix centimètres le fait entrer et sortir, et la structure
+## se mettrait à clignoter entre pleine et fantôme. La publication l'a
+## attrapé avant le joueur — la barrière des repères a signalé un toit
+## traversé mais non effacé sur une machine chargée, c'est-à-dire ce
+## clignotement pris sur le fait.
+##
+## Le retard rend aussi la règle vraie EN TOUTES CIRCONSTANCES : la caméra
+## lance son rayon avant que l'arène n'ait replacé ses groupes pour l'image
+## en cours, donc elle raisonne toujours sur une image de retard. Un répit
+## d'un tiers de seconde couvre largement cet écart.
+const REPIT_TOIT := 0.35
+var _repit := 0.0
+
 func voiler_toit(corps: Node) -> void:
 	var cible := -1
 	for i in _toits.size():
 		if _toits[i]["corps"] == corps:
 			cible = i
 			break
+	if cible < 0:
+		# Plus rien devant le regard : on laisse au répit le soin de décider.
+		return
+	_repit = REPIT_TOIT
 	if cible == _toit_voile:
 		return
 	_appliquer_toit(_toit_voile, false)
@@ -1158,7 +1181,13 @@ func voiler_toit(corps: Node) -> void:
 
 
 func devoiler_toits() -> void:
-	voiler_toit(null)
+	if _toit_voile < 0:
+		return
+	# Le décompte tourne dans `_process` ; ici on ne fait que constater
+	# qu'aucun toit n'est devant le regard à cette image.
+	if _repit <= 0.0:
+		_appliquer_toit(_toit_voile, false)
+		_toit_voile = -1
 
 
 func _appliquer_toit(i: int, fantome: bool) -> void:

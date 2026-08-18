@@ -228,7 +228,14 @@ func _process(delta: float) -> void:
 	_degagement = lerpf(_degagement, vise, 1.0 - exp(-vitesse * delta))
 	global_position = oeil + placer(_ideal - oeil, _degagement)
 	_regarder(_desired)
-	_gerer_les_toits(oeil)
+	# ON PART DU JOUEUR, PAS DU POINT REGARDÉ.
+	#
+	# `oeil` se trouve à `_desired`, c'est-à-dire jusqu'à 3,4 m en avant du
+	# personnage — l'avance sur la visée. Or ce qu'il ne faut pas laisser
+	# cacher, c'est LE PERSONNAGE. Un rayon lancé trois mètres devant lui
+	# manquait les petites structures, comme le linteau du temple : mesuré,
+	# une position sur trois échouait, et toujours la même.
+	_gerer_les_toits(focus + Vector3(0.0, YEUX, 0.0))
 
 	_controle -= delta
 	if _controle <= 0.0:
