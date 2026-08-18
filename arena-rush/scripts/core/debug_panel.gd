@@ -28,6 +28,12 @@ func _build() -> void:
 	_fps.offset_top = 8
 	_fps.offset_right = -12
 	_fps.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	# MASQUÉ PAR DÉFAUT DEPUIS QUE LE HUD AFFICHE LA CADENCE. Deux compteurs
+	# d'images superposés dans le même coin, dont l'un flotte sans cadre par
+	# dessus l'autre, ne donnent pas deux fois l'information : ils donnent
+	# l'impression d'un débogage oublié en production. Il revient avec le
+	# reste du panneau, qui est sa place.
+	_fps.visible = false
 	add_child(_fps)
 
 	_panel = PanelContainer.new()
@@ -93,6 +99,7 @@ func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed(&"debug_panel"):
 		_visible = not _visible
 		_panel.visible = _visible
+		_fps.visible = _visible
 	_fps.text = "%d FPS · %d mobs" % [
 		Engine.get_frames_per_second(),
 		get_tree().get_nodes_in_group(&"mobs").size()]

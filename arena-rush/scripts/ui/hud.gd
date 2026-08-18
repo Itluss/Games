@@ -57,12 +57,16 @@ var _niveau_label: Label
 var _announce: UiKit.Banniere
 var _countdown: Label
 var _health_bar: UiKit.BarreVie
-var _slot_panels: Array[PanelContainer] = []
-var _slot_labels: Array[Label] = []
-var _slot_ammo: Array[Label] = []
+var _slot_panels: Array[UiKit.CarteArme] = []
+var _slot_verrou: UiKit.CarteArme
+var _portrait: Portrait
+var _minicarte: Minicarte
+var _fil: FilEliminations
+var _fps_label: Label
+var _pod_kills: PanelContainer
 var _serie_panel: PanelContainer
 var _serie_label: Label
-var _barre_xp: ProgressBar
+var _barre_xp: UiKit.JaugeXp
 var _kill_fx: KillFeedback
 var _replay_center: CenterContainer
 var _tueur_affiche: String = ""
@@ -140,6 +144,8 @@ func bind_player(p: Player) -> void:
 	p.died.connect(_on_local_died)
 	_on_health_changed(p.health.current_health, p.health.max_health)
 	_on_inventory_changed(p.slots, p.active_slot)
+	if _minicarte:
+		_minicarte.joueur = p
 
 # --- CONSTRUCTION --------------------------------------------------------
 
@@ -193,62 +199,221 @@ func _label(text: String, size_px: int, color: Color = UiKit.BLANC) -> Label:
 ##
 ## LA SÉRIE N'APPARAÎT QU'À PARTIR DE DEUX. Un « SÉRIE 1 » permanent
 ## banaliserait l'affichage ; en le faisant surgir, il devient un signal.
+## HAUT DE L'ÉCRAN — trois blocs, trois rôles, jamais mélangés.
+##
+## Le premier jet empilait tout au centre : niveau, kills, série, dans une
+## seule barre. Cela lisait mal parce que ces trois informations ne se
+## consultent pas au même moment. On les sépare selon QUAND on les regarde :
+##
+##   • À GAUCHE, l'identité — qui je suis, où j'en suis. On la consulte
+##     entre deux combats, jamais pendant.
+##   • AU CENTRE, la performance — kills et série. On la vérifie d'un coup
+##     d'œil juste après une élimination, et le centre haut est le seul
+##     endroit que le regard croise sans quitter l'action.
+##   • À DROITE, l'orientation — carte et fil des éliminations. C'est
+##     l'information qu'on va CHERCHER, donc celle qui peut être la plus
+##     loin du centre.
 func _build_top() -> void:
-	var bar := HBoxContainer.new()
-	bar.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	bar.offset_top = MARGIN
-	bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	bar.add_theme_constant_override(&"separation", 0)
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(bar)
+	_build_profil()
+	_build_pods()
+	_build_coin()
 
-	var g := PanelContainer.new()
-	g.add_theme_stylebox_override(&"panel",
-			UiKit.segment(Color("2f6ee0"), true, false))
-	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_child(g)
-	_alive_label = _label("KILLS 0", 25)
-	g.add_child(_alive_label)
 
-	_serie_panel = PanelContainer.new()
-	_serie_panel.add_theme_stylebox_override(&"panel",
-			UiKit.segment(Color("e0662f"), false, false))
-	_serie_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_serie_panel.visible = false
-	bar.add_child(_serie_panel)
-	_serie_label = _label("SÉRIE 0", 25)
-	_serie_panel.add_child(_serie_label)
+## PROFIL — portrait, nom, niveau, expérience.
+func _build_profil() -> void:
+	var carte := PanelContainer.new()
+	carte.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	carte.position = Vector2(MARGIN, MARGIN)
+	carte.add_theme_stylebox_override(&"panel",
+			UiKit.panneau(22, UiKit.PANNEAU, UiKit.PANNEAU_BORD, 3))
+	carte.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(carte)
 
-	var d := PanelContainer.new()
-	d.add_theme_stylebox_override(&"panel",
-			UiKit.segment(Color("111a30"), false, true))
-	d.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_child(d)
+	var ligne := HBoxContainer.new()
+	ligne.add_theme_constant_override(&"separation", 14)
+	ligne.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	carte.add_child(ligne)
+
+	var marge := MarginContainer.new()
+	for cote in [&"margin_left", &"margin_right", &"margin_top",
+			&"margin_bottom"]:
+		marge.add_theme_constant_override(cote, 10)
+	marge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ligne.add_child(marge)
+
+	_portrait = Portrait.new()
+	_portrait.custom_minimum_size = Vector2(76, 76)
+	marge.add_child(_portrait)
+
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override(&"separation", 1)
+	col.add_theme_constant_override(&"separation", 4)
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	d.add_child(col)
-	_niveau_label = _label("LV.1", 25)
-	_niveau_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(_niveau_label)
-	# La barre d'XP est FINE et sous le niveau : elle informe sans jamais
-	# réclamer l'attention, ce qui est exactement son rôle. Une grosse jauge
-	# dorée en haut d'écran donnerait l'impression que le jeu consiste à la
-	# remplir.
-	_barre_xp = ProgressBar.new()
-	_barre_xp.custom_minimum_size = Vector2(96, 8)
-	_barre_xp.show_percentage = false
-	_barre_xp.max_value = 1.0
-	var fond := StyleBoxFlat.new()
-	fond.bg_color = Color(0, 0, 0, 0.45)
-	fond.set_corner_radius_all(4)
-	var rempli := StyleBoxFlat.new()
-	rempli.bg_color = UiKit.OR_CLAIR
-	rempli.set_corner_radius_all(4)
-	_barre_xp.add_theme_stylebox_override(&"background", fond)
-	_barre_xp.add_theme_stylebox_override(&"fill", rempli)
+	ligne.add_child(col)
+
+	var titre := HBoxContainer.new()
+	titre.add_theme_constant_override(&"separation", 14)
+	titre.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(titre)
+	var nom := _label("KAEL", 28)
+	titre.add_child(nom)
+	# LE NIVEAU EN OR, et pas en blanc. C'est la seule chose du bloc qui
+	# progresse ; lui donner la couleur de la récompense la distingue d'un
+	# simple libellé.
+	_niveau_label = _label("LV.1", 26, UiKit.OR_CLAIR)
+	titre.add_child(_niveau_label)
+
+	_barre_xp = UiKit.JaugeXp.new()
+	_barre_xp.custom_minimum_size = Vector2(216, 26)
 	_barre_xp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_barre_xp)
+
+	var creux := MarginContainer.new()
+	creux.add_theme_constant_override(&"margin_right", 12)
+	creux.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ligne.add_child(creux)
+
+
+## PODS DE PERFORMANCE — kills et série, au centre haut.
+##
+## Deux pastilles séparées plutôt qu'une barre continue : elles ne
+## racontent pas la même chose, et la série APPARAÎT — un bloc qui pousse
+## ses voisins en s'affichant serait perçu comme un défaut.
+func _build_pods() -> void:
+	var barre := HBoxContainer.new()
+	barre.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	barre.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	barre.offset_top = MARGIN
+	barre.add_theme_constant_override(&"separation", 14)
+	barre.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(barre)
+
+	_pod_kills = _pod(&"crane", "KILLS", UiKit.BLANC)
+	barre.add_child(_pod_kills)
+	_alive_label = _pod_valeur(_pod_kills)
+
+	_serie_panel = _pod(&"serie", "SÉRIE", UiKit.OR_CLAIR)
+	barre.add_child(_serie_panel)
+	_serie_label = _pod_valeur(_serie_panel)
+	_serie_panel.visible = false
+
+
+## Une pastille : icône + libellé sur une ligne, grand nombre en dessous.
+func _pod(icone: StringName, libelle: String, teinte: Color) -> PanelContainer:
+	var pod := PanelContainer.new()
+	pod.custom_minimum_size = Vector2(158, 78)
+	pod.add_theme_stylebox_override(&"panel",
+			UiKit.panneau(20, UiKit.PANNEAU, UiKit.PANNEAU_BORD, 3))
+	pod.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override(&"separation", 0)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pod.add_child(col)
+	var tete := HBoxContainer.new()
+	tete.alignment = BoxContainer.ALIGNMENT_CENTER
+	tete.add_theme_constant_override(&"separation", 7)
+	tete.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(tete)
+	var ic := UiKit.Glyphe.new()
+	ic.id = icone
+	ic.teinte = teinte
+	ic.custom_minimum_size = Vector2(26, 26)
+	tete.add_child(ic)
+	var lib := _label(libelle, 16, Color(1, 1, 1, 0.7))
+	lib.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tete.add_child(lib)
+	var val := _label("0", 30, teinte)
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	val.name = "Valeur"
+	col.add_child(val)
+	return pod
+
+
+func _pod_valeur(pod: PanelContainer) -> Label:
+	return pod.get_node("VBoxContainer/Valeur") as Label
+
+
+## Largeur et hauteur du bloc d'orientation, en pixels.
+const LARGEUR_COIN := 224
+const HAUTEUR_COIN := 300
+
+
+## COIN D'ORIENTATION — cadence, réglages, carte, fil des éliminations.
+func _build_coin() -> void:
+	# GÉOMÉTRIE EXPLICITE, PAS UN PRÉRÉGLAGE D'ANCRAGE.
+	#
+	# `PRESET_TOP_RIGHT` pose les quatre bords au même endroit : le
+	# conteneur naît large de zéro pixel, et les ancrages « grandir vers la
+	# gauche » ne le rattrapent pas. Vérifié en capture DEUX FOIS — seul le
+	# premier enfant apparaissait, carte et fil restaient invisibles, et
+	# j'ai d'abord accusé la découpe. Les ancrages posés à la main ne
+	# laissent aucune place à ce genre de malentendu.
+	var col := VBoxContainer.new()
+	col.anchor_left = 1.0
+	col.anchor_right = 1.0
+	col.anchor_top = 0.0
+	col.anchor_bottom = 0.0
+	col.offset_left = -(LARGEUR_COIN + MARGIN)
+	col.offset_right = -MARGIN
+	col.offset_top = MARGIN
+	col.offset_bottom = MARGIN + HAUTEUR_COIN
+	col.add_theme_constant_override(&"separation", 10)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(col)
+
+	var tete := HBoxContainer.new()
+	tete.alignment = BoxContainer.ALIGNMENT_END
+	tete.add_theme_constant_override(&"separation", 10)
+	tete.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(tete)
+
+	# LA CADENCE, ET NON UNE LATENCE RÉSEAU. La maquette affiche un ping ;
+	# en solo il n'y en a pas, et inventer un chiffre serait mentir sur un
+	# écran dont tout le rôle est d'informer. Les images par seconde disent
+	# la même chose — le jeu tient-il la route — et elles, on les a.
+	var pastille := PanelContainer.new()
+	pastille.add_theme_stylebox_override(&"panel",
+			UiKit.panneau(16, UiKit.PANNEAU, UiKit.PANNEAU_BORD, 3))
+	pastille.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tete.add_child(pastille)
+	var m := MarginContainer.new()
+	for cote in [&"margin_left", &"margin_right"]:
+		m.add_theme_constant_override(cote, 12)
+	for cote in [&"margin_top", &"margin_bottom"]:
+		m.add_theme_constant_override(cote, 5)
+	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pastille.add_child(m)
+	_fps_label = _label("60 FPS", 18, Color("8ef0a8"))
+	m.add_child(_fps_label)
+
+	var reglages := UiKit.bouton_rond(46.0, "", &"engrenage",
+			UiKit.NEUTRE_CLAIR, UiKit.NEUTRE_SOMBRE)
+	reglages.pressed.connect(_basculer_legende)
+	tete.add_child(reglages)
+
+	# LA CARTE. Elle est encadrée d'un liseré cyan : c'est la couleur du
+	# joueur dans tout le jeu, et l'encadrement dit à qui appartient ce
+	# point de vue.
+	var cadre := PanelContainer.new()
+	cadre.add_theme_stylebox_override(&"panel",
+			UiKit.panneau(16, UiKit.CREUX, UiKit.CYAN.lerp(UiKit.BLANC, 0.15), 3))
+	cadre.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(cadre)
+	var dedans := MarginContainer.new()
+	for cote in [&"margin_left", &"margin_right", &"margin_top",
+			&"margin_bottom"]:
+		dedans.add_theme_constant_override(cote, 4)
+	dedans.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cadre.add_child(dedans)
+	_minicarte = Minicarte.new()
+	_minicarte.custom_minimum_size = Vector2(LARGEUR_COIN - 14, 152)
+	dedans.add_child(_minicarte)
+
+	_fil = FilEliminations.new()
+	_fil.custom_minimum_size = Vector2(LARGEUR_COIN, 70)
+	_fil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_fil)
+
 
 func _build_center() -> void:
 	# Une PLAQUE et non un texte nu : une élimination est un évènement, elle
@@ -270,16 +435,18 @@ func _build_center() -> void:
 	_countdown.modulate.a = 0.0
 	_root.add_child(_countdown)
 
+## BAS DE L'ÉCRAN — vie au-dessus, armement en dessous.
+##
+## Le centre bas est la seule zone qu'aucun pouce ne couvre : c'est pour
+## cela que les deux informations qu'on lit EN COMBAT y sont posées.
 func _build_bottom() -> void:
-	# Colonne centrée en bas : santé au-dessus, armes en dessous. Le centre
-	# bas est la seule zone jamais couverte par les pouces.
 	var col := VBoxContainer.new()
 	col.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	col.offset_bottom = -MARGIN
 	col.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	col.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	col.alignment = BoxContainer.ALIGNMENT_END
-	col.add_theme_constant_override(&"separation", 10)
+	col.add_theme_constant_override(&"separation", 12)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(col)
 
@@ -288,50 +455,44 @@ func _build_bottom() -> void:
 	col.add_child(health_row)
 
 	_health_bar = UiKit.BarreVie.new()
-	_health_bar.custom_minimum_size = Vector2(360, 38)
+	_health_bar.custom_minimum_size = Vector2(380, 40)
 	_health_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	health_row.add_child(_health_bar)
 
 	var slots := HBoxContainer.new()
 	slots.alignment = BoxContainer.ALIGNMENT_CENTER
-	slots.add_theme_constant_override(&"separation", 16)
+	slots.add_theme_constant_override(&"separation", 14)
 	slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(slots)
 
-	# CARTES D'ARMES. Le fond est bleu nuit DENSE et non translucide : posé
-	# sur un sol clair, un panneau semi-transparent devient illisible
-	# exactement quand le joueur cherche à savoir ce qu'il tient.
+	# DEUX EMPLACEMENTS OUVERTS, UN VERROUILLÉ. Le troisième n'est pas un
+	# ornement : il montre ce que le niveau débloquera. Un emplacement vide
+	# ne dit rien ; un emplacement fermé avec sa condition écrite dessus
+	# donne une raison de continuer, et c'est exactement ce que la
+	# progression horizontale doit produire.
 	for i in 2:
-		var panel := PanelContainer.new()
-		panel.custom_minimum_size = Vector2(196, 66)
-		panel.add_theme_stylebox_override(&"panel",
-				UiKit.panneau(16, UiKit.PANNEAU, UiKit.PANNEAU_BORD, 4))
-		# Les emplacements sont TOUCHABLES : passer d'une arme à l'autre en
-		# tapant directement sa carte est plus direct qu'un bouton dédié.
-		panel.gui_input.connect(_on_slot_input.bind(i))
-		panel.mouse_filter = Control.MOUSE_FILTER_STOP
-		panel.pivot_offset = Vector2(98, 33)
-		slots.add_child(panel)
-		_slot_panels.append(panel)
+		var carte := UiKit.CarteArme.new()
+		carte.custom_minimum_size = Vector2(206, 76)
+		carte.gui_input.connect(_on_slot_input.bind(i))
+		carte.mouse_filter = Control.MOUSE_FILTER_STOP
+		carte.pivot_offset = Vector2(103, 38)
+		slots.add_child(carte)
+		_slot_panels.append(carte)
 
-		var ligne := HBoxContainer.new()
-		ligne.alignment = BoxContainer.ALIGNMENT_CENTER
-		ligne.add_theme_constant_override(&"separation", 12)
-		ligne.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(ligne)
+	_slot_verrou = UiKit.CarteArme.new()
+	_slot_verrou.custom_minimum_size = Vector2(150, 76)
+	_slot_verrou.verrouille = true
+	_slot_verrou.nom = "ÉPÉE VORTEX"
+	_slot_verrou.condition = "NIV. %d" % NIVEAU_TROISIEME_ARME
+	_slot_verrou.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slots.add_child(_slot_verrou)
 
-		var nom := _label("—", 21)
-		nom.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		ligne.add_child(nom)
-		_slot_labels.append(nom)
 
-		# Les munitions ont leur PROPRE étiquette, alignée à droite : mêlées
-		# au nom, elles décalaient le titre à chaque coup tiré et la carte
-		# tremblait en permanence.
-		var muni := _label("", 21, Color(1, 1, 1, 0.72))
-		muni.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		ligne.add_child(muni)
-		_slot_ammo.append(muni)
+## Niveau auquel le troisième emplacement s'ouvrira. La valeur est ICI et
+## nulle part ailleurs : l'étiquette affichée et la règle qui l'ouvrira un
+## jour doivent être le même nombre.
+const NIVEAU_TROISIEME_ARME := 6
+
 
 func _build_controls() -> void:
 	_move_stick = VirtualJoystick.new()
@@ -504,10 +665,20 @@ func _on_slot_input(event: InputEvent, index: int) -> void:
 # --- MISES À JOUR --------------------------------------------------------
 
 func _process(_delta: float) -> void:
+	if _fps_label:
+		var f := Engine.get_frames_per_second()
+		_fps_label.text = "%d FPS" % f
+		# VERT, ORANGE, ROUGE. Le chiffre seul demande de savoir ce qu'est
+		# une bonne cadence ; la couleur, non.
+		_fps_label.add_theme_color_override(&"font_color",
+				Color("8ef0a8") if f >= 50 else
+				(UiKit.OR_CLAIR if f >= 30 else UiKit.ROUGE))
 	if player and _dash_button:
-		# Le bouton s'estompe pendant la recharge : l'état de la capacité
-		# se lit sans jauge supplémentaire.
-		_dash_button.modulate.a = lerpf(0.4, 1.0, player.dash_ready_ratio())
+		var pret := player.dash_ready_ratio()
+		_dash_button.modulate.a = lerpf(0.55, 1.0, pret)
+		_dash_button.recharge = pret
+		_dash_button.attente = (1.0 - pret) * Player.DASH_COOLDOWN
+		_dash_button.queue_redraw()
 
 func _on_health_changed(current: float, maximum: float) -> void:
 	# La barre se dessine elle-même, teinte comprise : le HUD lui donne des
@@ -518,32 +689,23 @@ func _on_inventory_changed(slots: Array, active: int) -> void:
 	for i in _slot_panels.size():
 		var id: StringName = slots[i] if i < slots.size() else &""
 		var data := Registry.weapon(id)
-		var style := _slot_panels[i].get_theme_stylebox(&"panel") as StyleBoxFlat
+		var carte := _slot_panels[i]
 		if data == null:
-			_slot_labels[i].text = "—"
-			_slot_ammo[i].text = ""
-			style.border_color = UiKit.PANNEAU_BORD
-			style.bg_color = UiKit.PANNEAU
-			style.set_border_width_all(4)
+			carte.regler("—", "", UiKit.NEUTRE_SOMBRE, false)
 			continue
-		_slot_labels[i].text = data.display_name
-		_slot_ammo[i].text = player.weapon.ammo_text() \
-				if i == active and player and player.weapon else ""
-		# L'arme ACTIVE porte un bord ÉPAIS à sa couleur et un fond éclairci.
-		# Le bord seul ne suffisait pas : sur un téléphone tenu à bout de
-		# bras, trois pixels de différence ne se voient pas.
-		if i == active:
-			style.border_color = data.color
-			style.bg_color = UiKit.PANNEAU.lerp(data.color, 0.26)
-			style.set_border_width_all(6)
+		var muni := ""
+		if i == active and player and player.weapon:
+			muni = player.weapon.ammo_text()
+		var etait := carte.active
+		carte.regler(data.display_name, muni, data.color, i == active)
+		# LA CARTE TRESSAILLE QUAND ON LA PREND, et seulement à ce
+		# moment-là. Rejouer l'animation à chaque coup tiré — l'inventaire
+		# se signale à chaque changement de munitions — ferait vibrer
+		# l'armement en permanence.
+		if i == active and not etait:
 			var tw := create_tween()
-			tw.tween_property(_slot_panels[i], "scale", Vector2(1.07, 1.07), 0.07)
-			tw.tween_property(_slot_panels[i], "scale", Vector2.ONE, 0.1)
-		else:
-			style.border_color = Color(data.color.r, data.color.g,
-					data.color.b, 0.45)
-			style.bg_color = UiKit.PANNEAU
-			style.set_border_width_all(4)
+			tw.tween_property(carte, "scale", Vector2(1.07, 1.07), 0.07)
+			tw.tween_property(carte, "scale", Vector2.ONE, 0.1)
 
 ## Le nombre de survivants n'a plus de sens dans un monde continu : on
 ## laisse le signal branché — il reste utile au mode Battle Royale — mais
@@ -557,14 +719,17 @@ func _rafraichir_progression() -> void:
 		return
 	# Les KILLS DE SESSION, pas le total de la vie entière. « 7 » veut dire
 	# quelque chose maintenant ; « 4 213 » ne veut plus rien dire.
-	_alive_label.text = "KILLS %d" % Profil.kills_session
+	_alive_label.text = str(Profil.kills_session)
 	var serie: int = Profil.serie_actuelle
 	_serie_panel.visible = serie >= 2
-	_serie_label.text = "SÉRIE %d" % serie
+	_serie_label.text = "x%d" % serie
 	var etat := Profil.etat_niveau()
 	_niveau_label.text = "LV.%d" % int(etat["niveau"])
-	var palier: float = maxf(1.0, float(etat["xp_du_niveau"]))
-	_barre_xp.value = clampf(float(etat["xp_dans_niveau"]) / palier, 0.0, 1.0)
+	_barre_xp.regler(int(etat["xp_dans_niveau"]), int(etat["xp_du_niveau"]))
+	if _slot_verrou:
+		# L'emplacement fermé disparaît le jour où le niveau l'ouvre : une
+		# case verrouillée qu'on a débloquée n'a plus rien à dire.
+		_slot_verrou.visible = int(etat["niveau"]) < NIVEAU_TROISIEME_ARME
 
 
 func _on_niveau_gagne(niveau: int) -> void:
@@ -624,12 +789,27 @@ func _on_local_died() -> void:
 	create_tween().tween_property(_overlay, "modulate:a", 1.0, 0.25)
 
 
-func _on_joueur_elimine(victime_id: int, _tueur_id: int,
+func _on_joueur_elimine(victime_id: int, tueur_id: int,
 		tueur_nom: String) -> void:
+	# LE FIL REÇOIT TOUTES LES ÉLIMINATIONS, pas seulement les siennes.
+	# C'est tout son intérêt : lire que deux adversaires se sont battus à
+	# l'autre bout de la carte est ce qui fait qu'un monde persistant a des
+	# habitants plutôt que des cibles.
+	if _fil:
+		_fil.ajouter(tueur_nom.to_upper(), _nom_de(victime_id).to_upper(),
+				player != null and tueur_id == player.peer_id)
 	if player == null or victime_id != player.peer_id:
 		return
 	_tueur_affiche = tueur_nom.to_upper()
 	_overlay_sub.text = "ABATTU PAR %s" % _tueur_affiche
+
+
+## Nom affichable d'un pair, retrouvé dans la scène.
+func _nom_de(peer_id: int) -> String:
+	for n in get_tree().get_nodes_in_group(&"players"):
+		if n.get(&"peer_id") == peer_id:
+			return str(n.get(&"display_name"))
+	return "?"
 
 
 func _on_joueur_revenu(peer_id: int) -> void:
@@ -667,6 +847,20 @@ func _on_replay() -> void:
 # l'esquive ou du changement d'arme ne joue qu'à la moitié du jeu. La
 # légende ne coûte rien puisqu'elle occupe un temps mort — celui du
 # décompte, pendant lequel il n'y a de toute façon rien à faire.
+
+## L'ENGRENAGE RAPPELLE LA LÉGENDE DES COMMANDES.
+##
+## La maquette y met un menu de réglages. Il n'y a pas encore de réglages à
+## régler — mettre un bouton qui n'ouvre rien serait pire que pas de bouton.
+## En attendant, il rend service à ce qui existe : la légende des commandes,
+## qui s'efface au « GO » et qu'aucun geste ne permettait de faire revenir.
+func _basculer_legende() -> void:
+	if _help == null:
+		return
+	_help.visible = not _help.visible
+	if _help.visible:
+		_help.modulate.a = 1.0
+
 
 func _build_help() -> void:
 	_help = Control.new()

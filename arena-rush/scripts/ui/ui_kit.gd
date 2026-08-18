@@ -53,7 +53,16 @@ const OR_SOMBRE := Color("f08b1e")
 
 ## Fond des panneaux : bleu nuit dense, jamais un gris neutre. Un gris
 ## paraît sale au-dessus d'une image colorée.
+## Fond des panneaux. DENSE et non translucide : posé sur un sol clair, un
+## panneau semi-transparent devient illisible exactement au moment où le
+## joueur cherche à y lire quelque chose.
 const PANNEAU := Color("16213f")
+## Fond plus sombre, pour les creux : pistes de jauge, emplacements vides.
+const CREUX := Color("0b1226")
+## Bleu d'accent — le joueur, sa progression, ses repères.
+const CYAN := Color("46b8ff")
+## Rouge d'adversaire, réservé à ce qui menace.
+const ROUGE := Color("ff4d5e")
 const PANNEAU_BORD := Color(1, 1, 1, 0.22)
 
 
@@ -320,6 +329,12 @@ class BoutonRond extends Button:
 	## au doigt doit être piloté à la main. C'est le défaut qui rendait le
 	## bouton de tir « mort » quand on courait.
 	var enfonce_doigt: bool = false
+	## Part de recharge écoulée, dans [0, 1]. À 1, la capacité est prête et
+	## rien ne se dessine — une couronne toujours pleine devient un ornement
+	## qu'on cesse de voir, donc qu'on ne voit plus quand elle sert.
+	var recharge: float = 1.0
+	## Secondes restantes, affichées à la place du libellé pendant l'attente.
+	var attente: float = 0.0
 
 	func _init() -> void:
 		flat = true
@@ -362,6 +377,27 @@ class BoutonRond extends Button:
 
 		var haut_icone := c - Vector2(0, r * (0.20 if libelle != "" else 0.0))
 		UiKit.icone(self, icone, haut_icone, r * 0.42, UiKit.BLANC)
+
+		# LA COURONNE DE RECHARGE, par-dessus le corps du bouton. Elle dit
+		# COMBIEN il reste, là où l'estompement du bouton ne disait que
+		# « pas encore » — et « pas encore » ne permet pas de décider s'il
+		# faut fuir maintenant ou tenir une seconde de plus.
+		if recharge < 0.999:
+			var f2 := UiKit.police()
+			UiKit.arc_progression(self, c, r * 0.86, 1.0,
+					Color(0.04, 0.07, 0.16, 0.5), r * 0.13)
+			UiKit.arc_progression(self, c, r * 0.86, recharge,
+					UiKit.BLANC, r * 0.13)
+			var t2 := "%.1f" % maxf(0.0, attente)
+			var ta := int(maxf(13.0, r * 0.42))
+			var la := f2.get_string_size(t2, HORIZONTAL_ALIGNMENT_LEFT, -1,
+					ta).x
+			var pa := Vector2(c.x - la * 0.5, c.y + r * 0.66)
+			draw_string_outline(f2, pa, t2, HORIZONTAL_ALIGNMENT_LEFT, -1,
+					ta, 6, Color(0.04, 0.07, 0.16, 0.92))
+			draw_string(f2, pa, t2, HORIZONTAL_ALIGNMENT_LEFT, -1, ta,
+					UiKit.BLANC)
+			return
 
 		if libelle == "":
 			return
@@ -467,7 +503,119 @@ static func icone(ci: CanvasItem, id: StringName, centre: Vector2, r: float,
 		&"coeur": _icone_coeur(ci, centre, r, teinte)
 		&"menu": _icone_menu(ci, centre, r, teinte)
 		&"engrenage": _icone_engrenage(ci, centre, r, teinte)
+		&"crane": _icone_crane(ci, centre, r, teinte)
+		&"serie": _icone_serie(ci, centre, r, teinte)
+		&"course": _icone_course(ci, centre, r, teinte)
+		&"coffre": _icone_coffre(ci, centre, r, teinte)
+		&"cadenas": _icone_cadenas(ci, centre, r, teinte)
 		_: pass
+
+
+## CRÂNE — l'icône des éliminations.
+##
+## Trois formes suffisent, et c'est le minimum : une calotte, deux orbites,
+## une mâchoire. En dessous on obtient un galet ; au-dessus, à 24 pixels de
+## côté, le détail se referme en bouillie.
+static func _icone_crane(ci: CanvasItem, c: Vector2, r: float,
+		t: Color) -> void:
+	var calotte := PackedVector2Array()
+	for i in 13:
+		var a := PI + PI * float(i) / 12.0
+		calotte.append(c + Vector2(cos(a) * r * 0.82, sin(a) * r * 0.86
+				- r * 0.08))
+	calotte.append(c + Vector2(r * 0.62, r * 0.42))
+	calotte.append(c + Vector2(-r * 0.62, r * 0.42))
+	ci.draw_colored_polygon(calotte, t)
+	# La mâchoire, séparée par un trait de fond : c'est ce vide qui fait
+	# lire « crâne » plutôt que « caillou ».
+	ci.draw_rect(Rect2(c + Vector2(-r * 0.42, r * 0.46),
+			Vector2(r * 0.84, r * 0.34)), t)
+	var creux := Color(0, 0, 0, 0.0)
+	for cote: float in [-1.0, 1.0]:
+		ci.draw_circle(c + Vector2(cote * r * 0.34, -r * 0.02), r * 0.26,
+				Color(0.05, 0.08, 0.17, 1.0))
+	ci.draw_rect(Rect2(c + Vector2(-r * 0.09, r * 0.2),
+			Vector2(r * 0.18, r * 0.22)), Color(0.05, 0.08, 0.17, 1.0))
+	if creux.a > 0.0:
+		pass
+
+
+## SÉRIE — une cible frappée d'une étoile.
+static func _icone_serie(ci: CanvasItem, c: Vector2, r: float,
+		t: Color) -> void:
+	var e := maxf(2.5, r * 0.16)
+	ci.draw_arc(c, r * 0.78, 0.0, TAU, 28, t, e, true)
+	ci.draw_circle(c, r * 0.24, t)
+	# L'étoile déborde en haut à droite : c'est ce débordement qui
+	# distingue l'icône de série de celle du bouton de tir.
+	var etoile := PackedVector2Array()
+	var centre := c + Vector2(r * 0.66, -r * 0.66)
+	for i in 10:
+		var a := -PI * 0.5 + TAU * float(i) / 10.0
+		var rr: float = r * (0.42 if i % 2 == 0 else 0.17)
+		etoile.append(centre + Vector2(cos(a) * rr, sin(a) * rr))
+	ci.draw_colored_polygon(etoile, t)
+
+
+## COURSE — la silhouette qui court, icône de l'esquive.
+static func _icone_course(ci: CanvasItem, c: Vector2, r: float,
+		t: Color) -> void:
+	var e := maxf(3.0, r * 0.2)
+	ci.draw_circle(c + Vector2(r * 0.12, -r * 0.6), r * 0.24, t)
+	# Tronc penché vers l'avant : c'est l'inclinaison, plus que les membres,
+	# qui fait lire la course plutôt que la station debout.
+	ci.draw_line(c + Vector2(-r * 0.12, -r * 0.28),
+			c + Vector2(r * 0.24, r * 0.06), t, e, true)
+	ci.draw_line(c + Vector2(-r * 0.12, -r * 0.24),
+			c + Vector2(-r * 0.62, -r * 0.06), t, e * 0.8, true)
+	ci.draw_line(c + Vector2(r * 0.06, -r * 0.16),
+			c + Vector2(r * 0.58, -r * 0.36), t, e * 0.8, true)
+	ci.draw_line(c + Vector2(r * 0.24, r * 0.06),
+			c + Vector2(-r * 0.16, r * 0.5), t, e, true)
+	ci.draw_line(c + Vector2(-r * 0.16, r * 0.5),
+			c + Vector2(-r * 0.56, r * 0.44), t, e * 0.8, true)
+	ci.draw_line(c + Vector2(r * 0.24, r * 0.06),
+			c + Vector2(r * 0.5, r * 0.56), t, e, true)
+
+
+## COFFRE — l'icône du butin.
+static func _icone_coffre(ci: CanvasItem, c: Vector2, r: float,
+		t: Color) -> void:
+	var couvercle := PackedVector2Array()
+	for i in 9:
+		var a := PI + PI * float(i) / 8.0
+		couvercle.append(c + Vector2(cos(a) * r * 0.82, sin(a) * r * 0.5
+				- r * 0.06))
+	ci.draw_colored_polygon(couvercle, t)
+	ci.draw_rect(Rect2(c + Vector2(-r * 0.82, -r * 0.02),
+			Vector2(r * 1.64, r * 0.7)), t)
+	ci.draw_rect(Rect2(c + Vector2(-r * 0.14, -r * 0.3),
+			Vector2(r * 0.28, r * 0.5)), Color(0.05, 0.08, 0.17, 1.0))
+
+
+## CADENAS — l'icône d'un emplacement verrouillé.
+static func _icone_cadenas(ci: CanvasItem, c: Vector2, r: float,
+		t: Color) -> void:
+	var e := maxf(2.5, r * 0.18)
+	ci.draw_arc(c + Vector2(0, -r * 0.28), r * 0.42, PI, TAU, 16, t, e, true)
+	ci.draw_rect(Rect2(c + Vector2(-r * 0.62, -r * 0.22),
+			Vector2(r * 1.24, r * 0.92)), t)
+	ci.draw_circle(c + Vector2(0, r * 0.22), r * 0.16,
+			Color(0.05, 0.08, 0.17, 1.0))
+
+
+## ARC DE PROGRESSION — la couronne des recharges.
+##
+## Il part du HAUT et tourne dans le sens des aiguilles : c'est la lecture
+## d'un cadran, la seule que personne n'a besoin d'apprendre.
+static func arc_progression(ci: CanvasItem, centre: Vector2, rayon: float,
+		part: float, couleur: Color, epaisseur: float) -> void:
+	var p := clampf(part, 0.0, 1.0)
+	if p <= 0.001:
+		return
+	var debut := -PI * 0.5
+	ci.draw_arc(centre, rayon, debut, debut + TAU * p,
+			maxi(8, int(48.0 * p)), couleur, epaisseur, true)
 
 
 static func _icone_viseur(ci: CanvasItem, c: Vector2, r: float,
@@ -677,3 +825,139 @@ static func segment(fond: Color, gauche: bool, droite: bool) -> StyleBoxFlat:
 	s.shadow_size = 6
 	s.shadow_offset = Vector2(0, 3)
 	return s
+
+
+## GLYPHE — une icône posée dans un conteneur, sans bouton autour.
+##
+## Les icônes se dessinaient jusqu'ici À L'INTÉRIEUR des boutons. Dès qu'on
+## veut la même icône dans un libellé, un pod ou une carte, il faut un
+## Control minuscule qui ne fasse que cela.
+class Glyphe extends Control:
+	var id: StringName = &"viseur"
+	var teinte: Color = UiKit.BLANC
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		UiKit.icone(self, id, size * 0.5, minf(size.x, size.y) * 0.5, teinte)
+
+
+## JAUGE D'EXPÉRIENCE — la barre bleue du bloc de profil.
+##
+## POURQUOI PAS UN `ProgressBar`. Il en faudrait trois surcharges de style
+## pour obtenir des bouts arrondis, un dégradé et un chiffre centré, et le
+## résultat resterait à la merci du thème. Vingt lignes de dessin donnent
+## exactement l'objet voulu et se lisent d'un trait.
+class JaugeXp extends Control:
+	var part: float = 0.0
+	var courant: int = 0
+	var palier: int = 100
+
+	func _init() -> void:
+		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+
+	func regler(dans: int, requis: int) -> void:
+		courant = dans
+		palier = maxi(1, requis)
+		part = clampf(float(dans) / float(palier), 0.0, 1.0)
+		queue_redraw()
+
+	func _draw() -> void:
+		var r := int(size.y * 0.5)
+		draw_style_box(UiKit.panneau(r, UiKit.CREUX,
+				Color(1, 1, 1, 0.12), 2), Rect2(Vector2.ZERO, size))
+		var marge := 3.0
+		if part > 0.004:
+			var utile := size.x - marge * 2.0
+			var zone := Rect2(marge, marge,
+					maxf(size.y - marge * 2.0, utile * part),
+					size.y - marge * 2.0)
+			UiKit.rect_degrade(self, zone, UiKit.CYAN.lerp(UiKit.BLANC, 0.35),
+					Color("1b62d8"), int(zone.size.y * 0.5))
+		var f := UiKit.police()
+		var t := "%d / %d XP" % [courant, palier]
+		var taille := int(size.y * 0.58)
+		var l := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, taille)
+		var pos := Vector2(size.x * 0.5 - l.x * 0.5,
+				size.y * 0.5 + taille * 0.36)
+		draw_string_outline(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, taille,
+				5, Color(0.04, 0.07, 0.16, 0.95))
+		draw_string(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, taille, BLANC)
+
+
+## CARTE D'ARME — un emplacement de l'armement.
+##
+## Elle porte trois états et un seul dessin : ACTIVE (bord épais à la
+## couleur de l'arme, fond teinté), EN RÉSERVE (bord pâle), VERROUILLÉE
+## (cadenas et condition d'ouverture). Les trois se ressemblent assez pour
+## former une rangée, et diffèrent assez pour se distinguer à bout de bras
+## — c'était la limite de la version précédente, où trois pixels de bord
+## séparaient l'arme tenue de celle rangée.
+class CarteArme extends Control:
+	var nom: String = "—"
+	var munitions: String = ""
+	var teinte: Color = UiKit.NEUTRE_SOMBRE
+	var active: bool = false
+	var verrouille: bool = false
+	var condition: String = ""
+
+	func _init() -> void:
+		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+
+	func regler(n: String, muni: String, c: Color, act: bool) -> void:
+		nom = n
+		munitions = muni
+		teinte = c
+		active = act
+		queue_redraw()
+
+	func _draw() -> void:
+		var boite := Rect2(Vector2.ZERO, size)
+		var fond := UiKit.PANNEAU
+		var bord := Color(1, 1, 1, 0.16)
+		var ep := 3
+		if verrouille:
+			fond = UiKit.CREUX
+		elif active:
+			fond = UiKit.PANNEAU.lerp(teinte, 0.24)
+			bord = teinte
+			ep = 5
+		else:
+			bord = Color(teinte.r, teinte.g, teinte.b, 0.5)
+		draw_style_box(UiKit.panneau(18, fond, bord, ep), boite)
+
+		var f := UiKit.police()
+		if verrouille:
+			UiKit.icone(self, &"cadenas", Vector2(size.x * 0.5, size.y * 0.38),
+					size.y * 0.2, Color(1, 1, 1, 0.4))
+			_ecrire(f, condition, 19, Color(1, 1, 1, 0.5), size.y * 0.86)
+			return
+
+		# LE NOM EN HAUT, LES MUNITIONS EN BAS. Sur une seule ligne, le
+		# compteur repoussait le titre à chaque coup tiré et la carte
+		# tremblait en permanence — mesuré, et corrigé une première fois en
+		# séparant les étiquettes ; la séparation est maintenant verticale,
+		# ce qui la rend impossible à défaire par un texte trop long.
+		_ecrire(f, nom, 20, UiKit.BLANC, size.y * 0.42)
+		if munitions == "":
+			return
+		var taille := 22
+		var l := f.get_string_size(munitions, HORIZONTAL_ALIGNMENT_LEFT, -1,
+				taille)
+		var depart := size.x * 0.5 - (l.x + 24.0) * 0.5
+		for i in 3:
+			draw_rect(Rect2(depart + float(i) * 6.0, size.y * 0.62,
+					3.0, 12.0), Color(1, 1, 1, 0.62))
+		var pos := Vector2(depart + 24.0, size.y * 0.74)
+		draw_string_outline(f, pos, munitions, HORIZONTAL_ALIGNMENT_LEFT, -1,
+				taille, 5, Color(0.04, 0.07, 0.16, 0.95))
+		draw_string(f, pos, munitions, HORIZONTAL_ALIGNMENT_LEFT, -1, taille,
+				Color(1, 1, 1, 0.86))
+
+	func _ecrire(f: Font, t: String, taille: int, c: Color, y: float) -> void:
+		var l := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, taille)
+		var pos := Vector2(size.x * 0.5 - l.x * 0.5, y)
+		draw_string_outline(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, taille,
+				5, Color(0.04, 0.07, 0.16, 0.95))
+		draw_string(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, taille, c)
