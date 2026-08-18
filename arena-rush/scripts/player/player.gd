@@ -145,6 +145,16 @@ func is_local_authority() -> bool:
 		return Net.is_server()
 	return peer_id == Net.local_id()
 
+
+## LE joueur de cette machine — celui dont la caméra suit les pas.
+##
+## À distinguer de `is_local_authority()`, qui est vrai aussi pour les bots
+## sur le serveur. C'est un personnage HUMAIN et un seul qui sert d'origine
+## au repli du monde ; prendre un bot pour ancre ferait sauter le repère à
+## chaque fois que ce bot traverse la limite.
+func est_local() -> bool:
+	return not is_bot and peer_id == Net.local_id()
+
 func setup(id: int, name_text: String, bot: bool) -> void:
 	peer_id = id
 	display_name = name_text
@@ -559,10 +569,20 @@ func _replier_les_bords() -> void:
 	# détection : la position REPASSE simplement de l'autre côté. Comme le
 	# décor est périodique et que la caméra suit le même repli, l'image ne
 	# change pas d'un pixel — on continue tout droit sans rien remarquer.
-	var replie := PlanMonde.enrouler3(global_position)
+	# LE JOUEUR LOCAL EST L'ORIGINE DU REPÈRE : lui seul se replie dans le
+	# carré de référence, et il y pose l'ancre autour de laquelle tout le
+	# reste du monde vivant se repliera. Les autres corps — adversaires,
+	# mobs, projectiles — se replient vers LUI, jamais vers l'origine :
+	# c'est ce qui met la limite du monde hors de portée en permanence.
+	var replie := global_position
+	if est_local():
+		replie = PlanMonde.enrouler3(global_position)
+		PlanMonde.ancre = replie
+	else:
+		replie = PlanMonde.replier(global_position)
 	if not replie.is_equal_approx(global_position):
 		global_position = replie
-		_target_pos = replie
+		_target_pos = PlanMonde.replier_vers(replie, _target_pos)
 
 	# TOMBER SOUS LE SOL RESTE UNE ANOMALIE, elle. Le repli horizontal ne
 	# peut rien pour elle, et un joueur qui tombe indéfiniment perd sa
@@ -638,10 +658,16 @@ func _interpolate(delta: float) -> void:
 	# Lissage exponentiel : masque la latence sans jamais faire glisser un
 	# corps loin derrière sa position réelle.
 	var k := 1.0 - exp(-18.0 * delta)
-	global_position = global_position.lerp(_target_pos, k)
+	# LE PLUS COURT CHEMIN, LÀ AUSSI. Une position reçue du serveur peut
+	# avoir franchi la limite du monde depuis la précédente : interpolée
+	# « à plat », elle ferait traverser toute la carte au personnage en une
+	# fraction de seconde, et la vitesse déduite atteindrait des milliers de
+	# mètres par seconde — de quoi déclencher tout ce qui dépend d'elle.
+	var vers := PlanMonde.ecart3(global_position, _target_pos)
+	global_position += vers * k
 	_facing = lerp_angle(_facing, _target_yaw, k)
 	rotation.y = _facing + PI
-	velocity = (_target_pos - global_position) / maxf(delta, 0.001)
+	velocity = vers * (1.0 - k) / maxf(delta, 0.001)
 
 # --- INVENTAIRE ----------------------------------------------------------
 

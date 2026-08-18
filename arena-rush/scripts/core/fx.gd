@@ -86,7 +86,7 @@ func shake_at(pos: Vector3, amount: float) -> void:
 	if camera == null:
 		shake(amount)
 		return
-	var d := camera.global_position.distance_to(pos)
+	var d := PlanMonde.distance3(camera.global_position, pos)
 	# Pleine intensité sous 10 m, plus rien au-delà de 32 m.
 	var falloff := clampf(1.0 - (d - 10.0) / 22.0, 0.0, 1.0)
 	if falloff <= 0.02:
@@ -99,17 +99,88 @@ func _parent_for(node: Node) -> Node:
 	var tree := get_tree()
 	return tree.current_scene if tree and tree.current_scene else self
 
-func _emit_burst(parent: Node, pos: Vector3, color: Color, amount: int,
-		velocity: float, radius: float, lifetime: float,
-		gravity: float = -6.0) -> void:
-	var scaled := maxi(3, int(amount * Cfg.fx_scale()))
-	var p := GPUParticles3D.new()
-	p.amount = scaled
-	p.lifetime = lifetime
-	p.one_shot = true
-	p.explosiveness = 1.0
-	p.position = pos
+# --- GERBES DE PARTICULES -------------------------------------------------
 
+## POURQUOI CE CODE A ÉTÉ ENTIÈREMENT REPRIS.
+##
+## Chaque impact, chaque mort, chaque ramassage construisait SIX objets
+## neufs : un nœud de particules, un matériau de traitement, une courbe,
+## une texture de courbe, un maillage et un matériau lumineux. Puis les
+## détruisait un demi-seconde plus tard. À trente mobs et une gâchette
+## maintenue, cela fait plusieurs dizaines de constructions par seconde.
+##
+## Ce n'est pas une dépense de calcul ordinaire : créer un maillage envoie
+## des sommets à la carte graphique, créer un matériau de particules monte
+## un jeu d'uniformes. Sur le pilote d'un téléphone, ces opérations-là ne
+## se répartissent pas dans le temps — elles bloquent. C'est la signature
+## exacte des « petits lags de temps en temps » signalés en jeu.
+##
+## Désormais : le maillage est UNIQUE pour tout le jeu, les matériaux sont
+## mis en cache par teinte, et les nœuds de particules sont RECYCLÉS. Une
+## gerbe ne coûte plus qu'un réglage de position et un signal de départ.
+
+## Réservoir de nœuds de particules disponibles.
+var _gerbes_libres: Array[GPUParticles3D] = []
+## Matériaux de traitement, par signature d'effet.
+var _mat_gerbe: Dictionary = {}
+## Matériaux lumineux, par teinte.
+var _mat_lueur: Dictionary = {}
+## Maillage des particules — un seul pour tout le jeu.
+var _grain: SphereMesh = null
+## Courbe de taille — une seule, partagée par tous les matériaux.
+var _courbe: CurveTexture = null
+
+## Capacité fixe d'un nœud de particules.
+##
+## ELLE NE CHANGE JAMAIS, et c'est le cœur du recyclage : modifier `amount`
+## réalloue le tampon de la carte graphique, ce qui ramènerait exactement la
+## dépense qu'on cherche à supprimer. On règle `amount_ratio`, qui ne fait
+## qu'en émettre une part.
+const GRAINS := 36
+
+
+func _grain_partage() -> SphereMesh:
+	if _grain == null:
+		_grain = SphereMesh.new()
+		_grain.radius = 0.09
+		_grain.height = 0.18
+		_grain.radial_segments = 6
+		_grain.rings = 3
+	return _grain
+
+
+func _courbe_partagee() -> CurveTexture:
+	if _courbe == null:
+		# La courbe fait « éclore puis disparaître » : sans elle les
+		# particules s'éteignent brutalement et l'effet paraît bon marché.
+		var c := Curve.new()
+		c.add_point(Vector2(0.0, 0.2))
+		c.add_point(Vector2(0.25, 1.0))
+		c.add_point(Vector2(1.0, 0.0))
+		_courbe = CurveTexture.new()
+		_courbe.curve = c
+	return _courbe
+
+
+func _lueur(color: Color) -> StandardMaterial3D:
+	var cle := color.to_html(false)
+	if not _mat_lueur.has(cle):
+		_mat_lueur[cle] = VisualKit.glow_mat(color, 2.6)
+	var m: StandardMaterial3D = _mat_lueur[cle]
+	return m
+
+
+func _materiau_gerbe(color: Color, velocity: float, radius: float,
+		gravity: float) -> ParticleProcessMaterial:
+	# La signature ne retient que ce qui distingue VRAIMENT deux effets. Les
+	# vitesses sont arrondies au dixième : sans cet arrondi, un flottant
+	# calculé ferait une clé nouvelle à chaque appel et le cache ne
+	# servirait à rien — il grossirait, ce qui est pire que pas de cache.
+	var cle := "%s|%.1f|%.1f|%.1f" % [color.to_html(false), velocity, radius,
+			gravity]
+	if _mat_gerbe.has(cle):
+		var connu: ParticleProcessMaterial = _mat_gerbe[cle]
+		return connu
 	var m := ParticleProcessMaterial.new()
 	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	m.emission_sphere_radius = radius
@@ -122,29 +193,69 @@ func _emit_burst(parent: Node, pos: Vector3, color: Color, amount: int,
 	m.damping_max = 3.0
 	m.scale_min = 0.25
 	m.scale_max = 0.7
-	# La courbe de taille fait « éclore puis disparaître » : sans elle les
-	# particules s'éteignent brutalement et l'effet paraît bon marché.
-	var curve := Curve.new()
-	curve.add_point(Vector2(0.0, 0.2))
-	curve.add_point(Vector2(0.25, 1.0))
-	curve.add_point(Vector2(1.0, 0.0))
-	var tex := CurveTexture.new()
-	tex.curve = curve
-	m.scale_curve = tex
+	m.scale_curve = _courbe_partagee()
 	m.color = color
-	p.process_material = m
+	_mat_gerbe[cle] = m
+	return m
 
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.09
-	mesh.height = 0.18
-	mesh.radial_segments = 6
-	mesh.rings = 3
-	p.draw_pass_1 = mesh
-	p.material_override = VisualKit.glow_mat(color, 2.6)
 
+func _emit_burst(parent: Node, pos: Vector3, color: Color, amount: int,
+		velocity: float, radius: float, lifetime: float,
+		gravity: float = -6.0) -> void:
+	var scaled := maxi(3, int(amount * Cfg.fx_scale()))
+	var p: GPUParticles3D = null
+	while p == null and not _gerbes_libres.is_empty():
+		var candidat: GPUParticles3D = _gerbes_libres.pop_back()
+		if is_instance_valid(candidat):
+			p = candidat
+	if p == null:
+		p = GPUParticles3D.new()
+		p.amount = GRAINS
+		p.one_shot = true
+		p.explosiveness = 1.0
+		p.draw_pass_1 = _grain_partage()
+	else:
+		# Le nœud recyclé peut encore appartenir à une scène détruite.
+		var ancien := p.get_parent()
+		if ancien != null:
+			ancien.remove_child(p)
+
+	p.amount_ratio = clampf(float(scaled) / float(GRAINS), 0.05, 1.0)
+	p.lifetime = lifetime
+	p.process_material = _materiau_gerbe(color, velocity, radius, gravity)
+	p.material_override = _lueur(color)
+	p.position = pos
 	parent.add_child(p)
+	p.restart()
 	p.emitting = true
-	_autofree(p, lifetime + 0.4)
+	_ranger(p, lifetime + 0.4)
+
+
+## Nombre de gerbes en attente de réemploi. Exposé pour les bancs de test :
+## sans lui, on ne peut pas distinguer « ça marche » de « ça reconstruit
+## tout à chaque fois », qui donnent la même image.
+func reservoir() -> int:
+	return _gerbes_libres.size()
+
+
+## Remet une gerbe au réservoir quand elle a fini de vivre.
+func _ranger(p: GPUParticles3D, delai: float) -> void:
+	var t := get_tree().create_timer(delai, false)
+	await t.timeout
+	if not is_instance_valid(p):
+		return
+	p.emitting = false
+	var parent := p.get_parent()
+	if parent != null:
+		parent.remove_child(p)
+	# PLAFOND SUR LE RÉSERVOIR. Sans lui, une bataille de cent gerbes
+	# laisserait cent nœuds en mémoire pour toujours ; au-delà, on rend au
+	# système ce qui ne resservira pas.
+	if _gerbes_libres.size() < 24:
+		_gerbes_libres.append(p)
+	else:
+		p.queue_free()
+
 
 ## Lumière brève. Sur mobile les lumières dynamiques coûtent cher : elles
 ## sont donc réservées aux évènements FORTS et supprimées aussitôt.

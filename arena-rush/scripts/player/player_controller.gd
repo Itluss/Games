@@ -126,7 +126,12 @@ func _compute_aim() -> Vector3:
 			var hc = node.get(&"health")
 			if hc != null and hc.is_dead:
 				continue
-			var to: Vector3 = node.global_position - origin
+			# LE PLUS COURT CHEMIN. Une cible située juste au-delà de la
+			# limite du monde est à deux mètres ; mesurée « à plat » elle
+			# est à cent quarante, donc jamais retenue — et la visée
+			# automatique cesserait de fonctionner sur toute une bande de
+			# la carte sans que rien ne le signale.
+			var to: Vector3 = PlanMonde.ecart3(origin, node.global_position)
 			to.y = 0.0
 			var dist := to.length()
 			if dist > range_m or dist < 0.01:
@@ -148,7 +153,7 @@ func _compute_aim() -> Vector3:
 	player.locked_target = best
 
 	if best != null:
-		var aim: Vector3 = best.global_position - origin
+		var aim: Vector3 = PlanMonde.ecart3(origin, best.global_position)
 		aim.y = 0.0
 		return aim.normalized()
 	if hint.length() > 0.1:

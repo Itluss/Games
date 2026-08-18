@@ -51,8 +51,7 @@ func _mesurer() -> void:
 	for m in mobs:
 		var p := Vector2((m as Node3D).global_position.x,
 				(m as Node3D).global_position.z)
-		var z := PlanMonde.secteur_de(p) if true \
-				else PlanMonde.secteur_de(p)
+		var z := PlanMonde.secteur_de(p)
 		par_zone[z] = int(par_zone.get(z, 0)) + 1
 	print("      mobs par zone : %s" % str(par_zone))
 	_verifier("les mobs occupent au moins trois zones",
@@ -65,15 +64,17 @@ func _mesurer() -> void:
 			continue
 		var v := Vector2((p as Node3D).global_position.x,
 				(p as Node3D).global_position.z)
-		var z := PlanMonde.secteur_de(v) if true \
-				else PlanMonde.secteur_de(v)
+		var z := PlanMonde.secteur_de(v)
 		zones_bots[z] = int(zones_bots.get(z, 0)) + 1
-		if true:
+		# LOIN DU CREUSET, et non plus « hors du noyau ». Le monde n'a plus
+		# de centre : ce qu'on vérifie est que les bots ne s'agglutinent pas
+		# tous sur le point chaud, ce qui viderait le reste de la carte.
+		if PlanMonde.secteur_de(v) != &"creuset":
 			loin += 1
 	print("      bots par zone : %s" % str(zones_bots))
-	# Si tous les bots convergeaient vers le centre, quatre secteurs sur
-	# cinq seraient déserts — le monde paraîtrait vide dès qu'on s'écarte.
-	_verifier("les bots se répartissent hors du noyau", loin >= 4, true)
+	# Si tous les bots convergeaient vers le point chaud, cinq secteurs sur
+	# six seraient déserts — le monde paraîtrait vide dès qu'on s'écarte.
+	_verifier("les bots se répartissent hors du Creuset", loin >= 4, true)
 	_verifier("les bots occupent au moins trois zones",
 			zones_bots.size() >= 3, true)
 

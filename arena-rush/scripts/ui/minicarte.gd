@@ -42,7 +42,23 @@ func _ready() -> void:
 	set_process(true)
 
 
-func _process(_delta: float) -> void:
+## Période de rafraîchissement, en secondes. Vingt fois par seconde.
+##
+## POURQUOI PAS À CHAQUE IMAGE. La carte se redessine entièrement à chaque
+## appel : neuf portions de fond, tous les repères, tous les mobs, tous les
+## adversaires. À soixante images par seconde c'est autant de parcours de
+## groupes et de tracés pour un résultat que l'œil ne distingue pas — un
+## point qui avance de trois pixels par seconde n'a pas besoin de soixante
+## positions intermédiaires.
+const PERIODE := 0.05
+
+var _prochain := 0.0
+
+func _process(delta: float) -> void:
+	_prochain -= delta
+	if _prochain > 0.0:
+		return
+	_prochain = PERIODE
 	queue_redraw()
 
 

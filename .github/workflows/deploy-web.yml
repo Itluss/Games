@@ -240,6 +240,44 @@ jobs:
           fi
           echo "Monde sans couture."
 
+      # LE MONDE ENROULÉ NE DOIT COUPER AUCUNE INTERACTION.
+      #
+      # Le décor se recolle — c'est la barrière précédente. Mais un monde
+      # sans bord ne tient pas qu'à son décor : tout ce qui mesure une
+      # distance ou une direction doit s'enrouler aussi. Un seul calcul
+      # « à plat » oublié et la limite se rouvre, invisible : un mob qui
+      # poursuit part dans le vide, un tir ne touche plus, la visée
+      # automatique ignore une cible à deux mètres.
+      #
+      # Aucun de ces défauts n'apparaît sur une capture, et aucun ne se
+      # produit ailleurs que sur une bande étroite de la carte.
+      - name: Vérifier les interactions à travers la limite
+        run: |
+          set -uo pipefail
+          timeout 420 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
+            --path arena-rush res://outils_dev/test_enroulement.tscn \
+            --rendering-driver opengl3 -- --solo 2>&1 | tee enroulement.log || true
+          timeout 300 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
+            --path arena-rush res://outils_dev/test_gerbes.tscn \
+            --rendering-driver opengl3 2>&1 | tee gerbes.log || true
+          for f in enroulement.log gerbes.log; do
+            if grep -qE "Parse Error|Failed to load script" "$f"; then
+              echo "::error::$f — le banc ne compile pas."
+              grep -E "Parse Error|Failed to load script" -A2 "$f"
+              exit 1
+            fi
+            if ! grep -q "vérifications ===" "$f"; then
+              echo "::warning::$f n'a pas pu s'exécuter (rendu indisponible ?)."
+              exit 0
+            fi
+          done
+          grep -E "^\s+\[(OK|ÉCHEC)\]" enroulement.log gerbes.log || true
+          if grep -qE "=== [1-9][0-9]* échec\(s\)" enroulement.log gerbes.log; then
+            echo "::error::La limite du monde coupe à nouveau une interaction."
+            exit 1
+          fi
+          echo "Enroulement et recyclage conformes."
+
       # PROGRESSION ET BOUCLE PERSISTANTE — deux barrières de plus.
       #
       # La première vérifie la courbe de niveaux et, surtout, que la

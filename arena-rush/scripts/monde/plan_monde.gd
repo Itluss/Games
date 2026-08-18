@@ -101,6 +101,38 @@ static func distance_max() -> float:
 	return Vector2(DEMI, DEMI).length()
 
 
+## ANCRE DU MONDE — la position autour de laquelle tout se replie.
+##
+## POURQUOI IL EN FAUT UNE, ET POURQUOI CE N'EST PAS L'ORIGINE.
+##
+## Replier chaque corps dans le carré de référence semble naturel, et c'est
+## un piège. Deux personnages séparés par la limite sont alors voisins SUR
+## LE TORE — vingt centimètres — mais distants de cent-quarante-quatre
+## mètres pour le moteur physique et pour la caméra. Résultat : ils ne se
+## voient pas, ne se touchent pas, et l'un disparaît de l'écran de l'autre.
+## On aurait remis un mur là où l'on venait d'en enlever un, invisible
+## celui-là, et long de tout le tour du monde.
+##
+## Tout se replie donc autour du JOUEUR LOCAL. La limite se retrouve
+## toujours à septante-deux mètres de lui — hors de portée de vue comme de
+## tir — et il n'existe plus aucun endroit où deux choses proches soient
+## calculées comme lointaines.
+##
+## Le joueur local, lui, se replie dans le carré de référence : il est
+## l'origine du repère, et c'est ce qui garde toutes les coordonnées bornées.
+static var ancre := Vector3.ZERO
+
+
+## Ramène `p` à celle de ses images qui est la plus proche de `reference`.
+static func replier_vers(reference: Vector3, p: Vector3) -> Vector3:
+	return reference + ecart3(reference, p)
+
+
+## Replie autour de l'ancre courante. C'est l'appel que font tous les corps.
+static func replier(p: Vector3) -> Vector3:
+	return ancre + ecart3(ancre, p)
+
+
 ## Densités de mobs, en mobs visés par secteur. Elles ne sont pas
 ## proportionnelles à la surface : c'est justement l'écart qui crée des
 ## zones calmes et des points chauds.

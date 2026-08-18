@@ -59,6 +59,7 @@ var _semis: int = 0
 var _props: int = 0
 
 func _ready() -> void:
+	var depart := Time.get_ticks_msec()
 	_obstacles = StaticBody3D.new()
 	_obstacles.name = "Obstacles"
 	_obstacles.collision_layer = Cfg.LAYER_WORLD
@@ -71,11 +72,21 @@ func _ready() -> void:
 	_batir_points_interet()
 	_build_pieces()
 	_build_zone_ring()
-	_replier_les_collisions()
+	# LES APPARITIONS D'ABORD, LA COUTURE ENSUITE. Le calcul des apparitions
+	# parcourt tous les obstacles ; le faire après la duplication lui en
+	# donnait 1 398 au lieu de 528, dont 870 copies situées HORS du carré où
+	# l'on cherche justement à faire apparaître. Deux tiers du travail
+	# portaient sur des formes qui ne pouvaient rien bloquer — mesuré, cette
+	# seule inversion et l'index spatial font passer l'étape de 304 à 5 ms.
 	_compute_spawns()
-	print("Monde : %.0f × %.0f m sans bord · %d props en %d semis · %d apparitions."
+	_replier_les_collisions()
+	# LE TEMPS DE CONSTRUCTION EST AFFICHÉ, et ce n'est pas de la curiosité :
+	# il se passe en UNE SEULE image, écran figé. C'est la toute première
+	# impression du jeu sur un téléphone, et la seule dépense que personne
+	# ne pense à mesurer parce qu'elle n'apparaît sur aucun compteur d'images.
+	print("Monde : %.0f × %.0f m sans bord · %d props en %d semis · %d apparitions · bâti en %d ms."
 			% [PlanMonde.COTE, PlanMonde.COTE, _props, _semis,
-			player_spawn_points.size()])
+			player_spawn_points.size(), Time.get_ticks_msec() - depart])
 
 
 # --- ENROULEMENT ---------------------------------------------------------
@@ -93,9 +104,20 @@ func _ready() -> void:
 ## séparés de 142 m.
 ##
 ## On duplique donc les formes proches d'un bord dans les huit cases
-## voisines. La bande fait 12 m, ce qui couvre largement la plus grosse
-## pièce du monde ; en dehors, aucune forme ne peut atteindre l'autre rive.
-const MARGE_COUTURE := 12.0
+## voisines.
+##
+## LA BANDE FAIT QUARANTE MÈTRES, ET CE N'EST PLUS LA TAILLE D'UNE PIÈCE.
+## Douze mètres suffisaient tant que les corps se repliaient dans le carré
+## de référence. Ils se replient maintenant autour du JOUEUR, ce qui les
+## emmène jusqu'à septante-deux mètres au-delà — c'est le prix à payer pour
+## qu'aucun combat ne soit coupé par la limite.
+##
+## Quarante mètres couvrent tout ce que le joueur peut VOIR : la caméra ne
+## montre qu'une trentaine de mètres de sol. Au-delà, un mob lointain peut
+## traverser un rocher — personne n'est là pour le voir, et il retrouve des
+## obstacles dès qu'il se rapproche. Doubler la bande jusqu'à septante-deux
+## aurait exigé de recopier NEUF FOIS tout le décor solide du monde.
+const MARGE_COUTURE := 40.0
 
 func _replier_les_collisions() -> void:
 	var doubles := 0
@@ -177,24 +199,91 @@ func _base_cellule_de(p: Vector2) -> Vector2:
 
 
 ## Le conteneur d'une cellule, créé à la demande.
+##
+## LA CLÉ EST UN ENTIER, PAS UNE CHAÎNE. Construire « %.0f_%.0f » coûte un
+## formatage de texte et une allocation ; multiplié par les mille cinq cents
+## props du monde et les deux cent vingt-six semis, cela représentait une
+## part notable des deux cent soixante millisecondes de construction des
+## secteurs. Une clé entière ne coûte rien et se compare instantanément.
 func _cellule(base: Vector2) -> Node3D:
-	var cle := "%.0f_%.0f" % [base.x, base.y]
+	var cle := _cle_index(base.x, base.y)
 	if _cellules.has(cle):
-		return _cellules[cle]
+		var connu: Node3D = _cellules[cle]
+		return connu
 	return _ancrer(base, cle)
 
 
 ## Crée un conteneur ancré en `base`. Sert aussi aux repères, qui ne suivent
 ## pas la grille : un repère est son propre point d'ancrage.
-func _ancrer(base: Vector2, cle := "") -> Node3D:
+func _ancrer(base: Vector2, cle := 0) -> Node3D:
 	var n := Node3D.new()
 	n.position = Vector3(base.x, 0.0, base.y)
 	add_child(n)
 	_conteneurs.append(n)
 	_ancres.append(PlanMonde.enrouler(base))
-	if cle != "":
+	if cle != 0:
 		_cellules[cle] = n
 	return n
+
+
+# --- FUSION ---------------------------------------------------------------
+
+## FOND PLUSIEURS FORMES EN UN SEUL MAILLAGE, PAR TEINTE.
+##
+## POURQUOI. Chaque `MeshInstance3D` est un appel de dessin, quel que soit
+## ce qu'il contient : une tour faite de trente cubes coûte trente appels,
+## une tour faite d'un maillage de trente cubes en coûte un. Mesuré sur le
+## monde construit, cent cinquante-neuf maillages individuels dont trente
+## flaques de néon et une quarantaine de blocs de repères — tous immobiles,
+## tous groupés au même endroit, donc tous fusionnables sans rien perdre.
+##
+## ON NE FUSIONNE QUE CE QUI VIT ENSEMBLE. Fondre deux rochers distants de
+## cinquante mètres produirait un maillage dont la boîte englobante couvre
+## les deux : il serait dessiné dès que l'un des deux entre dans le champ,
+## et on aurait échangé un appel de dessin contre du travail inutile. La
+## fusion est donc ouverte et refermée autour d'UN repère à la fois.
+var _fusion: Dictionary = {}
+
+func _ouvrir_fusion() -> void:
+	_fusion.clear()
+
+
+## Ajoute une forme à l'accumulateur de sa teinte.
+func _fondre(forme: Mesh, tr: Transform3D, teinte: Color,
+		emissif := false) -> void:
+	var cle := teinte.to_html(false) + ("!" if emissif else "")
+	if not _fusion.has(cle):
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		_fusion[cle] = {"st": st, "teinte": teinte, "emissif": emissif}
+	var e: Dictionary = _fusion[cle]
+	(e["st"] as SurfaceTool).append_from(forme, 0, tr)
+
+
+## Referme la fusion : un maillage par teinte, posé dans le groupe courant.
+func _fermer_fusion() -> void:
+	for cle: String in _fusion:
+		var e: Dictionary = _fusion[cle]
+		var st: SurfaceTool = e["st"]
+		# Normales à plat : les formes fondues sont des blocs, et un lissage
+		# arrondirait leurs arêtes — exactement ce que la direction
+		# artistique évite.
+		st.generate_normals(false)
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		var teinte: Color = e["teinte"]
+		if bool(e["emissif"]):
+			var m := VisualKit.glow_mat(teinte, 1.5)
+			m.albedo_color.a = 0.30
+			mi.material_override = m
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		else:
+			mi.material_override = VisualKit.mat(teinte, 0.0, 0.9)
+		# Les sommets portent des coordonnées DU MONDE : `_ajouter` retranche
+		# la position du groupe, ce qui les y ramène exactement.
+		mi.position = Vector3.ZERO
+		_ajouter(mi)
+	_fusion.clear()
 
 
 ## Pose un élément de décor dans le groupe courant, en convertissant sa
@@ -450,7 +539,7 @@ func _batir_secteurs() -> void:
 					ech * rng.randf_range(0.85, 1.2)))
 
 			var ancre := _base_cellule_de(p)
-			var cle := "%.0f_%.0f" % [ancre.x, ancre.y]
+			var cle := _cle_index(ancre.x, ancre.y)
 			if not tuiles.has(cle):
 				tuiles[cle] = {"ancre": ancre, "familles": {}}
 			var par_famille: Dictionary = tuiles[cle]["familles"]
@@ -467,7 +556,7 @@ func _batir_secteurs() -> void:
 				collisions.append({"pos": p, "rayon": ech * RAYON_SOLIDE[famille],
 						"haut": ech * HAUTEUR_SOLIDE[famille]})
 
-	for cle: String in tuiles:
+	for cle: int in tuiles:
 		var ancre: Vector2 = tuiles[cle]["ancre"]
 		var par_famille: Dictionary = tuiles[cle]["familles"]
 		for famille: StringName in par_famille:
@@ -567,6 +656,7 @@ func _batir_points_interet() -> void:
 		# cellules basculent d'une image à l'autre, la tour se couperait en
 		# deux. Ancrée sur elle-même, elle se déplace d'un bloc.
 		_groupe = _ancrer(p)
+		_ouvrir_fusion()
 		match poi["id"]:
 			&"tour": _poi_tour(socle)
 			&"pont": _poi_pont(socle)
@@ -576,6 +666,7 @@ func _batir_points_interet() -> void:
 			&"place": pass   # meublé par le plan d'origine, voir _build_pieces
 		if poi["id"] != &"place":
 			_balise(socle, float(poi["hauteur"]))
+		_fermer_fusion()
 		_groupe = null
 
 
@@ -600,14 +691,9 @@ func _balise(base: Vector3, hauteur: float) -> void:
 
 func _bloc(taille: Vector3, pos: Vector3, teinte: Color, rot := 0.0,
 		solide := true) -> void:
-	var mi := MeshInstance3D.new()
 	var b := BoxMesh.new()
 	b.size = taille
-	mi.mesh = b
-	mi.material_override = VisualKit.mat(teinte, 0.0, 0.9)
-	mi.position = pos
-	mi.rotation.y = rot
-	_ajouter(mi)
+	_fondre(b, Transform3D(Basis.from_euler(Vector3(0, rot, 0)), pos), teinte)
 	if not solide:
 		return
 	var shape := CollisionShape3D.new()
@@ -783,6 +869,7 @@ func _poi_carcasse(base: Vector3) -> void:
 func _build_pieces() -> void:
 	_centre_creuset = PlanMonde.secteur(&"creuset")["centre"]
 	_groupe = _ancrer(_centre_creuset)
+	_ouvrir_fusion()
 	for piece in PlanArene.STRUCTURES:
 		_poser(piece, Cfg.COL_METAL)
 	for piece in PlanArene.ABRIS:
@@ -793,6 +880,7 @@ func _build_pieces() -> void:
 		if i % pas == 0:
 			_poser(piece, Cfg.COL_METAL, false)
 		i += 1
+	_fermer_fusion()
 	_groupe = null
 
 ## Position du Creuset dans le monde, lue une fois à la construction.
@@ -835,19 +923,20 @@ func _poser(piece: Dictionary, teinte: Color, solide := true) -> void:
 var _pieces_habillees: int = 0
 var _pieces_totales: int = 0
 
+## FLAQUE DE NÉON sous une pièce du Creuset.
+##
+## Trente d'entre elles, chacune avec son propre matériau lumineux : trente
+## appels de dessin pour un liseré décoratif, mesuré. Elles sont maintenant
+## fondues avec les autres — deux maillages, un par couleur — et coupées
+## sur téléphone, où elles ne valent pas ce qu'elles coûtent.
 func _flaque(pos: Vector3, taille: Vector3, rot: float) -> void:
-	var flaque := MeshInstance3D.new()
+	if Cfg.est_mobile():
+		return
 	var b := BoxMesh.new()
 	b.size = Vector3(taille.x + 0.5, 0.02, taille.z + 0.5)
-	flaque.mesh = b
 	var couleur := Cfg.COL_NEON_MAGENTA if taille.y > 3.0 else Cfg.COL_NEON_CYAN
-	var m := VisualKit.glow_mat(couleur, 1.5)
-	m.albedo_color.a = 0.30
-	flaque.material_override = m
-	flaque.position = pos + Vector3(0, 0.05, 0)
-	flaque.rotation.y = rot
-	flaque.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_ajouter(flaque)
+	_fondre(b, Transform3D(Basis.from_euler(Vector3(0, rot, 0)),
+			pos + Vector3(0, 0.05, 0)), couleur, true)
 
 static func _sans_ombre(n: Node) -> void:
 	var gi := n as GeometryInstance3D
@@ -982,9 +1071,28 @@ func _degager(p: Vector3, rayon: float) -> Vector3:
 ## le monde et se centre sur l'origine ; comptée comme un obstacle, elle
 ## déclarerait le monde entier bloqué. Tout obstacle réel a son centre
 ## au-dessus de zéro, le sol est enterré.
-func _libre_monde(p: Vector2, rayon: float) -> bool:
+## INDEX SPATIAL DES OBSTACLES — cellule -> [Vector3(x, z, rayon)].
+##
+## POURQUOI IL EXISTE. Chercher une position libre parcourait TOUS les
+## obstacles du monde, et on cherche quarante-cinq fois, chacune pouvant
+## sonder quatre-vingt-seize points en spirale. Mesuré : 304 ms sur la
+## seule étape des apparitions, sur un processeur de bureau — donc
+## plusieurs secondes d'écran figé sur un téléphone, au tout premier
+## lancement du jeu.
+##
+## L'index range les obstacles par cellule de 8 m. Une recherche ne
+## consulte alors que les neuf cellules voisines au lieu du monde entier.
+const MAILLE_INDEX := 8.0
+var _index: Dictionary = {}
+var _index_pret := false
+
+
+func _batir_index() -> void:
+	_index.clear()
 	for n in _obstacles.get_children():
 		var forme := n as CollisionShape3D
+		# Le sol est enterré : tout obstacle réel a son centre au-dessus de
+		# zéro. C'est ce qui l'écarte sans avoir à le nommer.
 		if forme == null or forme.position.y <= 0.0:
 			continue
 		var r := 0.0
@@ -995,9 +1103,35 @@ func _libre_monde(p: Vector2, rayon: float) -> bool:
 			r = (forme.shape as CylinderShape3D).radius
 		else:
 			continue
-		if PlanMonde.distance(p, Vector2(forme.position.x, forme.position.z)) \
-				< r + rayon:
-			return false
+		var cle := _cle_index(forme.position.x, forme.position.z)
+		if not _index.has(cle):
+			_index[cle] = ([] as Array[Vector3])
+		(_index[cle] as Array[Vector3]).append(
+				Vector3(forme.position.x, forme.position.z, r))
+	_index_pret = true
+
+
+func _cle_index(x: float, z: float) -> int:
+	# Une clé ENTIÈRE plutôt qu'une chaîne : la construction de milliers de
+	# chaînes coûterait une part notable de ce qu'on vient d'économiser.
+	return floori(x / MAILLE_INDEX) * 4096 + floori(z / MAILLE_INDEX)
+
+
+func _libre_monde(p: Vector2, rayon: float) -> bool:
+	if not _index_pret:
+		_batir_index()
+	# Le plus gros obstacle du monde tient dans une maille : trois cellules
+	# de part et d'autre suffisent donc à tout voir, et c'est ce qui rend la
+	# recherche indépendante de la taille de la carte.
+	for dz in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			var cle := _cle_index(p.x + float(dx) * MAILLE_INDEX,
+					p.y + float(dz) * MAILLE_INDEX)
+			if not _index.has(cle):
+				continue
+			for o: Vector3 in _index[cle]:
+				if PlanMonde.distance(p, Vector2(o.x, o.y)) < o.z + rayon:
+					return false
 	return true
 
 

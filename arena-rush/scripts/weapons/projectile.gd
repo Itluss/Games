@@ -125,6 +125,13 @@ func _physics_process(delta: float) -> void:
 	_life += delta
 	if data.gravity > 0.0:
 		_velocity.y -= data.gravity * delta
+	# ON REPLIE AVANT DE TRACER, pas après. Le tir est un rayon tendu entre
+	# la position actuelle et la suivante : replié en cours de route, il
+	# enjamberait le monde entier et ne toucherait rien. Replié d'abord, le
+	# segment reste court et entièrement du bon côté — au pire un pas de
+	# simulation, soit une cinquantaine de centimètres, tombe dans l'angle
+	# mort de la limite.
+	global_position = PlanMonde.replier(global_position)
 	var next := global_position + _velocity * delta
 
 	# Rebond sur le sol pour les grenades : lues comme des objets qui
@@ -230,7 +237,7 @@ func _apply_splash(at: Vector3) -> void:
 			continue
 		# Dégâts dégressifs : être au bord d'une explosion doit se
 		# ressentir autrement qu'être dessus.
-		var d: float = body.global_position.distance_to(at)
+		var d: float = PlanMonde.distance3(body.global_position, at)
 		var falloff := clampf(1.0 - d / data.splash_radius, 0.25, 1.0)
 		_damage(body, data.damage * falloff, at)
 

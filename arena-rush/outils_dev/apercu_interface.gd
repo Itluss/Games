@@ -52,6 +52,17 @@ func _mettre_en_scene() -> void:
 	j.server_pickup(&"shotgun")
 	await get_tree().process_frame
 
+	# DES GERBES DE PARTICULES, et plusieurs de suite : c'est le RECYCLAGE
+	# qu'on vérifie. Un nœud de particules réutilisé sans être correctement
+	# relancé n'émet rien du tout, et le défaut ne se voit que sur la
+	# deuxième gerbe — jamais sur la première.
+	for k in 5:
+		Fx.hit(j.global_position + Vector3(2.0 + float(k) * 1.1, 0.8, -1.0),
+				Cfg.COL_SHOTGUN, 1.0)
+	Fx.death(j.global_position + Vector3(-3.0, 0.2, -2.5), Cfg.COL_MOB_CHARGER)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
 	# DEUX GAINS D'XP FLOTTANTS, à deux distances. Un chiffre posé dans le
 	# monde n'a pas de taille fixe à l'écran : celui qui est lisible à trois
 	# mètres peut être illisible à douze, et seule une capture le dit.

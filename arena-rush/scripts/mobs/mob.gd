@@ -132,6 +132,7 @@ func _physics_process(delta: float) -> void:
 		_server_think(delta)
 	else:
 		# Clients : simple rattrapage de la position autoritaire.
+		_target_pos = PlanMonde.replier_vers(global_position, _target_pos)
 		global_position = global_position.lerp(_target_pos,
 				1.0 - exp(-16.0 * delta))
 
@@ -163,6 +164,13 @@ func _server_think(delta: float) -> void:
 	else:
 		velocity.y = 0.0
 	move_and_slide()
+	# LE MOB SE REPLIE AUTOUR DU JOUEUR. Sans cela, un mob qui poursuit à
+	# travers la limite continue tout droit dans le vide : il vise la bonne
+	# direction — l'écart est calculé sur le tore — mais sa position, elle,
+	# n'est jamais ramenée. Au bout de quelques tours il se retrouve à des
+	# centaines de mètres du monde, vivant, comptant dans le plafond de
+	# mobs, et n'affrontant plus personne.
+	global_position = PlanMonde.replier(global_position)
 	_face_movement(delta)
 
 func _face_movement(delta: float) -> void:

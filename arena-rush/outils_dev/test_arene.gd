@@ -136,8 +136,6 @@ func _garantie_pavage() -> void:
 
 func _garantie_poi_dans_leur_secteur() -> void:
 	for poi: Dictionary in PlanMonde.POINTS_INTERET:
-		if poi["secteur"] == &"noyau":
-			continue
 		var p := PlanMonde.position_poi(poi)
 		_verifier("%s est dans %s" % [poi["id"], poi["secteur"]],
 				PlanMonde.secteur_de(p), poi["secteur"])
