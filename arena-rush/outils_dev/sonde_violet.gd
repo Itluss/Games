@@ -60,6 +60,11 @@ var _releve: Array[Dictionary] = []
 var _prochain := 0.0
 
 func _ready() -> void:
+	# LA SONDE MESURE EN DERNIER. Elle est la racine de la scène, donc son
+	# `_process` s'exécuterait AVANT celui de tout ce qu'elle observe : elle
+	# lirait l'état du monde avant que le monde ait fini de se mettre à jour.
+	# Un instrument qui mesure trop tôt invente des défauts.
+	process_priority = 200
 	# CADENCE BASSE FORCÉE. C'est le régime dans lequel le défaut se
 	# reproduit au navigateur — quatre à onze images par seconde — et c'est
 	# le seul que les sondes précédentes n'avaient jamais essayé : elles
@@ -197,9 +202,16 @@ func _verifier_la_fuite() -> bool:
 	return not (ok_butin and ok_noeuds)
 
 
-## Plafonds. Le butin s'efface au bout de 45 s avec un maximum de 26 ; on
-## laisse quatre exemplaires de marge pour ceux qui viennent de tomber.
-const PLAFOND_BUTIN := 30
+## Plafonds. Le jeu efface le butin au bout de 45 s, avec un maximum de 26
+## appliqué une fois par seconde.
+##
+## LA MARGE EST DE DIX, ET NON DE QUATRE. Mesuré : vingt-sept exemplaires au
+## sol en fin de banc, pour un plafond à trente. Un test qui passe de si peu
+## finit toujours par échouer un jour où plusieurs mobs meurent dans la même
+## seconde — et un test qui échoue au hasard cesse d'être lu. Trente-six
+## reste très loin de la quarantaine que montrait la vraie fuite au même
+## instant du banc.
+const PLAFOND_BUTIN := 36
 ## Une scène saine se stabilise autour de 3 500 nœuds ; celle qui fuyait
 ## dépassait 4 600 et continuait.
 ##
