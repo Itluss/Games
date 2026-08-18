@@ -167,8 +167,11 @@ func _build_ground() -> void:
 	# parfaitement jointifs.
 	var fond := MeshInstance3D.new()
 	var disque := CylinderMesh.new()
-	disque.top_radius = PlanMonde.RAYON * 1.16
-	disque.bottom_radius = PlanMonde.RAYON * 1.16
+	# 1,38 et non 1,16 : le disque doit passer SOUS la ceinture de mesas,
+	# repoussée à 94-99 m. Sans cela, elles se dresseraient au-dessus du
+	# vide et l'horizon montrerait le ciel entre leurs pieds.
+	disque.top_radius = PlanMonde.RAYON * 1.38
+	disque.bottom_radius = PlanMonde.RAYON * 1.38
 	disque.height = 0.4
 	disque.radial_segments = 56
 	fond.mesh = disque
@@ -321,7 +324,16 @@ func _build_perimeter() -> void:
 		# posées au rayon exact, les mesas formaient un mur de dents pâles
 		# qui occupait la moitié de l'horizon depuis n'importe quel secteur.
 		# Une limite doit se DEVINER au loin, pas dominer chaque plan.
-		var r := PlanMonde.RAYON + rng.randf_range(4.0, 9.0)
+		#
+		# REPOUSSÉES UNE SECONDE FOIS, ET CETTE FOIS PAS POUR LA BEAUTÉ. La
+		# caméra se tient 10 m DERRIÈRE le joueur, sur l'axe Z du monde. Le
+		# mur de collision arrête le joueur à 77,5 m ; la caméra, elle,
+		# arrivait donc à 87,5 m — c'est-à-dire À L'INTÉRIEUR de la ceinture
+		# de mesas, alors posée entre 82 et 87 m. Une sonde d'occlusion l'a
+		# chiffré : au bord nord, le cadre était bouché à 100 %, la roche
+		# remplissait l'écran entier. La ceinture commence maintenant à 94 m,
+		# soit 6,5 m au-delà du point le plus reculé que la caméra atteint.
+		var r := PlanMonde.RAYON + rng.randf_range(16.0, 21.0)
 		var pos := Vector3(cos(a) * r, 0, sin(a) * r)
 		var base := Basis.from_euler(Vector3(0, rng.randf() * TAU, 0))
 		# La hauteur varie du simple au double : une crête régulière se lit

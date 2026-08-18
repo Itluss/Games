@@ -47,7 +47,13 @@ var _doigt_tir: int = -1
 var _swap_button: UiKit.BoutonRond
 var _dash_button: UiKit.BoutonRond
 var _alive_label: Label
-var _timer_label: Label
+## RENOMMÉ, ET CE N'EST PAS COSMÉTIQUE. Ce libellé s'appelait
+## `_timer_label` et affichait le chronomètre de la partie. Le mode
+## persistant n'a plus ni manche ni fin, et le champ montre désormais le
+## niveau — mais `_process` continuait d'y réécrire « 0:52 » à chaque
+## image, par-dessus « LV.1 ». Le défaut se voyait sur toute capture
+## d'écran ; le nom, lui, le rendait invisible à la relecture.
+var _niveau_label: Label
 var _announce: UiKit.Banniere
 var _countdown: Label
 var _health_bar: UiKit.BarreVie
@@ -222,9 +228,9 @@ func _build_top() -> void:
 	col.add_theme_constant_override(&"separation", 1)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	d.add_child(col)
-	_timer_label = _label("LV.1", 25)
-	_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(_timer_label)
+	_niveau_label = _label("LV.1", 25)
+	_niveau_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(_niveau_label)
 	# La barre d'XP est FINE et sous le niveau : elle informe sans jamais
 	# réclamer l'attention, ce qui est exactement son rôle. Une grosse jauge
 	# dorée en haut d'écran donnerait l'impression que le jeu consiste à la
@@ -498,10 +504,6 @@ func _on_slot_input(event: InputEvent, index: int) -> void:
 # --- MISES À JOUR --------------------------------------------------------
 
 func _process(_delta: float) -> void:
-	if MatchDirector.phase in [MatchDirector.Phase.WARMUP,
-			MatchDirector.Phase.ESCALATION, MatchDirector.Phase.CLOSING]:
-		var t := int(MatchDirector.elapsed)
-		_timer_label.text = "%d:%02d" % [t / 60, t % 60]
 	if player and _dash_button:
 		# Le bouton s'estompe pendant la recharge : l'état de la capacité
 		# se lit sans jauge supplémentaire.
@@ -560,7 +562,7 @@ func _rafraichir_progression() -> void:
 	_serie_panel.visible = serie >= 2
 	_serie_label.text = "SÉRIE %d" % serie
 	var etat := Profil.etat_niveau()
-	_timer_label.text = "LV.%d" % int(etat["niveau"])
+	_niveau_label.text = "LV.%d" % int(etat["niveau"])
 	var palier: float = maxf(1.0, float(etat["xp_du_niveau"]))
 	_barre_xp.value = clampf(float(etat["xp_dans_niveau"]) / palier, 0.0, 1.0)
 
