@@ -30,6 +30,10 @@ const DUREE := 70.0
 const SEUIL := 0.06
 ## Au-delà, l'image ne montre plus rien d'autre qu'un aplat.
 const VIDE := 0.9
+## En dessous de cette luminance moyenne, l'image est trop sombre pour
+## qu'on y distingue quoi que ce soit. « L'écran ne restitue plus rien »
+## peut aussi vouloir dire cela : pas un aplat, une image éteinte.
+const NOIR := 0.13
 
 var _t := 0.0
 var _images := 0
@@ -39,6 +43,11 @@ var _pire_teinte := Color.BLACK
 var _pire_note := ""
 var _pire_image: Image = null
 var _morts := 0
+## Luminance moyenne la plus basse rencontrée, et son image.
+var _noir := 1.0
+var _noir_note := ""
+var _noir_image: Image = null
+var _sombres := 0
 var _joueur: Node3D
 var _prete := false
 
@@ -87,6 +96,13 @@ func _analyser() -> void:
 		_vides += 1
 		print("      ! %.0f %% d'aplat — %s (teinte %s)"
 				% [plat * 100.0, note, (mesure["teinte"] as Color).to_html(false)])
+	var lum: float = mesure["lum"]
+	if lum < _noir:
+		_noir = lum
+		_noir_note = note
+		_noir_image = img
+	if lum < NOIR:
+		_sombres += 1
 
 
 func _bref(v: Vector3) -> String:
@@ -108,7 +124,11 @@ func _mesurer(img: Image) -> Dictionary:
 			if absf(c.r - moyenne.r) + absf(c.g - moyenne.g) \
 					+ absf(c.b - moyenne.b) < SEUIL * 3.0:
 				proches += 1
-	return {"plat": float(proches) / float(n), "teinte": moyenne}
+	# Luminance perçue, pas moyenne des canaux : l'œil ne pèse pas le bleu
+	# comme le vert, et une image « violette » peut être objectivement
+	# claire en bleu tout en paraissant éteinte.
+	var lum := 0.2126 * moyenne.r + 0.7152 * moyenne.g + 0.0722 * moyenne.b
+	return {"plat": float(proches) / float(n), "teinte": moyenne, "lum": lum}
 
 
 func _conclure() -> void:
@@ -117,12 +137,18 @@ func _conclure() -> void:
 	DirAccess.make_dir_recursive_absolute(dossier)
 	if _pire_image:
 		_pire_image.save_png("%s/pire.png" % dossier)
+	if _noir_image:
+		_noir_image.save_png("%s/plus_sombre.png" % dossier)
 	print("=== SONDE DE PARTIE (%.0f s, %d images, %d morts) ==="
 			% [_t, _images, _morts])
 	print("  images plates (> %.0f %%) : %d" % [VIDE * 100.0, _vides])
 	print("  pire image : %.0f %% d'aplat — teinte %s"
 			% [_pire * 100.0, _pire_teinte.to_html(false)])
 	print("      %s" % _pire_note)
-	print("  capture : %s/pire.png" % dossier)
+	print("  images trop sombres (luminance < %.2f) : %d sur %d"
+			% [NOIR, _sombres, _images])
+	print("  image la plus sombre : luminance %.3f" % _noir)
+	print("      %s" % _noir_note)
+	print("  captures : %s/pire.png et %s/plus_sombre.png" % [dossier, dossier])
 	print("=== %d échec(s) sur 1 vérification ===" % (1 if _vides > 0 else 0))
 	get_tree().quit(1 if _vides > 0 else 0)
