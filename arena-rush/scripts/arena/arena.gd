@@ -1136,7 +1136,6 @@ static func _fantome(plein: Material) -> Material:
 	# Sans cela, les faces arrière se dessinent par-dessus les faces avant
 	# et le fantôme devient une bouillie.
 	m.cull_mode = BaseMaterial3D.CULL_BACK
-	m.shadow_casting_setting = 0
 	return m
 
 

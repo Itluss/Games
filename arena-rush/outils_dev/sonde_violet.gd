@@ -247,6 +247,10 @@ func _inventaire() -> void:
 		print("      %5d × %s" % [e[0], e[1]])
 
 
+func _ligne(libelle: String, ok: bool, detail: String) -> void:
+	print("  [%s] %-33s %s" % ["OK" if ok else "ÉCHEC", libelle, detail])
+
+
 func _bref(v: Vector3) -> String:
 	return "(%d, %d, %d)" % [roundi(v.x), roundi(v.y), roundi(v.z)]
 
@@ -271,6 +275,21 @@ func _conclure() -> void:
 	print("      %s" % _pire_note)
 	_inventaire()
 	var fuite := _verifier_la_fuite()
+	# CHAQUE CONDITION S'ANNONCE, ET C'EST UNE CORRECTION DE L'INSTRUMENT.
+	#
+	# Trois de ces quatre conditions ne s'imprimaient nulle part : la
+	# publication a rendu « régression » en n'affichant que deux lignes
+	# marquées OK. Un banc qui échoue sans dire sur quoi oblige à relire
+	# tout son journal, et fait perdre exactement le temps qu'il devait
+	# faire gagner.
+	_ligne("une caméra active à chaque image", _sans_camera == 0,
+			"%d image(s) sans caméra" % _sans_camera)
+	_ligne("du décor autour à chaque image", _sans_decor == 0,
+			"%d image(s) sans décor · minimum %d cellules"
+			% [_sans_decor, _pire])
+	_ligne("la caméra reste à hauteur de jeu", _haut == 0,
+			"%d image(s) au-dessus de 60 m · maximum %.1f m"
+			% [_haut, _y_cam_max])
 	var ok := _sans_camera == 0 and _sans_decor == 0 and _haut == 0 and not fuite
 	print("=== %d échec(s) sur 1 vérification ===" % (0 if ok else 1))
 	get_tree().quit(0 if ok else 1)
