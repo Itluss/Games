@@ -72,7 +72,7 @@ func _construire() -> void:
 	_panneau.offset_left = 8
 	_panneau.offset_top = 156
 	_panneau.offset_right = 470
-	_panneau.offset_bottom = 676
+	_panneau.offset_bottom = 700
 	_panneau.visible = false
 	add_child(_panneau)
 
@@ -90,7 +90,7 @@ func _construire() -> void:
 	_texte.bbcode_enabled = true
 	_texte.fit_content = false
 	_texte.scroll_active = false
-	_texte.custom_minimum_size = Vector2(444, 392)
+	_texte.custom_minimum_size = Vector2(444, 416)
 	_texte.add_theme_font_size_override(&"normal_font_size", 14)
 	col.add_child(_texte)
 
@@ -257,9 +257,27 @@ func _rapport() -> String:
 			c["geom"]])
 	l.append("WorldEnvironment %d   Camera3D %d   cellules %d"
 			% [c["env"], c["cam"], c["cellules"]])
-	l.append("dessins %d   nœuds %d" % [
+	# CE QUE LE MOTEUR RASTÉRISE VRAIMENT.
+	#
+	# La première capture du défaut dit que TOUT est sain : caméra à 11,7 m
+	# du joueur, base saine, near/far/masque normaux, arène qui tourne, sol
+	# présent et visible à 8,7 m, 841 maillages visibles dans l'arbre. Et
+	# l'écran ne montre que le ciel. « Visible dans l'arbre » n'est qu'un
+	# drapeau de scène : il ne dit pas si le moteur a dessiné quoi que ce
+	# soit. Ces trois compteurs, eux, le disent.
+	#
+	# Primitives quasi nulles = la géométrie est ÉCARTÉE avant d'être
+	# dessinée, et il faut chercher du côté du tronc de vision, des boîtes
+	# englobantes ou de l'index spatial. Primitives normales = elle EST
+	# dessinée et quelque chose la recouvre — ciel, profondeur, ordre des
+	# passes. Les deux réponses n'envoient pas au même endroit.
+	l.append("dessins %d   objets %d   primitives %d" % [
 			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
-			Performance.get_monitor(Performance.OBJECT_NODE_COUNT)])
+			Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME),
+			Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)])
+	l.append("nœuds %d   fps %d" % [
+			Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+			Engine.get_frames_per_second()])
 	var arene := get_tree().get_first_node_in_group(&"arene")
 	if arene:
 		l.append("toit voilé %s   répit %s" % [arene.get(&"_toit_voile"),
