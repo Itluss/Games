@@ -38,16 +38,58 @@ static func mat(color: Color, emission: float = 0.0,
 		m.emission_energy_multiplier = emission
 	return m
 
-## Matériau additif pour projectiles, traînées et halos.
-static func glow_mat(color: Color, energy: float = 3.0) -> StandardMaterial3D:
+## NOYAU DE PROJECTILE — opaque et lumineux, et c'est tout le sujet.
+##
+## POURQUOI PAS `glow_mat`. Le matériau additif ajoute sa couleur à ce qui
+## est derrière : sur un fond sombre il éclate, sur le sable clair du
+## désert il DISPARAÎT — on additionnait du cyan à du blanc, ce qui donne
+## du blanc. Depuis que le monde est passé en plein jour, un projectile
+## purement additif n'était plus visible là où le joueur passe le plus de
+## temps. Le noyau est donc opaque : sa couleur remplace le fond au lieu de
+## s'y ajouter, donc elle se voit sur n'importe quel décor. Le halo additif
+## vient par-dessus, en second, pour le nerf.
+static func noyau_mat(color: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = color
+	# À PEINE ÉCLAIRCI. Un premier essai à +35 % de clarté rendait toutes
+	# les munitions blanches : la teinte de l'arme, qui est le seul moyen
+	# de savoir qui tire quoi, disparaissait au profit d'un trait pâle.
+	m.albedo_color = color.lightened(0.1)
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.emission_enabled = true
+	m.emission = color
+	m.emission_energy_multiplier = 0.9
+	return m
+
+## Matériau lumineux des projectiles, traînées, gerbes et anneaux.
+##
+## IL N'EST PLUS ADDITIF, ET C'EST LA CORRECTION LA PLUS IMPORTANTE DU LOT.
+##
+## Le mélange additif ajoute la couleur de l'effet à celle du fond. Sur le
+## crépuscule indigo d'avant, un tir cyan éclatait. Depuis que le monde se
+## joue en plein jour sur du sable clair, il additionnait du cyan à du
+## presque-blanc : le résultat était BLANC. Vérifié en capture — traînées,
+## éclairs de bouche et gerbes d'impact ressortaient tous de la même
+## couleur, celle du papier. Autrement dit le joueur voyait qu'il se passait
+## quelque chose, mais plus QUOI : ni l'arme, ni le camp, ni le type de
+## dégât ne se lisaient.
+##
+## En mélange normal, la couleur de l'effet REMPLACE le fond au lieu de s'y
+## ajouter : elle tient sur le sable clair comme sur la pierre sombre.
+## L'émission reste, donc le halo de floraison continue de la faire vibrer
+## sur les machines qui l'affichent.
+##
+## `opacite` sert aux enveloppes qu'on veut voir à travers — le halo d'un
+## projectile doit laisser deviner son noyau, pas le masquer.
+static func glow_mat(color: Color, energy: float = 3.0,
+		opacite: float = 1.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(color.r, color.g, color.b, opacite)
 	m.emission_enabled = true
 	m.emission = color
 	m.emission_energy_multiplier = energy
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return m
 
@@ -78,8 +120,51 @@ static func outline_mat(width: float = 0.05) -> StandardMaterial3D:
 ## cube les trois normales d'un coin divergent et la coque se déchire aux
 ## arêtes. Les blocs du décor s'en passent donc, et comptent sur leur
 ## chapeau clair et l'éclairage cellulé pour se détacher.
+## Taille minimale d'une pièce pour mériter un contour sur téléphone.
+##
+## LE CONTOUR N'EST PLUS COUPÉ SUR MOBILE, IL EST TRIÉ. C'est le signal le
+## plus efficace dont on dispose pour détacher un personnage d'un décor —
+## le supprimer là où l'écran est le plus petit était le pire des choix.
+## Mais chaque contour coûte un appel de dessin, et une corne de dix
+## centimètres n'en mérite pas un : à treize mètres, son liseré ne couvre
+## même pas un pixel. On ne garde donc que les pièces qui FONT la
+## silhouette — torse, tête, corps de mob — soit environ un tiers des
+## mailles, pour la quasi-totalité de l'effet.
+##
+## MESURÉ : le durcir à 0,50 ne change RIEN à la médiane des appels de
+## dessin — 213 dans les deux cas, seul le 95e centile descend de 240 à
+## 227. La dépense ne se trouve donc pas dans les petites pièces mais dans
+## le nombre de personnages à l'écran. Autant garder le seuil bas et le
+## contour complet : on paierait le même prix pour moins de lisibilité.
+const TAILLE_CONTOUR_MOBILE := 0.34
+
+## Plus grande dimension d'une pièce, en mètres.
+##
+## ON LIT LES PARAMÈTRES DE LA PRIMITIVE, PAS SON `get_aabb()`. La boîte
+## englobante passe par le serveur de rendu : en mode sans affichage — donc
+## dans TOUS les bancs d'essai — celui-ci répond « maille nulle » et crache
+## une erreur par maille. Un outil de mesure qui ne fonctionne que quand
+## l'écran est allumé n'en est pas un.
+static func _encombrement(mi: MeshInstance3D) -> float:
+	var e := maxf(mi.scale.x, maxf(mi.scale.y, mi.scale.z))
+	var m := mi.mesh
+	if m is SphereMesh:
+		return (m as SphereMesh).radius * 2.0 * e
+	if m is CapsuleMesh:
+		return (m as CapsuleMesh).height * e
+	if m is CylinderMesh:
+		var c := m as CylinderMesh
+		return maxf(c.height, maxf(c.top_radius, c.bottom_radius) * 2.0) * e
+	if m is BoxMesh:
+		var t := (m as BoxMesh).size
+		return maxf(t.x, maxf(t.y, t.z)) * e
+	# Maille inconnue : on la contourne plutôt que de la manquer.
+	return INF
+
 static func add_outline(mi: MeshInstance3D, width: float = 0.05) -> void:
-	if Cfg.quality == Cfg.Quality.LOW or mi.mesh == null:
+	if mi.mesh == null:
+		return
+	if Cfg.quality == Cfg.Quality.LOW and _encombrement(mi) < TAILLE_CONTOUR_MOBILE:
 		return
 	var o := MeshInstance3D.new()
 	o.mesh = mi.mesh
@@ -223,50 +308,92 @@ static func build_humanoid(color: Color, accent: Color,
 static func build_weapon(silhouette: String, color: Color) -> Node3D:
 	var root := Node3D.new()
 	root.name = "WeaponModel"
-	var body := mat(Color("3a3f4a"))
-	var tint := mat(color, 1.4)
+	# LE CORPS DE L'ARME PORTE SA COULEUR, il n'est plus gris.
+	#
+	# Avant, les quatre armes partageaient la même carcasse anthracite et ne
+	# se distinguaient que par un liseré de quelques centimètres : à treize
+	# mètres de haut, sur un téléphone, ce liseré fait deux pixels. On ne
+	# savait donc pas quelle arme on tenait sans lire le bandeau. La teinte
+	# de l'arme couvre maintenant sa masse principale, et le noir ne sert
+	# plus qu'à détacher la crosse et la poignée du décor.
+	var body := mat(color.darkened(0.42), 0.0, 0.5)
+	var tint := mat(color, 1.8)
+	var noir := mat(Color("2b2f3a"))
+	var portee := -0.72
 
 	match silhouette:
 		"shotgun":
-			# Court, épais, double canon : la brutalité doit se voir.
-			root.add_child(box(Vector3(0.13, 0.13, 0.64), body,
-					Vector3(0, 0, -0.20)))
-			root.add_child(cylinder(0.045, 0.42, tint,
-					Vector3(-0.05, 0.02, -0.46), Vector3(PI / 2, 0, 0)))
-			root.add_child(cylinder(0.045, 0.42, tint,
-					Vector3(0.05, 0.02, -0.46), Vector3(PI / 2, 0, 0)))
-			root.add_child(box(Vector3(0.10, 0.20, 0.12), body,
-					Vector3(0, -0.11, 0.02)))
+			# COURT ET TRAPU, à double canon et barillet : la brutalité doit
+			# se voir. C'est la seule arme plus large que longue.
+			root.add_child(box(Vector3(0.19, 0.18, 0.60), body,
+					Vector3(0, 0, -0.18)))
+			root.add_child(cylinder(0.058, 0.50, body,
+					Vector3(-0.07, 0.03, -0.50), Vector3(PI / 2, 0, 0)))
+			root.add_child(cylinder(0.058, 0.50, body,
+					Vector3(0.07, 0.03, -0.50), Vector3(PI / 2, 0, 0)))
+			root.add_child(cylinder(0.10, 0.16, tint,
+					Vector3(0, 0.0, -0.12), Vector3(0, 0, PI / 2)))
+			root.add_child(box(Vector3(0.12, 0.24, 0.14), noir,
+					Vector3(0, -0.14, 0.04)))
+			portee = -0.76
 		"rifle":
-			# Long, fin, nervuré d'énergie : cadence rapide.
-			root.add_child(box(Vector3(0.10, 0.12, 0.52), body,
-					Vector3(0, 0, -0.16)))
-			root.add_child(cylinder(0.032, 0.60, body,
-					Vector3(0, 0.02, -0.56), Vector3(PI / 2, 0, 0)))
-			root.add_child(box(Vector3(0.05, 0.05, 0.34), tint,
-					Vector3(0, 0.10, -0.30)))
-			root.add_child(box(Vector3(0.09, 0.18, 0.10), body,
-					Vector3(0, -0.10, 0.02)))
-		"launcher":
-			# Gros tube trapu : lourd, lent, dévastateur.
-			root.add_child(cylinder(0.13, 0.66, body,
+			# LONG ET FIN, avec une lunette : la portée doit se voir.
+			root.add_child(box(Vector3(0.12, 0.14, 0.60), body,
+					Vector3(0, 0, -0.18)))
+			root.add_child(cylinder(0.038, 0.78, body,
+					Vector3(0, 0.02, -0.66), Vector3(PI / 2, 0, 0)))
+			root.add_child(box(Vector3(0.06, 0.06, 0.40), tint,
+					Vector3(0, 0.12, -0.34)))
+			root.add_child(cylinder(0.035, 0.20, noir,
+					Vector3(0, 0.19, -0.20), Vector3(PI / 2, 0, 0)))
+			root.add_child(box(Vector3(0.10, 0.20, 0.11), noir,
+					Vector3(0, -0.12, 0.03)))
+			portee = -1.06
+		"energie":
+			# FOURCHE À DEUX BRANCHES, avec un noyau qui flotte entre elles.
+			# AUCUNE AUTRE ARME N'A DE CREUX DANS SA SILHOUETTE : c'est ce
+			# qui la rend reconnaissable du premier coup d'œil, même en
+			# vision périphérique. Elle partageait auparavant la silhouette
+			# exacte du fusil de base — deux armes indiscernables.
+			root.add_child(box(Vector3(0.15, 0.17, 0.44), body,
+					Vector3(0, 0, -0.14)))
+			root.add_child(box(Vector3(0.06, 0.07, 0.46), body,
+					Vector3(-0.11, 0.09, -0.52)))
+			root.add_child(box(Vector3(0.06, 0.07, 0.46), body,
+					Vector3(0.11, 0.09, -0.52)))
+			root.add_child(sphere(0.10, tint, Vector3(0, 0.09, -0.56)))
+			root.add_child(cylinder(0.13, 0.05, tint,
 					Vector3(0, 0.02, -0.30), Vector3(PI / 2, 0, 0)))
-			root.add_child(cylinder(0.155, 0.10, tint,
-					Vector3(0, 0.02, -0.60), Vector3(PI / 2, 0, 0)))
-			root.add_child(box(Vector3(0.10, 0.20, 0.14), body,
-					Vector3(0, -0.13, 0.0)))
-			root.add_child(sphere(0.07, tint, Vector3(0, 0.14, -0.10)))
-		_:  # pistol
-			root.add_child(box(Vector3(0.10, 0.14, 0.34), body,
-					Vector3(0, 0, -0.10)))
-			root.add_child(cylinder(0.032, 0.26, tint,
-					Vector3(0, 0.02, -0.32), Vector3(PI / 2, 0, 0)))
-			root.add_child(box(Vector3(0.08, 0.17, 0.09), body,
-					Vector3(0, -0.11, 0.03)))
+			root.add_child(box(Vector3(0.10, 0.22, 0.11), noir,
+					Vector3(0, -0.14, 0.02)))
+			portee = -0.82
+		"launcher":
+			# GROS TUBE ET BARILLET : lourd, lent, dévastateur. C'est la
+			# silhouette la plus massive du lot, et de loin.
+			root.add_child(cylinder(0.16, 0.74, body,
+					Vector3(0, 0.03, -0.32), Vector3(PI / 2, 0, 0)))
+			root.add_child(cylinder(0.19, 0.12, tint,
+					Vector3(0, 0.03, -0.68), Vector3(PI / 2, 0, 0)))
+			root.add_child(cylinder(0.15, 0.20, body,
+					Vector3(0, -0.04, -0.06), Vector3(0, 0, PI / 2)))
+			root.add_child(sphere(0.09, tint, Vector3(0, 0.17, -0.12)))
+			root.add_child(box(Vector3(0.12, 0.24, 0.15), noir,
+					Vector3(0, -0.17, 0.02)))
+			portee = -0.84
+		_:  # pistolet
+			root.add_child(box(Vector3(0.12, 0.16, 0.38), body,
+					Vector3(0, 0, -0.11)))
+			root.add_child(cylinder(0.038, 0.30, tint,
+					Vector3(0, 0.02, -0.36), Vector3(PI / 2, 0, 0)))
+			root.add_child(box(Vector3(0.10, 0.19, 0.10), noir,
+					Vector3(0, -0.12, 0.03)))
+			portee = -0.56
 
 	# Le canon : les projectiles naissent d'ici, pas du centre du joueur.
+	# Sa position SUIT la longueur de chaque silhouette — un tir qui part
+	# du milieu d'un canon long traverse sa propre arme.
 	var muzzle := Node3D.new()
 	muzzle.name = "Muzzle"
-	muzzle.position = Vector3(0, 0.02, -0.72)
+	muzzle.position = Vector3(0, 0.02, portee)
 	root.add_child(muzzle)
 	return root

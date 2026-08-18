@@ -23,6 +23,8 @@ var _bounces_left: int = 0
 var _done: bool = false
 
 var _mesh: MeshInstance3D
+var _halo: MeshInstance3D
+var _allonge: float = 1.0
 var _trail: GPUParticles3D
 var _shape: CollisionShape3D
 var _sphere: SphereShape3D
@@ -36,6 +38,18 @@ func _ready() -> void:
 	m.rings = 5
 	_mesh.mesh = m
 	add_child(_mesh)
+
+	# HALO — une sphère translucide plus large autour du noyau opaque.
+	# Un seul appel de dessin de plus par projectile, et c'est lui qui
+	# donne l'impression d'énergie ; le noyau, lui, garantit qu'on lise la
+	# couleur de l'arme même sur le sable le plus clair.
+	_halo = MeshInstance3D.new()
+	var hm := SphereMesh.new()
+	hm.radial_segments = 8
+	hm.rings = 4
+	_halo.mesh = hm
+	_halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_halo)
 
 	_sphere = SphereShape3D.new()
 	_shape = CollisionShape3D.new()
@@ -83,14 +97,59 @@ func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
 
 	var r := data.projectile_radius
 	_sphere.radius = r
-	(_mesh.mesh as SphereMesh).radius = r
-	(_mesh.mesh as SphereMesh).height = r * 2.0
-	_mesh.material_override = VisualKit.glow_mat(data.color, 3.4)
-	_mesh.scale = Vector3.ONE
+	# LE CORPS VU EST PLUS GROS QUE LE CORPS TOUCHÉ, et volontairement.
+	#
+	# `projectile_radius` sert à DEUX choses qui n'ont pas les mêmes
+	# besoins : la sphère de collision, qui décide de la difficulté, et la
+	# maille, qui décide de la lisibilité. Une munition de treize
+	# centimètres est juste à l'échelle du personnage et parfaitement
+	# invisible sur un téléphone. On grossit donc ce qu'on voit d'un tiers
+	# sans toucher d'un millimètre à ce qui touche — la précision de tir
+	# reste exactement celle d'avant.
+	var rv := r * 1.35
+	(_mesh.mesh as SphereMesh).radius = rv
+	(_mesh.mesh as SphereMesh).height = rv * 2.0
+	_mesh.material_override = VisualKit.noyau_mat(data.color)
+	(_halo.mesh as SphereMesh).radius = rv * 1.9
+	(_halo.mesh as SphereMesh).height = rv * 3.8
+	_halo.material_override = VisualKit.glow_mat(data.color, 2.0, 0.34)
+
+	# ÉTIREMENT DANS L'AXE DE VOL — la traînée du pauvre, et la seule qui
+	# tienne sur un téléphone.
+	#
+	# Les traînées de particules sont coupées en qualité basse : à trente
+	# mètres par seconde, un projectile parcourt un demi-mètre entre deux
+	# images, et une bille ronde saute d'un point à l'autre sans qu'on
+	# puisse suivre sa course. Étiré dans son axe, il redevient un TRAIT :
+	# on lit sa direction, sa vitesse et son origine d'un seul regard, pour
+	# zéro particule et zéro appel de dessin supplémentaire.
+	#
+	# Les grenades gardent leur forme ronde : elles décrivent une cloche et
+	# rebondissent, un trait mentirait sur leur trajectoire.
+	_allonge = 1.0 if data.bounces > 0 or data.gravity > 0.0 else 3.2
+	_mesh.scale = Vector3(1.0, 1.0, _allonge)
+	_halo.scale = Vector3(1.0, 1.0, maxf(1.0, _allonge * 0.8))
+	_orienter()
 
 	_setup_trail()
 	visible = true
 	set_physics_process(true)
+
+## Aligne le corps du projectile sur sa vitesse réelle, pas sur la
+## direction de tir : une grenade qui retombe doit pointer vers le bas.
+func _orienter() -> void:
+	if _allonge <= 1.0:
+		return
+	var v := _velocity
+	if v.length_squared() < 0.01:
+		return
+	var avant := v.normalized()
+	# `look_at` refuse une direction colinéaire à son repère vertical ; un
+	# tir parfaitement vertical n'existe pas ici, mais un garde-fou coûte
+	# une ligne et évite une erreur par image quand il existera.
+	if absf(avant.y) > 0.995:
+		return
+	look_at(global_position + avant, Vector3.UP)
 
 func _setup_trail() -> void:
 	if data.trail_length <= 0.0 or Cfg.quality == Cfg.Quality.LOW:
@@ -111,12 +170,12 @@ func _setup_trail() -> void:
 	_trail.lifetime = clampf(data.trail_length * 0.09, 0.08, 0.35)
 	_trail.local_coords = false
 	var tm := SphereMesh.new()
-	tm.radius = data.projectile_radius * 0.75
-	tm.height = data.projectile_radius * 1.5
+	tm.radius = data.projectile_radius * 1.0
+	tm.height = data.projectile_radius * 2.0
 	tm.radial_segments = 6
 	tm.rings = 3
 	_trail.draw_pass_1 = tm
-	_trail.material_override = VisualKit.glow_mat(data.color, 2.0)
+	_trail.material_override = VisualKit.glow_mat(data.color, 1.6, 0.75)
 	_trail.emitting = true
 
 func _physics_process(delta: float) -> void:
@@ -132,6 +191,7 @@ func _physics_process(delta: float) -> void:
 	# simulation, soit une cinquantaine de centimètres, tombe dans l'angle
 	# mort de la limite.
 	global_position = PlanMonde.replier(global_position)
+	_orienter()
 	var next := global_position + _velocity * delta
 
 	# Rebond sur le sol pour les grenades : lues comme des objets qui

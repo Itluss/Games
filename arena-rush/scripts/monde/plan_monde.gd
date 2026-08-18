@@ -180,9 +180,28 @@ const SECTEURS: Array[Dictionary] = [
 		"poids": 0.85,
 		"sol": Cfg.SOL_RUINES,
 		"danger": Densite.FORTE,
-		"familles": [&"ruine", &"pilier", &"caillou", &"touffe"],
-		"densite_decor": 0.065,
-		"note": "Étroit et couvert. Bon butin, mauvaises retraites.",
+		# LA LISTE VAUT PONDÉRATION : une famille répétée sort plus souvent.
+		#
+		# C'EST ICI QUE SE JOUE LA LISIBILITÉ DU SECTEUR. L'ancienne liste
+		# donnait une chance sur quatre au pilier, soit près de soixante
+		# colonnes de trois mètres et demi sur la zone — une forêt qui
+		# attirait l'œil plus que le personnage et masquait les combats,
+		# vérifié en capture.
+		#
+		# Le pilier tombe à une chance sur quatorze : il devient un repère
+		# qu'on aperçoit de loin, ce qu'un grand élément doit être. Le
+		# couvert est repris par des masses BASSES — murs, blocs, rochers —
+		# derrière lesquelles on s'abrite sans perdre l'action de vue.
+		"familles": [
+			&"mur_bas", &"mur_bas", &"mur_bas",
+			&"bloc", &"bloc", &"bloc",
+			&"caillou", &"caillou", &"caillou",
+			&"cactus", &"cactus",
+			&"touffe", &"cristal",
+			&"pilier",
+		],
+		"densite_decor": 0.062,
+		"note": "Ruines ensoleillées. Couvert bas, quelques colonnes pour se repérer, et des cactus.",
 	},
 	{
 		"id": &"camp",

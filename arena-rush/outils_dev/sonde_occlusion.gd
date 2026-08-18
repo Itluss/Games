@@ -27,8 +27,10 @@ extends Node3D
 ## Usage : godot --headless --path arena-rush res://outils_dev/sonde_occlusion.tscn
 
 const PAS := 4.0
-const HAUTEUR := 13.0
-const RECUL := 10.0
+## CES DEUX VALEURS DOIVENT SUIVRE arena_camera.gd. Une sonde qui mesure un
+## placement que le jeu n'utilise plus ne mesure rien du tout.
+const HAUTEUR := 10.4
+const RECUL := 8.0
 ## Demi-ouverture verticale de la caméra de jeu (fov 58).
 const DEMI_FOV := 29.0
 ## Un obstacle plus proche que cela occupe une part énorme du cadre.

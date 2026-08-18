@@ -86,38 +86,88 @@ func _build_visual() -> void:
 	var dark := VisualKit.mat(data.color.darkened(0.4))
 	var glow := VisualKit.mat(data.color.lightened(0.4), 1.2)
 
+	# TROIS SILHOUETTES QUI NE SE RESSEMBLENT PAS, ET C'EST LE POINT.
+	#
+	# La règle qu'on s'impose : un joueur doit pouvoir nommer la famille
+	# d'un mob EN VISION PÉRIPHÉRIQUE, sans le regarder et sans lire sa
+	# couleur. Cela veut dire jouer sur trois axes à la fois — la masse, la
+	# proportion et l'appui au sol :
+	#
+	#   fonceur   large, bas, posé au sol, cornu    → « ça va me rentrer dedans »
+	#   tireur    étroit, HAUT, flottant, à œil     → « ça me vise de loin »
+	#   kamikaze  rond, petit, hérissé, instable    → « ça va exploser »
+	#
+	# La couleur n'arrive qu'en quatrième position. C'est volontaire : elle
+	# est le seul signal qui disparaisse à contre-jour ou dans une ombre.
+	#
+	# TOUT SE JOUE DANS LES MAILLES, PAS DANS `data.scale` : cette échelle
+	# pilote aussi la capsule de collision, et l'augmenter aurait rendu le
+	# fonceur plus facile à toucher. On change ce qu'on voit, pas ce qu'on
+	# touche — la mécanique reste identique au pixel près.
 	match data.behavior:
 		"charger":
-			# Trapu, large, cornu : lit « ça va foncer sur moi ».
-			_visual.add_child(VisualKit.capsule(0.52 * s, 1.15 * s, body,
-					Vector3(0, 0.7 * s, 0), Vector3(PI / 2.2, 0, 0)))
-			_visual.add_child(VisualKit.sphere(0.34 * s, dark,
-					Vector3(0, 0.82 * s, -0.5 * s)))
-			_visual.add_child(VisualKit.cone(0.11 * s, 0.42 * s, glow,
-					Vector3(-0.22 * s, 0.95 * s, -0.62 * s), Vector3(-1.3, 0, 0)))
-			_visual.add_child(VisualKit.cone(0.11 * s, 0.42 * s, glow,
-					Vector3(0.22 * s, 0.95 * s, -0.62 * s), Vector3(-1.3, 0, 0)))
+			# LARGE ET BAS. Le corps est aplati verticalement et étiré en
+			# largeur : vu de dessus, il occupe presque deux fois la surface
+			# d'un tireur, ce qui se lit avant toute couleur.
+			_visual.add_child(VisualKit.capsule(0.62 * s, 1.42 * s, body,
+					Vector3(0, 0.60 * s, 0), Vector3(PI / 2.2, 0, 0)))
+			_visual.add_child(VisualKit.sphere(0.40 * s, dark,
+					Vector3(0, 0.70 * s, -0.56 * s),
+					Vector3(1.25, 0.85, 1.0)))
+			# UNE ARÊTE SOMBRE SUR LE DOS. Vu de dessus — c'est-à-dire dans
+			# la seule vue qu'aura le joueur — une capsule couchée n'est
+			# qu'une pastille lisse : la capture le montrait comme une
+			# tache rose sans avant ni arrière. Cette arête donne un axe à
+			# la bête, donc une direction de charge lisible d'un coup d'œil.
+			_visual.add_child(VisualKit.box(
+					Vector3(0.22 * s, 0.16 * s, 1.15 * s), dark,
+					Vector3(0, 1.02 * s, 0.05 * s)))
+			# Cornes allongées vers l'AVANT : elles indiquent la direction de
+			# la charge autant qu'elles disent l'espèce.
+			# Cornes couchées vers l'avant MAIS relevées de vingt degrés :
+			# à plat elles se confondaient avec le corps vu du dessus.
+			_visual.add_child(VisualKit.cone(0.15 * s, 0.70 * s, glow,
+					Vector3(-0.30 * s, 0.92 * s, -0.72 * s), Vector3(-1.05, 0, 0)))
+			_visual.add_child(VisualKit.cone(0.15 * s, 0.70 * s, glow,
+					Vector3(0.30 * s, 0.92 * s, -0.72 * s), Vector3(-1.05, 0, 0)))
+			# Deux pattes trapues : elles POSENT la bête au sol. Un fonceur
+			# qui flotte se confondrait avec un tireur.
+			_visual.add_child(VisualKit.cylinder(0.14 * s, 0.34 * s, dark,
+					Vector3(-0.30 * s, 0.17 * s, 0.10 * s)))
+			_visual.add_child(VisualKit.cylinder(0.14 * s, 0.34 * s, dark,
+					Vector3(0.30 * s, 0.17 * s, 0.10 * s)))
 		"shooter":
-			# Flottant, œil unique, fin : lit « il tire de loin ».
-			_visual.add_child(VisualKit.sphere(0.46 * s, body,
-					Vector3(0, 1.15 * s, 0), Vector3(1.0, 1.15, 1.0)))
-			_visual.add_child(VisualKit.sphere(0.19 * s, glow,
-					Vector3(0, 1.18 * s, -0.36 * s)))
-			_visual.add_child(VisualKit.cylinder(0.38 * s, 0.1 * s, dark,
-					Vector3(0, 0.66 * s, 0)))
-			_visual.add_child(VisualKit.cylinder(0.07 * s, 0.5 * s, dark,
-					Vector3(0, 0.3 * s, 0)))
+			# ÉTROIT ET HAUT. Son œil culmine à 2 m alors que le fonceur
+			# plafonne à 1 m : c'est un rapport du simple au double, visible
+			# même quand les deux ne sont que deux taches à l'écran.
+			_visual.add_child(VisualKit.sphere(0.40 * s, body,
+					Vector3(0, 1.62 * s, 0), Vector3(0.9, 1.30, 0.9)))
+			_visual.add_child(VisualKit.sphere(0.20 * s, glow,
+					Vector3(0, 1.66 * s, -0.32 * s)))
+			# Collerette large sur un corps étroit : le contraste de largeur
+			# entre les deux est ce qui fait lire « antenne », donc « tir ».
+			_visual.add_child(VisualKit.cylinder(0.46 * s, 0.08 * s, dark,
+					Vector3(0, 1.10 * s, 0)))
+			_visual.add_child(VisualKit.cylinder(0.06 * s, 0.90 * s, dark,
+					Vector3(0, 0.60 * s, 0)))
+			# Il ne touche pas le sol : le socle flotte à vingt centimètres.
+			_visual.add_child(VisualKit.sphere(0.17 * s, dark,
+					Vector3(0, 0.24 * s, 0), Vector3(1.3, 0.6, 1.3)))
 		_:  # exploder
-			# Rond, hérissé, instable : lit « ne me laisse pas t'approcher ».
-			_visual.add_child(VisualKit.sphere(0.58 * s, body,
-					Vector3(0, 0.72 * s, 0)))
-			for i in 6:
-				var a := TAU * float(i) / 6.0
-				_visual.add_child(VisualKit.cone(0.1 * s, 0.34 * s, glow,
-						Vector3(cos(a) * 0.55 * s, 0.72 * s, sin(a) * 0.55 * s),
+			# ROND ET PETIT, hérissé sur tout son pourtour. Une boule n'a pas
+			# d'orientation lisible — et c'est exactement le message : elle
+			# ne charge pas, elle ne vise pas, elle arrive.
+			_visual.add_child(VisualKit.sphere(0.52 * s, body,
+					Vector3(0, 0.58 * s, 0), Vector3(1.0, 0.92, 1.0)))
+			for i in 8:
+				var a := TAU * float(i) / 8.0
+				_visual.add_child(VisualKit.cone(0.11 * s, 0.34 * s, glow,
+						Vector3(cos(a) * 0.50 * s, 0.58 * s, sin(a) * 0.50 * s),
 						Vector3(PI / 2.0, -a, 0)))
-			_visual.add_child(VisualKit.sphere(0.2 * s, glow,
-					Vector3(0, 1.22 * s, 0)))
+			_visual.add_child(VisualKit.sphere(0.20 * s, glow,
+					Vector3(0, 1.06 * s, 0)))
+			_visual.add_child(VisualKit.cylinder(0.17 * s, 0.12 * s, dark,
+					Vector3(0, 0.09 * s, 0)))
 
 	for child in _visual.get_children():
 		if child is MeshInstance3D and child.material_override is StandardMaterial3D:

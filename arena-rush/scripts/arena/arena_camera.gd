@@ -32,15 +32,41 @@ class_name ArenaCamera
 ##     le ciel.
 
 ## Hauteur au-dessus de la cible.
-## Réglée d'après des captures réelles : à 17 m de haut le personnage ne
-## faisait qu'une poignée de pixels sur un écran de téléphone.
-@export var height: float = 13.0
+##
+## RAPPROCHEMENT DE 20 %, ET IL EST CALCULÉ, PAS TÂTONNÉ. La taille d'un
+## personnage à l'écran est inversement proportionnelle à la distance
+## caméra→joueur, soit √(hauteur² + recul²) :
+##
+##     avant   13,0 / 10,0  →  16,4 m
+##     après   10,4 /  8,0  →  13,1 m     soit +25 % de taille apparente
+##
+## Le RAPPORT hauteur/recul est conservé (1,30) : l'angle de plongée reste
+## à 52°, donc le compromis silhouette/sol décrit plus haut tient toujours.
+## On rapproche, on ne rebascule pas la caméra vers le sol — c'est la
+## consigne « adapter la hauteur et l'angle plutôt que zoomer brutalement ».
+##
+## Le champ reste à 58° : le rétrécir aurait rapproché l'image sans
+## rapprocher la caméra, en aplatissant la perspective (effet téléobjectif)
+## et en donnant ce cadrage à l'étroit qu'il faut éviter.
+@export var height: float = 10.4
 ## Recul derrière la cible.
-@export var distance: float = 10.0
+@export var distance: float = 8.0
 ## Vitesse de rattrapage. Assez élevée pour ne jamais « traîner », assez
 ## basse pour amortir les à-coups.
 @export var smoothing: float = 7.5
 ## Décalage maximal dans la direction visée.
+##
+## LAISSÉE À 3,4 ALORS QU'ON AVAIT COMMENCÉ PAR LA RELEVER À 4,3.
+##
+## L'idée paraissait bonne : en se rapprochant, la caméra voit moins loin
+## devant, donc on lui rend en avance ce qu'on lui a pris en recul. Sauf que
+## cette avance déplace TOUT LE MONTAGE, caméra comprise — regardez
+## `_desired = _focus + _ahead`, puis `_ideal = _desired + (0, height,
+## distance)`. Viser vers l'avant rapproche donc le personnage, viser vers
+## l'arrière l'éloigne d'autant. Relever l'avance revenait à augmenter cet
+## écart au moment précis où la consigne était de rendre le personnage plus
+## GROS et plus STABLE à l'écran. On garde donc l'ancienne valeur, et le
+## rapprochement reste ce qu'il est : un rapprochement, pas un compromis.
 @export var look_ahead: float = 3.4
 
 ## Hauteur de l'œil visé sur le joueur : la ligne de vue part de sa

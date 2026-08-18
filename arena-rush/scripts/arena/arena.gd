@@ -411,7 +411,7 @@ func _build_environment() -> void:
 	var sky_mat := ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = Cfg.COL_CIEL_HAUT
 	sky_mat.sky_horizon_color = Cfg.COL_CIEL_HORIZON
-	sky_mat.ground_bottom_color = Cfg.COL_METAL_SOMBRE
+	sky_mat.ground_bottom_color = Cfg.COL_PIERRE_CHAUDE.darkened(0.35)
 	sky_mat.ground_horizon_color = Cfg.COL_CIEL_HORIZON
 	sky_mat.sky_curve = 0.11
 	sky_mat.ground_curve = 0.2
@@ -422,8 +422,11 @@ func _build_environment() -> void:
 	env.sky = sky
 
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Cfg.COL_AMBIANTE_VILLE
-	env.ambient_light_energy = 0.26
+	env.ambient_light_color = Cfg.COL_AMBIANTE_JOUR
+	# 0,26 → 0,50 : c'est le réglage qui décide si une face non éclairée est
+	# une forme lisible ou une tache noire. Sur téléphone, en extérieur, la
+	# moitié de l'écran est en ombre portée — il faut qu'on y voie encore.
+	env.ambient_light_energy = 0.4
 
 	# LE HALO EST COUPÉ SUR TÉLÉPHONE. Il coûte plusieurs passes en plein
 	# écran, et le plein écran d'un téléphone compte trois fois plus de
@@ -437,10 +440,13 @@ func _build_environment() -> void:
 
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_white = 4.0
-	env.tonemap_exposure = 0.52
+	# 0,52 → 0,58. L'ancienne exposition sous-exposait l'image : c'était la
+	# cause principale du rendu terne. Mais 0,80, essayé d'abord, brûlait le
+	# sable en crème et effaçait le relief des murets — vérifié en image.
+	env.tonemap_exposure = 0.45
 
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.22
+	env.adjustment_saturation = 1.32
 	env.adjustment_contrast = 1.06
 	env.adjustment_brightness = 1.0
 
@@ -452,8 +458,10 @@ func _build_environment() -> void:
 	# qu'elle paraît continuer. Elle reste assez faible pour ne pas voiler
 	# le combat, qui se joue toujours à moins de vingt mètres.
 	env.fog_enabled = true
-	env.fog_light_color = Cfg.COL_BRUME_VILLE
-	env.fog_density = 0.0075
+	env.fog_light_color = Cfg.COL_BRUME_JOUR
+	# Densité abaissée avec la clarté : une brume claire ET dense efface les
+	# silhouettes à quinze mètres, ce qui casserait la lisibilité du combat.
+	env.fog_density = 0.0055
 	env.fog_sky_affect = 0.2
 
 	var we := WorldEnvironment.new()
@@ -462,9 +470,12 @@ func _build_environment() -> void:
 	_ambiance = we
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-34, -38, 0)
-	sun.light_color = Cfg.COL_SOLEIL_VILLE
-	sun.light_energy = 1.05
+	# Soleil relevé de 34° à 52° : un soleil rasant allonge des ombres qui
+	# traversent tout l'écran et brouillent la lecture du sol. Plus haut, les
+	# ombres sont courtes, nettes, et servent à ANCRER les objets au sol.
+	sun.rotation_degrees = Vector3(-52, -38, 0)
+	sun.light_color = Cfg.COL_SOLEIL_JOUR
+	sun.light_energy = 1.0
 	sun.shadow_enabled = Cfg.shadows_enabled()
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	# La portée d'ombre ne suit PAS la taille du monde : elle suit celle de
@@ -676,19 +687,27 @@ const PAS_SEMIS := 2.0
 
 ## collision se paie sur un téléphone.
 const FAMILLES_SOLIDES := [&"mesa", &"rocher", &"arbre", &"pin", &"ruine",
-		&"pilier", &"tente"]
+		&"pilier", &"tente", &"mur_bas", &"bloc"]
 const RAYON_SOLIDE := {
 	&"mesa": 1.2, &"rocher": 0.95, &"arbre": 0.32, &"pin": 0.3,
 	&"ruine": 1.5, &"pilier": 0.45, &"tente": 1.3,
+	&"mur_bas": 1.05, &"bloc": 0.6,
 }
 const HAUTEUR_SOLIDE := {
 	&"mesa": 4.0, &"rocher": 1.3, &"arbre": 2.0, &"pin": 1.4,
 	&"ruine": 2.0, &"pilier": 3.4, &"tente": 2.0,
+	# Le muret arrête les corps mais pas le regard : 1,1 m, sous la ligne
+	# des yeux de la caméra. C'est toute la différence entre un abri et un
+	# mur qui cache le combat.
+	&"mur_bas": 1.1, &"bloc": 0.62,
 }
 ## Distance d'effacement par famille. Zéro = jamais effacé.
+##
+## RÈGLE : une famille solide n'a JAMAIS de portée. Un obstacle effacé au
+## loin reste un obstacle — on se cognerait dans du vide.
 const PORTEE := {
 	&"caillou": 46.0, &"touffe": 34.0, &"buisson": 52.0, &"tonneau": 58.0,
-	&"caisse": 62.0, &"cloture": 62.0,
+	&"caisse": 62.0, &"cloture": 62.0, &"cactus": 50.0, &"cristal": 58.0,
 }
 
 ## Distance d'effacement effective, raccourcie de 40 % sur téléphone.

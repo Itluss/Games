@@ -121,9 +121,28 @@ func _trouver_monde() -> Node:
 
 
 ## LA SITUATION DE RÉFÉRENCE : de part et d'autre de la limite, à un mètre.
+## Bande de la limite retenue pour toutes les poses, choisie DÉGAGÉE.
+##
+## POURQUOI CE N'EST PLUS z = 0. Le banc posait les deux corps sur la
+## limite à z = 0, quoi qu'il y ait à cet endroit. Le jour où le secteur
+## des ruines a reçu des murets bas, un muret s'est trouvé là : la physique
+## a repoussé l'adversaire de près de deux mètres en six images, et le banc
+## a conclu que le repli ne fonctionnait plus. Il mesurait en réalité une
+## collision parfaitement normale.
+##
+## Un banc qui teste l'enroulement ne doit rien tester d'autre. On réutilise
+## donc le couloir dégagé déjà calculé pour les tirs — et on le calcule une
+## seule fois, il coûte 144 rayons.
+var _z_pose := NAN
+
 func _poser_de_part_et_dautre(ecart: float = 1.0) -> void:
-	_joueur.global_position = Vector3(PlanMonde.DEMI - ecart * 0.5, 0.6, 0.0)
-	_cible.global_position = Vector3(-PlanMonde.DEMI + ecart * 0.5, 0.6, 0.0)
+	if is_nan(_z_pose):
+		_z_pose = _couloir_libre()
+		if is_nan(_z_pose):
+			_z_pose = 0.0
+	var z := _z_pose
+	_joueur.global_position = Vector3(PlanMonde.DEMI - ecart * 0.5, 0.6, z)
+	_cible.global_position = Vector3(-PlanMonde.DEMI + ecart * 0.5, 0.6, z)
 	_cible.set(&"_target_pos", _cible.global_position)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -173,13 +192,39 @@ func _garantie_visee_automatique() -> void:
 	# bureau, cette intention vient du CURSEUR. Sans le poser, le banc
 	# mesurait un cône orienté au hasard et concluait à tort que la limite
 	# du monde rendait la cible invisible.
+	# ON NEUTRALISE L'INDICE DE VISÉE AU LIEU D'ESSAYER DE LE POSER.
+	#
+	# Le banc déplaçait le curseur sur la cible avec `Input.warp_mouse`.
+	# Sans affichage, ce déplacement N'A AUCUN EFFET : le curseur restait à
+	# (0, 0), donc dans le coin supérieur gauche, et `_aim_hint()` en
+	# déduisait une intention pointant vers le haut à gauche. La cible
+	# tombait hors du cône de 55°, et le banc annonçait « la visée est
+	# aveugle au-delà de la limite » alors qu'il lui avait lui-même désigné
+	# une autre direction. Mesuré : indice = (-0,70 ; 0 ; -0,71).
+	#
+	# Ce que ce test doit prouver, c'est que la SÉLECTION de cible mesure la
+	# distance sur le tore et non à plat. Le cône d'accrochage est une autre
+	# question, qui se teste sans limite du monde. On retire donc la caméra
+	# le temps de la mesure : sans caméra, `_aim_hint()` ne renvoie aucune
+	# intention, aucun cône ne s'applique, et il ne reste que la question
+	# posée — l'ennemi d'en face est-il vu à cinq mètres ou à cent quarante ?
+	var cam_gardee: Camera3D = Fx.camera
+	Fx.camera = null
 	ctrl.set_process(true)
 	for i in 14:
-		var cam := get_viewport().get_camera_3d()
-		if cam:
-			Input.warp_mouse(cam.unproject_position(_cible.global_position))
 		await get_tree().process_frame
+	Fx.camera = cam_gardee
 	var verrou = _joueur.get(&"locked_target")
+	# DIAGNOSTIC IMPRIMÉ, PAS DÉDUIT. Cet échec a déjà coûté du temps une
+	# fois parce que le banc disait « aveugle » sans dire de quoi : cible
+	# hors groupe, hors portée, éliminée, ou cône mal orienté produisent le
+	# même verdict. On imprime donc les quatre.
+	print("      DIAG verrou=%s cible=%s ecart=%.1f m portee=%.1f m groupes=%s elim=%s"
+			% [verrou, _cible,
+			PlanMonde.distance3(_joueur.global_position, _cible.global_position),
+			(_joueur.weapon.data.range if _joueur.weapon and _joueur.weapon.data
+					else -1.0),
+			_cible.get_groups(), _cible.get(&"is_eliminated")])
 	ctrl.set_process(false)
 	_joueur.set(&"want_fire", false)
 	_verifier("la visée automatique voit à travers la limite",

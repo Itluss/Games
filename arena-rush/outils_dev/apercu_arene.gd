@@ -38,10 +38,12 @@ var _chauffe := 0
 var _vues := [
 	{"nom": "jeu", "pos": Vector3(14.0, 15.0, 20.0), "cible": Vector3(0, 1.0, 0)},
 	{"nom": "plongee", "pos": Vector3(1.0, 200.0, 1.2), "cible": Vector3(0, 0, 0)},
+	# LES RUINES sont la zone d'essai visuel : deux vues, une de loin pour
+	# juger la masse et la couleur, une au ras pour juger la lisibilité.
+	{"nom": "ruines", "pos": Vector3(-34.0, 14.0, -26.0), "cible": Vector3(-46, 2.0, -38)},
+	{"nom": "ruines_pres", "pos": Vector3(-42.0, 9.0, -30.0), "cible": Vector3(-46, 1.2, -37)},
 	{"nom": "creuset", "pos": Vector3(-46.0, 16.0, 4.0), "cible": Vector3(-56, 3.0, 14)},
-	{"nom": "camp", "pos": Vector3(42.0, 15.0, -60.0), "cible": Vector3(32, 3.0, -50)},
 	{"nom": "bosquet", "pos": Vector3(-10.0, 14.0, 36.0), "cible": Vector3(-20, 3.0, 46)},
-	{"nom": "couture", "pos": Vector3(0.0, 15.0, 62.0), "cible": Vector3(0, 1.0, 72)},
 ]
 
 func _ready() -> void:

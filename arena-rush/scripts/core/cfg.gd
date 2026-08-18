@@ -57,13 +57,21 @@ const COL_METAL := Color("2e3552")
 const COL_METAL_SOMBRE := Color("242a41")
 const COL_NEON_CYAN := Color("3ce9ff")
 const COL_NEON_MAGENTA := Color("ff3ea5")
-## Ciel de crépuscule : indigo profond au zénith, corail à l'horizon.
-const COL_CIEL_HAUT := Color("221a44")
-const COL_CIEL_HORIZON := Color("f57a52")
-## Soleil rasant, chaud mais peu énergique — il sculpte, il n'écrase pas.
-const COL_SOLEIL_VILLE := Color("ffc79e")
-## Ambiante violette : elle colore les ombres au lieu de les grisailler.
-const COL_AMBIANTE_VILLE := Color("6b5ca8")
+# LE CIEL EST PASSÉ DU CRÉPUSCULE AU PLEIN JOUR.
+#
+# L'ancienne ambiance était un coucher de soleil : zénith indigo, ambiante
+# violette, exposition à 0,52. Sur un écran de téléphone en plein jour,
+# cela donnait une image sombre et mauve où le personnage se noyait dans
+# le décor — c'est exactement ce que le brief demande de corriger. Un jeu
+# mobile lisible se joue sous un ciel franc : bleu net au zénith, horizon
+# chaud, soleil blanc, ombres bleutées mais CLAIRES.
+const COL_CIEL_HAUT := Color("2f8fdb")
+const COL_CIEL_HORIZON := Color("ffd6a0")
+## Soleil de milieu de matinée : blanc à peine doré. Il éclaire, il ne teinte pas.
+const COL_SOLEIL_JOUR := Color("fff3dc")
+## Ambiante = rebond du ciel. Bleue et CLAIRE : les ombres restent lisibles,
+## on distingue encore un mob dans l'ombre d'une colonne.
+const COL_AMBIANTE_JOUR := Color("a8d4f2")
 # --- MATIÈRES DU MONDE OUVERT -------------------------------------------
 #
 # UNE COULEUR PAR MATIÈRE, PAS PAR OBJET. Un rocher du canyon et une mesa
@@ -74,12 +82,40 @@ const COL_AMBIANTE_VILLE := Color("6b5ca8")
 # Toutes sont choisies DÉSATURÉES par rapport aux couleurs de gameplay :
 # le décor ne doit jamais concurrencer un projectile, un butin ou un
 # adversaire. C'est la règle qui tient toute la lisibilité du jeu.
-const COL_ROCHE := Color("8b8fa3")
+## Roche GRISE MAIS CHAUDE. Elle était bleutée (8b8fa3) : sur un sol de
+## sable orange, chaque caillou virait au bleu et le désert paraissait
+## sale — vérifié en image. Un gris légèrement beige reste distinct du
+## sable sans s'y opposer.
+const COL_ROCHE := Color("9c8d7c")
 const COL_ROCHE_CHAUDE := Color("8f6543")
-const COL_PIERRE := Color("c3bdae")
+const COL_PIERRE := Color("b5aa97")
 const COL_BOIS := Color("8a6242")
 const COL_FEUILLAGE := Color("5aa653")
 const COL_TOILE := Color("d8c9a4")
+
+# --- MATIÈRES DE LA ZONE D'ESSAI : RUINES ENSOLEILLÉES -------------------
+#
+# UNE RÈGLE, ET ELLE PRIME SUR LE RESTE : le décor est un FOND. Ces teintes
+# sont choisies chaudes et lumineuses pour sortir le secteur de la grisaille,
+# mais toutes restent MOINS saturées que celles du gameplay — un rocher ne
+# doit jamais accrocher l'œil autant qu'un mob ou qu'un projectile.
+#
+# Les accents froids — vert, turquoise, violet — sont volontairement RARES.
+# Posés partout ils annuleraient le contraste chaud du sable ; posés par
+# touches, ce sont eux qui donnent l'impression de couleur.
+## Pierre chaude des ruines : franchement plus contrastée que le sable.
+const COL_PIERRE_CHAUDE := Color("b98a5e")
+## Sommet des pierres, éclairé : c'est ce liseré clair qui détache une
+## silhouette basse d'un sol de la même famille de teintes.
+const COL_PIERRE_CRETE := Color("dcb283")
+## Cactus et plantes grasses — la seule vraie note verte du secteur.
+const COL_CACTUS := Color("4f9e5c")
+const COL_CACTUS_CLAIR := Color("6fc47a")
+## Fleur de cactus, minuscule et vive : un point de couleur, pas une masse.
+const COL_FLEUR := Color("ff6fae")
+## Cristal turquoise. Émissif, sans lumière dynamique : il brille sans rien
+## coûter au rendu mobile.
+const COL_CRISTAL := Color("35e0d0")
 
 # --- SOLS DES SECTEURS ---------------------------------------------------
 #
@@ -96,21 +132,27 @@ const SOL_CAMP := Color("a2915f")
 const SOL_CANYON := Color("8e5c3a")
 const SOL_BOSQUET := Color("55743f")
 const SOL_FONDERIE := Color("767d92")
-const SOL_RUINES := Color("867f6d")
+## LES RUINES SONT LA ZONE D'ESSAI VISUEL. Leur sol passe d'un gris-beige
+## terne à un sable chaud et lumineux : vu de dessus, le sol occupe les
+## trois quarts de l'écran, c'est donc lui qui décide de l'ambiance d'un
+## secteur bien avant le moindre prop.
+const SOL_RUINES := Color("e39a4a")
 const SOL_NOYAU := Color("7c7f9c")
 
-## Brume de rue. VOLONTAIREMENT VIOLETTE et non corail : teintée de la
-## couleur chaude de l'horizon, elle repeignait tout le sol en rose et
-## l'arène entière virait monochrome — vérifié en image. Le violet pousse
-## les lointains vers le FROID, ce qui creuse la profondeur au lieu de
-## l'aplatir, et laisse le chaud au ciel seul, là où il est beau.
-const COL_BRUME_VILLE := Color("4a4078")
+## Brume de lointain. Elle reste FROIDE face à un sol chaud : c'est ce
+## contraste qui creuse la profondeur au lieu de l'aplatir. Mais elle est
+## désormais CLAIRE — une brume sombre sur un sol clair salissait l'image
+## au lieu de l'éloigner.
+const COL_BRUME_JOUR := Color("b9d8ee")
 
 # Couleurs d'identité — une arme se reconnaît à sa couleur avant même
 # qu'on lise son nom.
 const COL_BASIC := Color("5fc4ff")
 const COL_SHOTGUN := Color("ffb347")
-const COL_ENERGY := Color("b06bff")
+## Magenta et non violet : le mob tireur porte désormais le violet-bleu,
+## et deux signaux de sens opposés — « arme à ramasser » et « ennemi qui
+## tire » — ne doivent jamais partager une teinte.
+const COL_ENERGY := Color("ff5ce0")
 const COL_GRENADE := Color("6bff9e")
 
 const COL_MOB_CHARGER := Color("ff6b5a")

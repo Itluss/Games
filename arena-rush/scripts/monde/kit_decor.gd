@@ -55,6 +55,10 @@ static func maillage(famille: StringName) -> Mesh:
 		&"cloture": m = _cloture()
 		&"tente": m = _tente()
 		&"tonneau": m = _tonneau()
+		&"mur_bas": m = _mur_bas()
+		&"bloc": m = _bloc_taille()
+		&"cactus": m = _cactus()
+		&"cristal": m = _cristal()
 		_: m = _caillou()
 	_cache[famille] = m
 	return m
@@ -340,3 +344,93 @@ static func semer(famille: StringName, transformations: Array[Transform3D],
 		noeud.visibility_range_fade_mode = \
 				GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	return noeud
+
+
+# --- ZONE D'ESSAI : LES RUINES ENSOLEILLÉES ------------------------------
+#
+# QUATRE FAMILLES AJOUTÉES, ET LE CHOIX EST UN CHOIX DE LISIBILITÉ.
+#
+# Les ruines étaient une forêt de colonnes pâles de trois mètres et demi,
+# toutes de la même teinte que le sol — vérifié en capture. Elles
+# attiraient l'œil davantage que le personnage, et masquaient les combats.
+#
+# Ce qui les remplace est BAS : un pan de mur à hauteur de poitrine, un
+# bloc tombé, quelques cactus. On peut se mettre à couvert derrière, on ne
+# perd jamais l'action de vue par-dessus. Les colonnes restent, mais rares :
+# elles ne servent plus qu'à s'orienter.
+
+
+## MUR BAS — le couvert principal des ruines.
+##
+## Il monte à 1,2 m : assez pour cacher un personnage accroupi et arrêter
+## un tir tendu, jamais assez pour boucher la vue depuis la caméra. La
+## crête claire est ce qui le détache du sable qui l'entoure — sans elle,
+## une pierre chaude sur un sol chaud disparaît.
+static func _mur_bas() -> ArrayMesh:
+	var pierre := VisualKit.mat(Cfg.COL_PIERRE_CHAUDE, 0.0, 0.93)
+	var crete := VisualKit.mat(Cfg.COL_PIERRE_CRETE, 0.0, 0.92)
+	return _assembler([
+		{"mesh": _boite(Vector3(2.6, 1.1, 0.62)), "materiau": pierre,
+			"transform": _t(Vector3(0, 0.55, 0))},
+		{"mesh": _boite(Vector3(2.7, 0.16, 0.72)), "materiau": crete,
+			"transform": _t(Vector3(0, 1.14, 0))},
+		# Un bout écroulé à une extrémité : une ruine régulière se lit
+		# comme un muret de jardin.
+		{"mesh": _boite(Vector3(0.7, 0.55, 0.6)), "materiau": pierre,
+			"transform": _t(Vector3(1.5, 0.28, 0.05), Vector3(0, 0.3, 0.14))},
+	])
+
+
+## BLOC TAILLÉ — une pierre tombée, à hauteur de genou.
+static func _bloc_taille() -> ArrayMesh:
+	var pierre := VisualKit.mat(Cfg.COL_PIERRE_CHAUDE.darkened(0.07), 0.0, 0.94)
+	var crete := VisualKit.mat(Cfg.COL_PIERRE_CRETE, 0.0, 0.93)
+	return _assembler([
+		{"mesh": _boite(Vector3(1.1, 0.62, 0.9)), "materiau": pierre,
+			"transform": _t(Vector3(0, 0.31, 0), Vector3(0, 0.4, 0))},
+		{"mesh": _boite(Vector3(0.95, 0.12, 0.78)), "materiau": crete,
+			"transform": _t(Vector3(0, 0.66, 0), Vector3(0, 0.4, 0))},
+		{"mesh": _boite(Vector3(0.5, 0.34, 0.46)), "materiau": pierre,
+			"transform": _t(Vector3(0.62, 0.17, 0.3), Vector3(0, -0.5, 0.1))},
+	])
+
+
+## CACTUS — la note verte du secteur, et sa seule verticale vivante.
+##
+## Petit et étroit : il colore sans encombrer. La fleur au sommet est un
+## point rose de quelques pixels — c'est exactement le rôle qu'on lui
+## demande, un accent, pas une masse.
+static func _cactus() -> ArrayMesh:
+	var vert := VisualKit.mat(Cfg.COL_CACTUS, 0.0, 0.9)
+	var vert_clair := VisualKit.mat(Cfg.COL_CACTUS_CLAIR, 0.0, 0.9)
+	var fleur := VisualKit.mat(Cfg.COL_FLEUR, 0.35, 0.85)
+	return _assembler([
+		{"mesh": _cyl(0.19, 0.15, 1.35, 7), "materiau": vert,
+			"transform": _t(Vector3(0, 0.68, 0))},
+		{"mesh": _cyl(0.11, 0.09, 0.6, 6), "materiau": vert_clair,
+			"transform": _t(Vector3(0.26, 0.85, 0), Vector3(0, 0, -0.5))},
+		{"mesh": _cyl(0.1, 0.08, 0.5, 6), "materiau": vert_clair,
+			"transform": _t(Vector3(-0.24, 0.66, 0.05), Vector3(0, 0, 0.55))},
+		{"mesh": _sphere(0.11, 7, 5), "materiau": fleur,
+			"transform": _t(Vector3(0, 1.4, 0))},
+	])
+
+
+## CRISTAL — l'accent froid et lumineux, posé à la douzaine sur tout le
+## secteur.
+##
+## Il est ÉMISSIF et non éclairant : il brille sur lui-même sans ajouter la
+## moindre lumière dynamique, donc sans rien coûter au rendu mobile. C'est
+## ce qui permet d'avoir des points lumineux dans un jeu qui doit tenir sur
+## un téléphone.
+static func _cristal() -> ArrayMesh:
+	var vif := VisualKit.mat(Cfg.COL_CRISTAL, 1.6, 0.35)
+	var sombre := VisualKit.mat(Cfg.COL_CRISTAL.darkened(0.45), 0.5, 0.5)
+	return _assembler([
+		{"mesh": _cyl(0.0, 0.16, 0.82, 5), "materiau": vif,
+			"transform": _t(Vector3(0, 0.41, 0), Vector3(0.1, 0.4, 0.06))},
+		{"mesh": _cyl(0.0, 0.1, 0.5, 5), "materiau": vif,
+			"transform": _t(Vector3(0.18, 0.25, 0.1), Vector3(0.2, 1.0, 0.35))},
+		{"mesh": _cyl(0.22, 0.22, 0.12, 6), "materiau": sombre,
+			"transform": _t(Vector3(0, 0.06, 0))},
+	])
