@@ -24,6 +24,27 @@ signal announce(text: String, color: Color)
 enum Phase { LOBBY, COUNTDOWN, WARMUP, ESCALATION, CLOSING, ENDED }
 var phase: Phase = Phase.LOBBY
 
+## MODES DE JEU.
+##
+## POURQUOI UN MODE PLUTÔT QU'UNE SUPPRESSION. Le Battle Royale marche, il
+## est réglé, et il pourrait revenir comme événement ou comme playlist. Le
+## découper au scalpel pour le réécrire dans six mois serait du gâchis. Il
+## reste donc entier, simplement inactif : c'est UNE SEULE valeur qui
+## décide, et tout ce qui en dépend interroge `est_persistant()` plutôt que
+## de tester des phases une à une.
+##
+##   ARENE      — monde continu. Pas de zone, pas de vainqueur, pas de fin.
+##                On y entre, on y reste, on en sort quand on veut.
+##   ROYALE     — le mode d'origine : zone qui se referme, dernier survivant.
+enum Mode { ARENE, ROYALE }
+var mode: Mode = Mode.ARENE
+
+## Vrai si la partie n'a pas de condition de fin. Toute logique de fin de
+## partie DOIT passer par ici : c'est ce qui garantit qu'aucun chemin oublié
+## ne viendra terminer une session censée durer des heures.
+func est_persistant() -> bool:
+	return mode == Mode.ARENE
+
 ## Durée visée d'une partie. Le prototype cible des sessions courtes :
 ## quelques minutes, tension immédiate, pas de temps mort.
 ## Le test automatisé montre qu'une partie se joue en ~110 s. Caler la
@@ -34,6 +55,10 @@ const MATCH_DURATION := 175.0
 ## La zone ne commence à se fermer qu'après ce délai, pour laisser le temps
 ## de looter une première arme.
 const ZONE_START := 55.0
+## Plateau de pression du mode arène. Assez haut pour que les mobs
+## intéressants apparaissent, assez bas pour laisser de la marge à un futur
+## réglage d'événements.
+const PALIER_PRESSION := 0.75
 
 var elapsed: float = 0.0
 var pressure: float = 0.0
@@ -104,21 +129,32 @@ func _tick_countdown(delta: float) -> void:
 
 func _tick_match(delta: float) -> void:
 	elapsed += delta
-	pressure = clampf(elapsed / MATCH_DURATION, 0.0, 1.0)
+	# La pression pilote le nombre de mobs, leur agressivité et la qualité
+	# du butin. En mode arène elle monte jusqu'à un PLATEAU et s'y tient :
+	# une escalade sans fin dans un monde où l'on reste des heures finirait
+	# par rendre l'arène inhabitable, alors que le plateau donne un rythme
+	# de croisière soutenu et stable.
+	if est_persistant():
+		pressure = clampf(elapsed / (MATCH_DURATION * 0.6), 0.0, PALIER_PRESSION)
+	else:
+		pressure = clampf(elapsed / MATCH_DURATION, 0.0, 1.0)
 
 	# Les phases ne sont que des SEUILS de la même courbe continue : le
 	# joueur ressent une montée progressive, pas des paliers brutaux.
 	if phase == Phase.WARMUP and elapsed >= 30.0:
 		_set_phase(Phase.ESCALATION)
 		announce.emit("LA PRESSION MONTE", Cfg.COL_SHOTGUN)
-	elif phase == Phase.ESCALATION and elapsed >= ZONE_START:
+	elif phase == Phase.ESCALATION and elapsed >= ZONE_START \
+			and not est_persistant():
 		_set_phase(Phase.CLOSING)
 		announce.emit("LA ZONE SE REFERME", Cfg.COL_DANGER)
 
 	if phase == Phase.CLOSING:
 		_tick_zone(delta)
 
-	if Net.is_server():
+	# EN MODE ARÈNE, PERSONNE NE GAGNE. La partie ne s'arrête pas parce
+	# qu'il ne reste qu'un joueur debout : les autres reviennent.
+	if Net.is_server() and not est_persistant():
 		_check_victory()
 
 func _tick_zone(delta: float) -> void:
@@ -141,7 +177,11 @@ func is_outside_zone(pos: Vector3) -> bool:
 		return false
 	return Vector2(pos.x, pos.z).length() > zone_radius
 
-## SERVEUR UNIQUEMENT — enregistre une élimination définitive.
+## SERVEUR UNIQUEMENT — enregistre une élimination.
+##
+## En mode ARÈNE elle n'est plus DÉFINITIVE : le joueur sort de la liste des
+## vivants le temps de sa réapparition, puis y revient par `reintegrer()`.
+## C'est le gestionnaire de réapparition qui pilote ce va-et-vient.
 func eliminate(peer_id: int) -> void:
 	if not Net.is_server() or phase == Phase.ENDED:
 		return
@@ -162,8 +202,23 @@ func _announce_elimination(peer_id: int, name: String) -> void:
 	player_eliminated.emit(peer_id, name)
 	alive_count_changed.emit(alive_ids.size())
 
+## SERVEUR UNIQUEMENT — remet un joueur parmi les vivants après sa
+## réapparition. Symétrique d'`eliminate`, et diffusée de la même façon
+## pour que tous les pairs tiennent la même liste.
+func reintegrer(peer_id: int) -> void:
+	if not Net.is_server():
+		return
+	Net.broadcast(self, &"_annoncer_retour", [peer_id])
+
+@rpc("authority", "call_local", "reliable")
+func _annoncer_retour(peer_id: int) -> void:
+	if not alive_ids.has(peer_id):
+		alive_ids.append(peer_id)
+	alive_count_changed.emit(alive_ids.size())
+
+
 func _check_victory() -> void:
-	if phase == Phase.ENDED or not Net.is_server():
+	if phase == Phase.ENDED or not Net.is_server() or est_persistant():
 		return
 	# Une partie lancée avec un seul participant (test solo sans bots) ne
 	# doit jamais se déclarer gagnée : il n'y avait rien à gagner.

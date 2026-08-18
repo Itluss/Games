@@ -14,6 +14,9 @@ class_name Player
 signal inventory_changed(slots: Array, active: int)
 signal health_changed(current: float, maximum: float)
 signal died()
+## Émis SUR LA VICTIME, à destination de l'interface du tueur : il porte le
+## nom de l'éliminé et le bilan renvoyé par le profil (XP, série, palier).
+signal elimination_reussie(nom_victime: String, bilan: Dictionary)
 
 const SPEED := 5.6
 ## Constantes de TEMPS (secondes pour atteindre ~63 % de la cible), et
@@ -226,6 +229,12 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if is_eliminated:
 		return
+	# L'invulnérabilité s'écoule sur l'HORLOGE PHYSIQUE, comme la recharge
+	# des armes. Sur l'horloge de rendu, sa durée dépendrait de la cadence
+	# d'images : deux joueurs sur deux téléphones différents n'auraient pas
+	# la même protection, ce qui est inadmissible en jeu compétitif.
+	if _protection > 0.0:
+		_protection = maxf(0.0, _protection - delta)
 	if is_local_authority():
 		_simulate(delta)
 		_replicate(delta)
@@ -406,6 +415,11 @@ func server_take_damage(amount: float, from: Vector3, killer_id: int,
 		from_team: int) -> void:
 	if not Net.is_server() or is_eliminated or health.is_dead:
 		return
+	# INVULNÉRABILITÉ DE RETOUR. Elle n'existe que pour empêcher d'être
+	# abattu avant d'avoir pu bouger — être tué par quelqu'un qui campe
+	# votre point de réapparition n'apprend rien et ne se défend pas.
+	if _protection > 0.0:
+		return
 	# Pas de tir ami entre joueurs sur soi-même ; le PvP entre joueurs
 	# distincts reste évidemment actif.
 	if from_team == Cfg.Team.PLAYER and killer_id == peer_id:
@@ -416,6 +430,38 @@ func server_take_damage(amount: float, from: Vector3, killer_id: int,
 	if health.is_dead:
 		Net.broadcast(self, &"net_die", [killer_id])
 		MatchDirector.eliminate(peer_id)
+		# L'ORDRE COMPTE. On crédite le tueur AVANT de programmer le retour
+		# de la victime : la réapparition remet l'équipement à zéro, et
+		# l'arme employée pour le kill ne serait plus lisible après.
+		_crediter_elimination(killer_id, from_team)
+		Respawn.appliquer_perte_equipement(self)
+		Respawn.signaler_mort(peer_id, killer_id)
+
+## CRÉDITE L'ÉLIMINATION À SON AUTEUR.
+##
+## Seules les éliminations PAR UN AUTRE JOUEUR comptent : mourir dans la
+## zone, sur une explosion de mob ou par sa propre grenade ne doit alimenter
+## la série de personne. C'est ce qui empêchera plus tard un groupe de
+## s'échanger des kills pour monter.
+##
+## La progression n'est tenue que pour le joueur LOCAL et humain. Un bot n'a
+## pas de profil, et un joueur distant tient le sien sur sa propre machine —
+## lui écrire son XP d'ici serait à la fois faux et impossible à valider.
+func _crediter_elimination(killer_id: int, from_team: int) -> void:
+	if from_team != Cfg.Team.PLAYER or killer_id == 0 or killer_id == peer_id:
+		return
+	var tueur := MatchDirector.players.get(killer_id) as Node
+	if tueur == null or not is_instance_valid(tueur):
+		return
+	if tueur.get(&"is_bot") == true or tueur.get(&"peer_id") != Net.local_id():
+		return
+	var arme: StringName = &""
+	var w = tueur.get(&"weapon")
+	if w != null and w.data != null:
+		arme = w.data.id
+	var bilan := Profil.enregistrer_kill_joueur(arme)
+	elimination_reussie.emit(display_name, bilan)
+
 
 @rpc("authority", "call_local", "unreliable_ordered")
 func net_health(value: float, from: Vector3) -> void:
@@ -442,6 +488,75 @@ func net_die(killer_id: int) -> void:
 	collision_mask = 0
 	set_physics_process(false)
 	died.emit()
+
+# --- RÉAPPARITION --------------------------------------------------------
+
+## Invulnérabilité restante après un retour, en secondes.
+var _protection: float = 0.0
+
+
+## REMET LE JOUEUR EN JEU. Exécuté sur TOUS les pairs, à l'identique.
+##
+## POURQUOI CETTE FONCTION EST LONGUE ET LE RESTE. Mourir a éteint six
+## choses distinctes : la vie, la physique, les collisions, la barre de vie,
+## le visuel et le drapeau d'élimination. En rallumer cinq sur six donne un
+## joueur qui se déplace mais ne peut pas tirer, ou qu'on traverse — et le
+## défaut ne se voit qu'après la première mort, donc jamais en test rapide.
+## Chaque ligne éteinte par `net_die` a ici sa contrepartie, dans le même
+## ordre, pour qu'un simple regard vérifie qu'aucune ne manque.
+func revivre(position: Vector3) -> void:
+	global_position = position
+	_target_pos = position
+	velocity = Vector3.ZERO
+	_accel = Vector3.ZERO
+	_dash_time = 0.0
+	_dash_cd = 0.0
+	_tampon_tir = 0.0
+	_combat = 0.0
+	locked_target = null
+
+	is_eliminated = false
+	health.reset()
+	health_bar.visible = true
+	collision_layer = Cfg.LAYER_PLAYER
+	collision_mask = Cfg.LAYER_WORLD
+	set_physics_process(true)
+	visual.revive()
+
+	_protection = ConfigProgression.PROTECTION_RESPAWN
+	# L'invulnérabilité doit SE VOIR, sinon l'adversaire s'acharne sur une
+	# cible invincible sans comprendre pourquoi rien ne se passe, et le
+	# protégé ne sait pas non plus qu'il l'est.
+	visual.flash(Cfg.COL_BASIC)
+	Fx.impact(position + Vector3(0, 0.6, 0), Cfg.COL_BASIC, 1.4)
+	health_changed.emit(health.current_health, health.max_health)
+	inventory_changed.emit(slots, active_slot)
+
+
+## Le joueur est-il actuellement protégé par son invulnérabilité de retour ?
+func est_protege() -> bool:
+	return _protection > 0.0
+
+
+## SERVEUR — remet l'équipement de départ. Les armes ramassées sont perdues.
+func reinitialiser_equipement() -> void:
+	if not Net.is_server():
+		return
+	var depart := Registry.starting_weapon()
+	if depart == null:
+		return
+	Net.broadcast(self, &"net_set_slot", [0, depart.id, true])
+	# Le second emplacement est VIDÉ explicitement : sans cela, l'arme
+	# ramassée avant de mourir y resterait, et « perdre son équipement »
+	# n'aurait perdu que la moitié.
+	Net.broadcast(self, &"net_vider_slot", [1])
+
+
+@rpc("authority", "call_local", "reliable")
+func net_vider_slot(slot: int) -> void:
+	slots[slot] = &""
+	inventory_changed.emit(slots, active_slot)
+
 
 func _on_health_changed(current: float, maximum: float) -> void:
 	health_bar.set_ratio(current / maxf(maximum, 0.01))

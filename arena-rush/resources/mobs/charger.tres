@@ -24,3 +24,4 @@ loot_chance = 0.42
 color = Color(1, 0.42, 0.353, 1)
 scale = 1.05
 score = 10
+categorie = "commun"

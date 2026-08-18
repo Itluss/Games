@@ -54,6 +54,12 @@ var _health_bar: UiKit.BarreVie
 var _slot_panels: Array[PanelContainer] = []
 var _slot_labels: Array[Label] = []
 var _slot_ammo: Array[Label] = []
+var _serie_panel: PanelContainer
+var _serie_label: Label
+var _barre_xp: ProgressBar
+var _kill_fx: KillFeedback
+var _replay_center: CenterContainer
+var _tueur_affiche: String = ""
 var _overlay: Control
 var _overlay_title: Label
 var _overlay_sub: Label
@@ -112,9 +118,17 @@ func _ready() -> void:
 	MatchDirector.announce.connect(_on_announce)
 	MatchDirector.match_ended.connect(_on_match_ended)
 	MatchDirector.player_eliminated.connect(_on_player_eliminated)
+	# La progression pilote le bandeau, la réapparition pilote l'écran de
+	# mort. Le HUD n'interroge personne en boucle : il réagit.
+	Profil.statistiques_changees.connect(_rafraichir_progression)
+	Profil.niveau_gagne.connect(_on_niveau_gagne)
+	Respawn.joueur_elimine.connect(_on_joueur_elimine)
+	Respawn.joueur_revenu.connect(_on_joueur_revenu)
+	_rafraichir_progression()
 
 func bind_player(p: Player) -> void:
 	player = p
+	p.elimination_reussie.connect(_on_elimination_reussie)
 	p.health_changed.connect(_on_health_changed)
 	p.inventory_changed.connect(_on_inventory_changed)
 	p.died.connect(_on_local_died)
@@ -136,6 +150,20 @@ func _build() -> void:
 	_build_overlay()
 	_build_help()
 
+	# Le retour d'élimination est monté EN DERNIER : il doit passer par
+	# dessus tout le reste, y compris la plaque d'annonce.
+	_kill_fx = KillFeedback.new()
+	_root.add_child(_kill_fx)
+	# Les décalages verticaux sont posés APRÈS l'ajout : `_ready` du contrôle
+	# règle ses ancres au moment de l'ajout, et les valeurs posées avant
+	# auraient été recalculées dans son dos.
+	# 205 ET NON 150. La plaque d'annonce occupe la bande 92-176, et ces
+	# deux éléments surgissent précisément AU MÊME INSTANT : on tue, on
+	# gagne l'XP, on passe un niveau. Les superposer aurait rendu illisible
+	# le seul moment que le joueur avait envie de regarder.
+	_kill_fx.offset_top = 205
+	_kill_fx.offset_bottom = 340
+
 ## Tout le texte de l'interface passe par ici, et donc par UiKit : grasse,
 ## penchée, cerclée de sombre. Un seul label réglé à la main suffirait à
 ## faire jurer l'ensemble.
@@ -146,12 +174,19 @@ func _label(text: String, size_px: int, color: Color = UiKit.BLANC) -> Label:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
 
-## BARRE DU HAUT — deux segments accolés en une seule capsule.
+## BARRE DU HAUT — la progression, plus le décompte d'une partie.
 ##
-## Les deux informations n'ont pas le même statut : le nombre de survivants
-## est un ENJEU, le chronomètre un simple repère. Le premier est donc sur
-## fond bleu saturé, le second sur fond d'encre. Les mettre au même niveau
-## reviendrait à dire qu'ils comptent autant.
+## CE QUI A DISPARU, ET POURQUOI. Le nombre de survivants et le chronomètre
+## répondaient à des questions qui n'existent plus : « combien avant que je
+## gagne » et « combien de temps me reste-t-il ». Dans un monde continu,
+## personne ne gagne et rien ne se termine. Les laisser aurait affiché deux
+## chiffres que le joueur aurait cherché à interpréter en vain.
+##
+## CE QUI LES REMPLACE répond aux questions du nouveau mode : combien j'en
+## ai tué cette session, est-ce que je suis en série, et où j'en suis.
+##
+## LA SÉRIE N'APPARAÎT QU'À PARTIR DE DEUX. Un « SÉRIE 1 » permanent
+## banaliserait l'affichage ; en le faisant surgir, il devient un signal.
 func _build_top() -> void:
 	var bar := HBoxContainer.new()
 	bar.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -161,21 +196,53 @@ func _build_top() -> void:
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(bar)
 
-	var gauche := PanelContainer.new()
-	gauche.add_theme_stylebox_override(&"panel",
+	var g := PanelContainer.new()
+	g.add_theme_stylebox_override(&"panel",
 			UiKit.segment(Color("2f6ee0"), true, false))
-	gauche.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_child(gauche)
-	_alive_label = _label("4 VIVANTS", 27)
-	gauche.add_child(_alive_label)
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(g)
+	_alive_label = _label("KILLS 0", 25)
+	g.add_child(_alive_label)
 
-	var droite := PanelContainer.new()
-	droite.add_theme_stylebox_override(&"panel",
+	_serie_panel = PanelContainer.new()
+	_serie_panel.add_theme_stylebox_override(&"panel",
+			UiKit.segment(Color("e0662f"), false, false))
+	_serie_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_serie_panel.visible = false
+	bar.add_child(_serie_panel)
+	_serie_label = _label("SÉRIE 0", 25)
+	_serie_panel.add_child(_serie_label)
+
+	var d := PanelContainer.new()
+	d.add_theme_stylebox_override(&"panel",
 			UiKit.segment(Color("111a30"), false, true))
-	droite.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_child(droite)
-	_timer_label = _label("0:00", 27)
-	droite.add_child(_timer_label)
+	d.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(d)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override(&"separation", 1)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	d.add_child(col)
+	_timer_label = _label("LV.1", 25)
+	_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(_timer_label)
+	# La barre d'XP est FINE et sous le niveau : elle informe sans jamais
+	# réclamer l'attention, ce qui est exactement son rôle. Une grosse jauge
+	# dorée en haut d'écran donnerait l'impression que le jeu consiste à la
+	# remplir.
+	_barre_xp = ProgressBar.new()
+	_barre_xp.custom_minimum_size = Vector2(96, 8)
+	_barre_xp.show_percentage = false
+	_barre_xp.max_value = 1.0
+	var fond := StyleBoxFlat.new()
+	fond.bg_color = Color(0, 0, 0, 0.45)
+	fond.set_corner_radius_all(4)
+	var rempli := StyleBoxFlat.new()
+	rempli.bg_color = UiKit.OR_CLAIR
+	rempli.set_corner_radius_all(4)
+	_barre_xp.add_theme_stylebox_override(&"background", fond)
+	_barre_xp.add_theme_stylebox_override(&"fill", rempli)
+	_barre_xp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_barre_xp)
 
 func _build_center() -> void:
 	# Une PLAQUE et non un texte nu : une élimination est un évènement, elle
@@ -378,6 +445,11 @@ func _build_overlay() -> void:
 	var center := CenterContainer.new()
 	center.add_child(replay)
 	box.add_child(center)
+	# REJOUER n'a plus lieu d'être : on ne « rejoue » pas un monde qui ne
+	# s'arrête jamais. Le bouton reste construit, et seulement masqué, pour
+	# que le mode Battle Royale le retrouve intact.
+	_replay_center = center
+	center.visible = not MatchDirector.est_persistant()
 
 # --- LECTURE PAR LE CONTRÔLEUR -------------------------------------------
 
@@ -471,8 +543,36 @@ func _on_inventory_changed(slots: Array, active: int) -> void:
 			style.bg_color = UiKit.PANNEAU
 			style.set_border_width_all(4)
 
-func _on_alive_changed(count: int) -> void:
-	_alive_label.text = "%d VIVANT%s" % [count, "S" if count > 1 else ""]
+## Le nombre de survivants n'a plus de sens dans un monde continu : on
+## laisse le signal branché — il reste utile au mode Battle Royale — mais
+## il ne pilote plus rien ici.
+func _on_alive_changed(_count: int) -> void:
+	pass
+
+
+func _rafraichir_progression() -> void:
+	if _alive_label == null:
+		return
+	# Les KILLS DE SESSION, pas le total de la vie entière. « 7 » veut dire
+	# quelque chose maintenant ; « 4 213 » ne veut plus rien dire.
+	_alive_label.text = "KILLS %d" % Profil.kills_session
+	var serie: int = Profil.serie_actuelle
+	_serie_panel.visible = serie >= 2
+	_serie_label.text = "SÉRIE %d" % serie
+	var etat := Profil.etat_niveau()
+	_timer_label.text = "LV.%d" % int(etat["niveau"])
+	var palier: float = maxf(1.0, float(etat["xp_du_niveau"]))
+	_barre_xp.value = clampf(float(etat["xp_dans_niveau"]) / palier, 0.0, 1.0)
+
+
+func _on_niveau_gagne(niveau: int) -> void:
+	_on_announce("NIVEAU %d" % niveau, UiKit.OR_CLAIR)
+
+
+func _on_elimination_reussie(nom_victime: String, bilan: Dictionary) -> void:
+	if _kill_fx != null:
+		_kill_fx.celebrer(nom_victime, bilan)
+	_rafraichir_progression()
 
 func _on_countdown(value: int) -> void:
 	# « GO » : la partie commence, la légende doit libérer l'écran.
@@ -508,15 +608,36 @@ func _on_player_eliminated(peer_id: int, name_text: String) -> void:
 		return
 	_on_announce("%s ÉLIMINÉ" % name_text.to_upper(), Cfg.COL_ENEMY_PLAYER)
 
+## MORT DU JOUEUR LOCAL — plus un écran de fin, un simple entracte.
+##
+## Ce qui s'affichait avant : « En attente de la fin de la partie… ». C'était
+## juste, et c'est devenu faux — il n'y a plus de fin à attendre. Ce que le
+## joueur veut savoir tient en deux choses : QUI l'a eu, et DANS COMBIEN DE
+## TEMPS il revient.
 func _on_local_died() -> void:
-	# On n'affiche pas encore « rejouer » : la partie continue pour les
-	# autres, et le joueur éliminé regarde la fin.
 	_overlay_title.text = "ÉLIMINÉ"
 	_overlay_title.add_theme_color_override(&"font_color", Cfg.COL_DANGER)
-	_overlay_sub.text = "En attente de la fin de la partie…"
 	_overlay.visible = true
 	_overlay.modulate.a = 0.0
-	create_tween().tween_property(_overlay, "modulate:a", 1.0, 0.5)
+	create_tween().tween_property(_overlay, "modulate:a", 1.0, 0.25)
+
+
+func _on_joueur_elimine(victime_id: int, _tueur_id: int,
+		tueur_nom: String) -> void:
+	if player == null or victime_id != player.peer_id:
+		return
+	_tueur_affiche = tueur_nom.to_upper()
+	_overlay_sub.text = "ABATTU PAR %s" % _tueur_affiche
+
+
+func _on_joueur_revenu(peer_id: int) -> void:
+	if player == null or peer_id != player.peer_id:
+		return
+	# On efface l'écran D'UN COUP : un fondu long au retour donnerait
+	# l'impression de reprendre le contrôle en retard.
+	_overlay.visible = false
+	_overlay.modulate.a = 0.0
+	_rafraichir_progression()
 
 func _on_match_ended(winner_id: int, winner_name: String) -> void:
 	var won := player != null and winner_id == player.peer_id
@@ -586,7 +707,11 @@ func _build_help() -> void:
 		ligne.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		aide.add_child(ligne)
 
-	var goal := _label("TUEZ LES MOBS · RAMASSEZ LEURS ARMES · SOYEZ LE DERNIER",
+	# L'OBJECTIF A CHANGÉ, LE TEXTE AUSSI. « Soyez le dernier » décrivait un
+	# Battle Royale : c'était vrai, et c'est devenu faux. Une consigne
+	# périmée est pire qu'une absence de consigne — elle envoie le joueur
+	# chercher une fin de partie qui n'existe plus.
+	var goal := _label("TUEZ DES MOBS · PRENEZ LEURS ARMES · ÉLIMINEZ LES JOUEURS",
 			24, Color(1, 1, 1, 0.92))
 	goal.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	# 196 et non 150 : la plaque d'annonce occupe la bande 92-176, et les

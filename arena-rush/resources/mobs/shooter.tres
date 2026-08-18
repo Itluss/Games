@@ -24,3 +24,4 @@ loot_chance = 0.4
 color = Color(0.353, 0.824, 1, 1)
 scale = 0.95
 score = 12
+categorie = "resistant"

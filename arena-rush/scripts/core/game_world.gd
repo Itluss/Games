@@ -167,6 +167,7 @@ func net_spawn_mob(id: int, type_id: StringName, pos: Vector3) -> void:
 			.set_ease(Tween.EASE_OUT)
 
 func _on_mob_died(mob: Mob, killer_id: int) -> void:
+	_crediter_mob(mob, killer_id)
 	if not Net.is_server():
 		return
 	var data := mob.data
@@ -180,6 +181,29 @@ func _on_mob_died(mob: Mob, killer_id: int) -> void:
 		if upgraded != &"":
 			weapon_id = upgraded
 	server_drop_loot(weapon_id, mob.global_position)
+
+## CRÉDITE UN MOB TUÉ AU PROFIL LOCAL.
+##
+## Appelé sur TOUS les pairs — d'où le filtre : on ne compte que si c'est le
+## joueur de CETTE machine qui a tué. Sans lui, chaque client compterait
+## aussi les mobs abattus par les bots et par les autres joueurs, et les
+## statistiques n'auraient plus aucun sens.
+##
+## Les mobs rapportent volontairement peu : vingt mobs communs pour un
+## joueur. C'est ce rapport qui dit, sans un mot de tutoriel, que les mobs
+## servent à s'ÉQUIPER et le PvP à progresser.
+func _crediter_mob(mob: Mob, killer_id: int) -> void:
+	if killer_id != Net.local_id() or local_player == null:
+		return
+	if local_player.is_bot:
+		return
+	var categorie: StringName = &"commun"
+	if mob.data != null:
+		categorie = StringName(mob.data.categorie)
+	var arme: StringName = &""
+	if local_player.weapon != null and local_player.weapon.data != null:
+		arme = local_player.weapon.data.id
+	Profil.enregistrer_kill_mob(categorie, arme)
 
 # --- LOOT ----------------------------------------------------------------
 

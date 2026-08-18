@@ -21,6 +21,8 @@ Pool="*res://scripts/core/pool.gd"
 Fx="*res://scripts/core/fx.gd"
 Net="*res://scripts/multiplayer/multiplayer_manager.gd"
 MatchDirector="*res://scripts/core/match_manager.gd"
+Profil="*res://scripts/progression/profil_joueur.gd"
+Respawn="*res://scripts/core/respawn_manager.gd"
 
 [debug]
 

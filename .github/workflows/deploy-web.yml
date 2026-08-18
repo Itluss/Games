@@ -174,6 +174,48 @@ jobs:
           fi
           echo "Plan de l'arène conforme."
 
+      # PROGRESSION ET BOUCLE PERSISTANTE — deux barrières de plus.
+      #
+      # La première vérifie la courbe de niveaux et, surtout, que la
+      # sauvegarde survit à un REDÉMARRAGE : elle écrit dans un processus et
+      # relit dans un autre. Une progression qui ne se recharge pas est un
+      # défaut invisible en jouant — tout paraît marcher, et la perte ne se
+      # découvre qu'à la session suivante.
+      #
+      # La seconde joue la boucle : tuer, être crédité, mourir, revenir. Elle
+      # vérifie l'état COMPLET du ressuscité, parce que rallumer cinq
+      # drapeaux sur six donne un joueur qui court mais ne tire pas — et
+      # cela ne se voit qu'après la première mort.
+      - name: Tester la progression et la boucle persistante
+        run: |
+          set -uo pipefail
+          ~/godot-bin/godot --headless --path arena-rush \
+            res://outils_dev/test_progression.tscn 2>&1 | tee prog.log || true
+          ~/godot-bin/godot --headless --path arena-rush \
+            res://outils_dev/test_progression.tscn -- --ecrire 2>&1 | tee -a prog.log || true
+          ~/godot-bin/godot --headless --path arena-rush \
+            res://outils_dev/test_progression.tscn -- --relire 2>&1 | tee -a prog.log || true
+          xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
+            --path arena-rush res://outils_dev/test_arene_persistante.tscn \
+            --rendering-driver opengl3 -- --solo 2>&1 | tee boucle.log || true
+          for f in prog.log boucle.log; do
+            if grep -qE "Parse Error|Failed to load script" "$f"; then
+              echo "::error::$f — le test ne compile pas."
+              grep -E "Parse Error|Failed to load script" -A2 "$f"
+              exit 1
+            fi
+            if ! grep -q "échec(s)" "$f"; then
+              echo "::error::$f — le test ne s'est pas exécuté."
+              exit 1
+            fi
+          done
+          grep -E "^\s+\[(OK|ÉCHEC)\]" prog.log boucle.log || true
+          if grep -qE "=== [1-9][0-9]* échec\(s\)" prog.log boucle.log; then
+            echo "::error::Régression de la progression ou de la boucle."
+            exit 1
+          fi
+          echo "Progression et boucle persistante conformes."
+
       - name: Exporter en WebAssembly
         run: |
           set -euo pipefail

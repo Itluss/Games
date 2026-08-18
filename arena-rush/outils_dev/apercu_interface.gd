@@ -58,10 +58,19 @@ func _mettre_en_scene() -> void:
 		pv.apply_damage(31.0, j.global_position)
 	await get_tree().process_frame
 
-	if hud.has_method(&"_on_alive_changed"):
-		hud.call(&"_on_alive_changed", 2)
-	if hud.has_method(&"_on_announce"):
-		hud.call(&"_on_announce", "BOT 3 ÉLIMINÉ", Color("ffb43a"))
+	# Une session déjà entamée : sept kills, une série de trois. C'est
+	# l'état dans lequel le joueur passe l'essentiel de son temps, donc
+	# celui qu'il faut juger.
+	Profil.effacer()
+	for i in 7:
+		Profil.enregistrer_kill_joueur(&"basic_blaster")
+	Profil.serie_actuelle = 3
+	var bilan := {"xp": 150, "serie": 3,
+			"palier": ConfigProgression.PALIERS_SERIE[0]}
+	if hud.has_method(&"_rafraichir_progression"):
+		hud.call(&"_rafraichir_progression")
+	if hud.has_method(&"_on_elimination_reussie"):
+		hud.call(&"_on_elimination_reussie", "BOT 3", bilan)
 	# On laisse la plaque finir son arrivée : capturée en cours
 	# d'animation, elle paraîtrait mal centrée ou trop petite.
 	await get_tree().create_timer(0.45).timeout

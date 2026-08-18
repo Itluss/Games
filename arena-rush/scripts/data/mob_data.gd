@@ -45,3 +45,12 @@ class_name MobData
 @export var scale: float = 1.0
 ## Score accordé au tueur — sert au classement de fin de partie.
 @export var score: int = 10
+
+## CATÉGORIE DE MENACE — commun, resistant, elite.
+##
+## Elle ne pilote AUCUNE statistique de combat : elle sert à la progression
+## (combien vaut ce mob) et servira aux tables de butin (un élite lâche
+## mieux). La séparer des statistiques permet de rendre un mob plus coriace
+## sans le rendre plus rentable, et inversement — deux réglages distincts
+## pour deux intentions distinctes.
+@export_enum("commun", "resistant", "elite") var categorie: String = "commun"

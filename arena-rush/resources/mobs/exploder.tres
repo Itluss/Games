@@ -24,3 +24,4 @@ loot_chance = 0.34
 color = Color(1, 0.843, 0.353, 1)
 scale = 1.0
 score = 15
+categorie = "elite"
