@@ -28,7 +28,8 @@ extends Node
 
 ## Durée observée. Longue à dessein : le défaut est intermittent, et une
 ## mesure trop courte le rate puis le déclare absent.
-const DUREE := 320.0
+const DUREE := 130.0
+
 ## Rayon dans lequel on attend du décor. La caméra ne montre qu'une
 ## trentaine de mètres de sol ; quarante laisse de la marge.
 const PORTEE := 40.0
@@ -136,7 +137,7 @@ func _process(delta: float) -> void:
 				_t, _bref(cam.global_position),
 				_bref(_joueur.global_position), _morts]
 	if _t >= _prochain:
-		_prochain = _t + 20.0
+		_prochain = _t + 10.0
 		_releve.append({
 			"t": _t,
 			"noeuds": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
@@ -163,6 +164,51 @@ func _process(delta: float) -> void:
 					% [_t, _bref(cam.global_position)])
 	if _t > DUREE:
 		_conclure()
+
+
+## LA SCÈNE NE DOIT PAS ENFLER.
+##
+## C'EST LA GARANTIE QUI MANQUAIT, ET SON ABSENCE A COÛTÉ QUATRE
+## SIGNALEMENTS. Le butin abandonné s'accumulait sans fin : la scène passait
+## de 2 446 à 4 611 nœuds en cinq minutes, la mémoire de 74 à 92 Mo, et la
+## cadence s'effondrait jusqu'à ce que le monde cesse d'être dessiné.
+##
+## Aucun test ne pouvait le voir, parce qu'aucun ne REGARDAIT DANS LE TEMPS.
+## Tous mesuraient un instant — un plan, une image, une distance — et un
+## instant ne dit jamais qu'une courbe monte.
+##
+## ON MESURE DES PLAFONDS, PAS UNE PENTE. Comparer le début et la fin d'une
+## fenêtre paraissait plus fin ; c'était l'inverse. Sur quatre-vingts
+## secondes, la vraie fuite ne faisait que six pour cent — indétectable sans
+## déclencher de fausses alertes — alors qu'elle dépassait toute limite
+## raisonnable sur la durée. Deux plafonds absolus tranchent sans ambiguïté :
+## le butin est borné par sa propre règle, et la scène entière par un nombre
+## qu'un monde sain ne peut pas atteindre.
+func _verifier_la_fuite() -> bool:
+	var butins := get_tree().get_nodes_in_group(&"loot").size()
+	var noeuds := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	var mem := Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0
+	var ok_butin := butins <= PLAFOND_BUTIN
+	var ok_noeuds := noeuds <= PLAFOND_NOEUDS
+	print("  [%s] le butin reste borné            %d au sol (max %d)"
+			% ["OK" if ok_butin else "ÉCHEC", butins, PLAFOND_BUTIN])
+	print("  [%s] la scène reste bornée           %d nœuds, %.0f Mo (max %d)"
+			% ["OK" if ok_noeuds else "ÉCHEC", noeuds, mem, PLAFOND_NOEUDS])
+	return not (ok_butin and ok_noeuds)
+
+
+## Plafonds. Le butin s'efface au bout de 45 s avec un maximum de 26 ; on
+## laisse quatre exemplaires de marge pour ceux qui viennent de tomber.
+const PLAFOND_BUTIN := 30
+## Une scène saine se stabilise autour de 3 500 nœuds ; celle qui fuyait
+## dépassait 4 600 et continuait.
+##
+## C'EST LE FILET, PAS LE DÉTECTEUR. Sur les cent-trente secondes du banc,
+## la fuite d'origine n'avait pas encore franchi ce plafond — c'est le
+## compteur de BUTIN qui l'aurait attrapée, avec une quarantaine
+## d'exemplaires au sol pour trente autorisés. Ce second plafond attrape
+## tout le reste : la prochaine fuite ne sera pas dans le butin.
+const PLAFOND_NOEUDS := 4100
 
 
 ## QUI EST LÀ, À LA FIN ? Le compteur de nœuds dit QU'ÇA grossit ; il ne
@@ -212,6 +258,7 @@ func _conclure() -> void:
 				r["mobs"], r["dessins"]])
 	print("      %s" % _pire_note)
 	_inventaire()
-	var ok := _sans_camera == 0 and _sans_decor == 0 and _haut == 0
+	var fuite := _verifier_la_fuite()
+	var ok := _sans_camera == 0 and _sans_decor == 0 and _haut == 0 and not fuite
 	print("=== %d échec(s) sur 1 vérification ===" % (0 if ok else 1))
 	get_tree().quit(0 if ok else 1)

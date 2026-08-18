@@ -278,6 +278,39 @@ jobs:
           fi
           echo "Enroulement et recyclage conformes."
 
+      # LA SCÈNE NE DOIT PAS ENFLER — la barrière qui manquait.
+      #
+      # L'écran violet signalé quatre fois venait d'une fuite : une arme
+      # laissée au sol ne disparaissait QUE si on la ramassait, et les mobs
+      # meurent sans discontinuer. Cent-trois butins traînaient au bout de
+      # cinq minutes, la scène passait de 2 446 à 4 611 nœuds, et la
+      # cadence s'effondrait jusqu'à ce que le monde cesse d'être dessiné.
+      #
+      # Aucun des tests existants ne pouvait le voir : tous mesuraient un
+      # INSTANT — un plan, une image, une distance — et un instant ne dit
+      # jamais qu'une courbe monte. Celui-ci laisse tourner deux minutes de
+      # jeu et vérifie des plafonds.
+      - name: Vérifier que la scène ne fuit pas
+        run: |
+          set -uo pipefail
+          timeout 300 ~/godot-bin/godot --headless --path arena-rush \
+            res://outils_dev/sonde_violet.tscn -- --solo 2>&1 | tee fuite.log || true
+          if grep -qE "Parse Error|Failed to load script" fuite.log; then
+            echo "::error::La sonde de fuite ne compile pas."
+            grep -E "Parse Error|Failed to load script" -A2 fuite.log
+            exit 1
+          fi
+          if ! grep -q "vérification ===" fuite.log; then
+            echo "::error::La sonde de fuite ne s'est pas exécutée."
+            exit 1
+          fi
+          grep -E "^\s+\[(OK|ÉCHEC)\]|images sans" fuite.log || true
+          if grep -qE "=== [1-9][0-9]* échec\(s\)" fuite.log; then
+            echo "::error::La scène enfle à nouveau — l'écran vide reviendra."
+            exit 1
+          fi
+          echo "Scène stable."
+
       # PROGRESSION ET BOUCLE PERSISTANTE — deux barrières de plus.
       #
       # La première vérifie la courbe de niveaux et, surtout, que la
