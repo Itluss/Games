@@ -1,16 +1,19 @@
-# PUBLICATION WEB DU JEU — construit l'export WebAssembly et le déploie
-# sur GitHub Pages.
+# PUBLICATION WEB DU JEU — barrières en parallèle, puis export et déploiement.
 #
-# POURQUOI CONSTRUIRE EN CI plutôt que commiter le build : l'export web
-# pèse 34 Mo, dont un seul fichier .wasm de 34 Mo. Le versionner
-# alourdirait le dépôt définitivement à chaque itération, alors qu'il est
-# entièrement reproductible depuis les sources en trois minutes.
+# POURQUOI CE FICHIER A ÉTÉ REMIS À PLAT. Les barrières s'exécutaient à la
+# queue leu leu dans un seul travail : leur temps s'ADDITIONNAIT. À six
+# barrières, dont une de deux minutes, le cycle atteignait cinq minutes —
+# et comme chaque correction demande une publication, ces minutes se
+# payaient à chaque aller-retour.
+#
+# Elles tournent maintenant de front. Le temps d'attente n'est plus leur
+# somme mais la plus lente d'entre elles.
+#
+# La logique de jugement — compilation, exécution effective, comptage des
+# échecs — vivait recopiée dans chaque étape. Elle est désormais dans
+# `outils_dev/barriere.sh`, en un seul exemplaire.
 #
 # PRÉREQUIS CÔTÉ DÉPÔT : Settings → Pages → Source = « GitHub Actions ».
-# Sur un dépôt PRIVÉ, GitHub Pages demande un plan payant ; sur un dépôt
-# public, c'est gratuit.
-#
-# Lancement : onglet Actions → « Publier le jeu sur le web » → Run workflow.
 name: Publier le jeu sur le web
 
 on:
@@ -21,13 +24,11 @@ on:
       - "arena-rush/**"
       - ".github/workflows/deploy-web.yml"
 
-# Droits exigés par le déploiement Pages via Actions.
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Un seul déploiement à la fois ; on ne coupe pas celui en cours.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -36,336 +37,102 @@ env:
   GODOT_VERSION: "4.3"
 
 jobs:
-  construire:
+  # --- LES BARRIÈRES, TOUTES DE FRONT ------------------------------------
+  verifier:
     runs-on: ubuntu-latest
+    strategy:
+      # UN ÉCHEC N'ARRÊTE PAS LES AUTRES. Savoir qu'une seule barrière a
+      # cédé, ou que trois ont cédé ensemble, ne demande pas le même
+      # diagnostic — et l'information ne coûte rien puisqu'elles tournent
+      # déjà en parallèle.
+      fail-fast: false
+      matrix:
+        include:
+          - nom: Commandes
+            scene: res://outils_dev/test_commandes.tscn
+            rendu: true
+          - nom: Plan du monde
+            scene: res://outils_dev/test_arene.tscn
+            rendu: false
+          - nom: Dégagement de la caméra
+            scene: res://outils_dev/sonde_occlusion.tscn
+            rendu: false
+          - nom: Couture du monde
+            scene: res://outils_dev/sonde_couture.tscn
+            rendu: true
+          - nom: Interactions à travers la limite
+            scene: res://outils_dev/test_enroulement.tscn
+            rendu: true
+          - nom: Boucle persistante
+            scene: res://outils_dev/test_arene_persistante.tscn
+            rendu: true
+          - nom: Progression
+            scene: res://outils_dev/test_progression.tscn
+            rendu: false
+          - nom: Stabilité de la scène
+            scene: res://outils_dev/sonde_violet.tscn
+            rendu: false
+    name: ${{ matrix.nom }}
     steps:
       - uses: actions/checkout@v4
-
-      # PAS de `enablement: true` ici. Le GITHUB_TOKEN d'Actions peut
-      # DÉPLOYER sur un site Pages existant, mais pas le CRÉER : l'API
-      # répond « Resource not accessible by integration ». L'activation
-      # reste donc un geste manuel et unique :
-      #   Settings → Pages → Source = GitHub Actions
-      # (fait le 2026-08-16 sur ce dépôt — le déploiement est donc opérationnel)
-      # Tenter de l'automatiser faisait échouer la construction avant même
-      # qu'elle ne commence, ce qui est pire que de ne pas l'automatiser.
-
-      # Le moteur et les templates viennent des releases officielles. Ils
-      # sont mis en cache : sans cela, on retéléchargerait 1,1 Go à chaque
-      # exécution pour un résultat identique.
-      - name: Cache du moteur et des templates
-        id: cache-godot
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/godot-bin
-            ~/.local/share/godot/export_templates
-          key: godot-${{ env.GODOT_VERSION }}-web
-
-      - name: Installer Godot ${{ env.GODOT_VERSION }}
-        if: steps.cache-godot.outputs.cache-hit != 'true'
+      - uses: ./.github/actions/moteur
+      - name: Vérifier
         run: |
-          set -euo pipefail
-          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
-          mkdir -p ~/godot-bin ~/.local/share/godot/export_templates
-
-          curl -fsSL -o godot.zip \
-            "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
-          unzip -q godot.zip
-          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" ~/godot-bin/godot
-          chmod +x ~/godot-bin/godot
-
-          curl -fsSL -o templates.tpz \
-            "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
-          unzip -q templates.tpz
-          mv templates ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
-
-      - name: Vérifier les scripts
-        run: |
-          set -euo pipefail
-          # Première ouverture : importe les ressources et compile tous les
-          # scripts. Une erreur GDScript doit faire échouer le déploiement
-          # ici, pas silencieusement produire une page blanche.
-          ~/godot-bin/godot --headless --path arena-rush --editor --quit 2>&1 \
-            | tee import.log || true
-          if grep -qE "SCRIPT ERROR|Parse Error" import.log; then
-            echo "::error::Erreurs GDScript — déploiement interrompu."
-            grep -E "SCRIPT ERROR|Parse Error" -A2 import.log
-            exit 1
+          if [ "${{ matrix.rendu }}" = "true" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
+            arena-rush/outils_dev/barriere.sh "${{ matrix.scene }}" \
+              "${{ matrix.nom }}" --rendu
+          else
+            arena-rush/outils_dev/barriere.sh "${{ matrix.scene }}" \
+              "${{ matrix.nom }}"
           fi
 
-      # TEST DES COMMANDES — barrière contre une régression déjà survenue.
-      #
-      # L'action « attack » était liée au clic gauche, et Godot traduit
-      # tout appui tactile en clic : poser le pouce sur le joystick de
-      # déplacement déclenchait une rafale. Rien ne le signalait, et une
-      # validation qui se contentait de compiler finissait au vert.
-      #
-      # Ce test injecte de vrais évènements aux coordonnées réelles des
-      # commandes et lit l'intention de tir du joueur.
-      #
-      # On distingue deux échecs de nature différente : un test qui
-      # TROUVE un défaut doit bloquer la publication ; un runner
-      # incapable de rendre une image ne le doit pas — ce serait bloquer
-      # sur un problème d'environnement.
-      - name: Tester les commandes
-        run: |
-          set -uo pipefail
-          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
-          xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
-            --path arena-rush res://outils_dev/test_commandes.tscn \
-            --rendering-driver opengl3 -- --solo 2>&1 | tee commandes.log || true
-          # UN TEST QUI NE COMPILE PAS N'EST PAS UN PROBLÈME
-          # D'ENVIRONNEMENT. Sans cette distinction, une erreur de syntaxe
-          # dans le test le rendait muet, donc « non exécutable », donc un
-          # simple avertissement — et la publication passait au vert sans
-          # que rien n'ait été vérifié. C'est arrivé.
-          if grep -qE "Parse Error|Failed to load script" commandes.log; then
-            echo "::error::Le test des commandes ne compile pas — publication interrompue."
-            grep -E "Parse Error|Failed to load script" -A2 commandes.log
-            exit 1
-          fi
-          if ! grep -q "échec(s)" commandes.log; then
-            echo "::warning::Le test des commandes n'a pas pu s'exécuter (rendu indisponible ?) — publication maintenue."
-            exit 0
-          fi
-          grep -E "^\s+\[(OK|ÉCHEC)\]" commandes.log || true
-          if grep -qE "=== [1-9][0-9]* échec\(s\) ===" commandes.log; then
-            echo "::error::Régression des commandes — publication interrompue."
-            exit 1
-          fi
-          echo "Commandes conformes."
-
-      # TEST DU PLAN DE L'ARÈNE — barrière contre une carte injouable.
-      #
-      # Le plan est dessiné à la main, et une carte dessinée à la main se
-      # croit toujours équilibrée. Ce test mesure ce qui n'était qu'une
-      # intention : aucune ligne de tir d'une apparition à une autre, un
-      # abri à portée de chaque départ, aucune pièce qui en traverse une
-      # autre, et de quoi faire apparaître des mobs.
-      #
-      # Il tourne SANS RENDU, donc il ne peut pas échouer pour une raison
-      # d'environnement. Un échec ici est toujours un vrai défaut de
-      # niveau, et bloque donc la publication sans nuance.
-      - name: Tester le plan de l'arène
-        run: |
-          set -uo pipefail
-          # `timeout` EST UN GARDE-FOU, PAS UNE COMMODITÉ. Une erreur de
-          # syntaxe empêche le script de se charger : la scène s'ouvre
-          # alors sans lui, plus personne n'appelle quit(), et le moteur
-          # tourne indéfiniment. Constaté — six minutes perdues en local,
-          # et sur un runner cela aurait immobilisé le job jusqu'à sa
-          # limite. Le test ne prend que quelques secondes quand il va bien.
-          timeout 180 ~/godot-bin/godot --headless --path arena-rush \
-            res://outils_dev/test_arene.tscn 2>&1 | tee arene.log || true
-          if grep -qE "Parse Error|Failed to load script" arene.log; then
-            echo "::error::Le test de l'arène ne compile pas — publication interrompue."
-            grep -E "Parse Error|Failed to load script" -A2 arene.log
-            exit 1
-          fi
-          if ! grep -q "vérifications ===" arene.log; then
-            echo "::error::Le test de l'arène ne s'est pas exécuté."
-            exit 1
-          fi
-          grep -E "^\s+\[(OK|ÉCHEC)\]" arene.log || true
-          if grep -qE "=== [1-9][0-9]* échec\(s\)" arene.log; then
-            echo "::error::Le plan de l'arène ne respecte plus ses garanties."
-            exit 1
-          fi
-          echo "Plan de l'arène conforme."
-
-      # OCCLUSION DE LA CAMÉRA — barrière contre un défaut déjà survenu.
-      #
-      # La caméra se tient 10 m derrière le joueur et 13 m au-dessus. Tant
-      # que l'arène était plate et large de 68 m, rien ne pouvait se
-      # glisser entre elle et le personnage. Le monde ouvert a apporté des
-      # mesas de 14 m, des tours et des temples : sur 5,2 % de la carte, le
-      # cadre se retrouvait bouché à plus de 60 % par de la roche à moins
-      # de sept mètres — l'écran n'affichait plus qu'un aplat.
-      #
-      # Ce test replace la caméra sur 1 085 positions et compte. Il tourne
-      # SANS RENDU en une seconde : un échec ici est toujours un vrai
-      # défaut, jamais un problème d'environnement.
-      - name: Vérifier le dégagement de la caméra
-        run: |
-          set -uo pipefail
-          timeout 180 ~/godot-bin/godot --headless --path arena-rush \
-            res://outils_dev/sonde_occlusion.tscn 2>&1 | tee occlusion.log || true
-          if grep -qE "Parse Error|Failed to load script" occlusion.log; then
-            echo "::error::La sonde d'occlusion ne compile pas."
-            grep -E "Parse Error|Failed to load script" -A2 occlusion.log
-            exit 1
-          fi
-          if ! grep -q "vérifications ===" occlusion.log; then
-            echo "::error::La sonde d'occlusion ne s'est pas exécutée."
-            exit 1
-          fi
-          grep -E "placement nominal|avec dégagement|^\s+\[(OK|ÉCHEC)\]" occlusion.log || true
-          if grep -qE "=== [1-9][0-9]* échec\(s\)" occlusion.log; then
-            echo "::error::La caméra peut à nouveau se retrouver dans le décor."
-            exit 1
-          fi
-          echo "Dégagement de la caméra conforme."
-
-      # LA COUTURE DU MONDE — la garantie propre au monde sans bord.
-      #
-      # Le monde s'enroule : on part tout droit et on revient à son point
-      # de départ. Toute l'illusion tient à une condition — la limite ne
-      # doit pas se VOIR. Cela ne se démontre pas par le calcul, cela se
-      # constate en image.
-      #
-      # Le test photographie le jeu à cinq centimètres d'un bord, puis à
-      # cinq centimètres du bord opposé. Sur un tore ces deux points sont
-      # voisins : les deux images doivent être quasi identiques. Une
-      # périodicité mal choisie dans le décor et l'écart explose.
-      - name: Vérifier la couture du monde
-        run: |
-          set -uo pipefail
-          timeout 300 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
-            --path arena-rush res://outils_dev/sonde_couture.tscn \
-            --rendering-driver opengl3 -- --solo 2>&1 | tee couture.log || true
-          if grep -qE "Parse Error|Failed to load script" couture.log; then
-            echo "::error::La sonde de couture ne compile pas."
-            grep -E "Parse Error|Failed to load script" -A2 couture.log
-            exit 1
-          fi
-          if ! grep -q "vérification ===" couture.log; then
-            echo "::warning::La sonde de couture n'a pas pu s'exécuter (rendu indisponible ?)."
-            exit 0
-          fi
-          grep -E "écart moyen|traversées visibles" couture.log || true
-          if grep -qE "=== [1-9][0-9]* échec\(s\)" couture.log; then
-            echo "::error::La limite du monde est redevenue visible."
-            exit 1
-          fi
-          echo "Monde sans couture."
-
-      # LE MONDE ENROULÉ NE DOIT COUPER AUCUNE INTERACTION.
-      #
-      # Le décor se recolle — c'est la barrière précédente. Mais un monde
-      # sans bord ne tient pas qu'à son décor : tout ce qui mesure une
-      # distance ou une direction doit s'enrouler aussi. Un seul calcul
-      # « à plat » oublié et la limite se rouvre, invisible : un mob qui
-      # poursuit part dans le vide, un tir ne touche plus, la visée
-      # automatique ignore une cible à deux mètres.
-      #
-      # Aucun de ces défauts n'apparaît sur une capture, et aucun ne se
-      # produit ailleurs que sur une bande étroite de la carte.
-      - name: Vérifier les interactions à travers la limite
-        run: |
-          set -uo pipefail
-          timeout 420 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
-            --path arena-rush res://outils_dev/test_enroulement.tscn \
-            --rendering-driver opengl3 -- --solo 2>&1 | tee enroulement.log || true
-          timeout 300 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
-            --path arena-rush res://outils_dev/test_gerbes.tscn \
-            --rendering-driver opengl3 2>&1 | tee gerbes.log || true
-          for f in enroulement.log gerbes.log; do
-            if grep -qE "Parse Error|Failed to load script" "$f"; then
-              echo "::error::$f — le banc ne compile pas."
-              grep -E "Parse Error|Failed to load script" -A2 "$f"
-              exit 1
-            fi
-            if ! grep -q "vérifications ===" "$f"; then
-              echo "::warning::$f n'a pas pu s'exécuter (rendu indisponible ?)."
-              exit 0
-            fi
-          done
-          grep -E "^\s+\[(OK|ÉCHEC)\]" enroulement.log gerbes.log || true
-          if grep -qE "=== [1-9][0-9]* échec\(s\)" enroulement.log gerbes.log; then
-            echo "::error::La limite du monde coupe à nouveau une interaction."
-            exit 1
-          fi
-          echo "Enroulement et recyclage conformes."
-
-      # LA SCÈNE NE DOIT PAS ENFLER — la barrière qui manquait.
-      #
-      # L'écran violet signalé quatre fois venait d'une fuite : une arme
-      # laissée au sol ne disparaissait QUE si on la ramassait, et les mobs
-      # meurent sans discontinuer. Cent-trois butins traînaient au bout de
-      # cinq minutes, la scène passait de 2 446 à 4 611 nœuds, et la
-      # cadence s'effondrait jusqu'à ce que le monde cesse d'être dessiné.
-      #
-      # Aucun des tests existants ne pouvait le voir : tous mesuraient un
-      # INSTANT — un plan, une image, une distance — et un instant ne dit
-      # jamais qu'une courbe monte. Celui-ci laisse tourner deux minutes de
-      # jeu et vérifie des plafonds.
-      - name: Vérifier que la scène ne fuit pas
-        run: |
-          set -uo pipefail
-          timeout 300 ~/godot-bin/godot --headless --path arena-rush \
-            res://outils_dev/sonde_violet.tscn -- --solo 2>&1 | tee fuite.log || true
-          if grep -qE "Parse Error|Failed to load script" fuite.log; then
-            echo "::error::La sonde de fuite ne compile pas."
-            grep -E "Parse Error|Failed to load script" -A2 fuite.log
-            exit 1
-          fi
-          if ! grep -q "vérification ===" fuite.log; then
-            echo "::error::La sonde de fuite ne s'est pas exécutée."
-            exit 1
-          fi
-          grep -E "^\s+\[(OK|ÉCHEC)\]|images sans" fuite.log || true
-          if grep -qE "=== [1-9][0-9]* échec\(s\)" fuite.log; then
-            echo "::error::La scène enfle à nouveau — l'écran vide reviendra."
-            exit 1
-          fi
-          echo "Scène stable."
-
-      # PROGRESSION ET BOUCLE PERSISTANTE — deux barrières de plus.
-      #
-      # La première vérifie la courbe de niveaux et, surtout, que la
-      # sauvegarde survit à un REDÉMARRAGE : elle écrit dans un processus et
-      # relit dans un autre. Une progression qui ne se recharge pas est un
-      # défaut invisible en jouant — tout paraît marcher, et la perte ne se
-      # découvre qu'à la session suivante.
-      #
-      # La seconde joue la boucle : tuer, être crédité, mourir, revenir. Elle
-      # vérifie l'état COMPLET du ressuscité, parce que rallumer cinq
-      # drapeaux sur six donne un joueur qui court mais ne tire pas — et
-      # cela ne se voit qu'après la première mort.
-      - name: Tester la progression et la boucle persistante
+  # --- LA SAUVEGARDE SURVIT-ELLE À UN REDÉMARRAGE ? ----------------------
+  #
+  # Deux processus, donc pas une simple barrière : on écrit dans l'un et on
+  # relit dans l'autre. Une progression qui ne se recharge pas est un défaut
+  # invisible en jouant — tout paraît marcher, et la perte ne se découvre
+  # qu'à la session suivante.
+  sauvegarde:
+    runs-on: ubuntu-latest
+    name: Sauvegarde
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/moteur
+      - name: Écrire puis relire
         run: |
           set -uo pipefail
           ~/godot-bin/godot --headless --path arena-rush \
-            res://outils_dev/test_progression.tscn 2>&1 | tee prog.log || true
+            res://outils_dev/test_progression.tscn -- --ecrire 2>&1 | tee p.log || true
           ~/godot-bin/godot --headless --path arena-rush \
-            res://outils_dev/test_progression.tscn -- --ecrire 2>&1 | tee -a prog.log || true
-          ~/godot-bin/godot --headless --path arena-rush \
-            res://outils_dev/test_progression.tscn -- --relire 2>&1 | tee -a prog.log || true
-          xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
-            --path arena-rush res://outils_dev/test_arene_persistante.tscn \
-            --rendering-driver opengl3 -- --solo 2>&1 | tee boucle.log || true
-          for f in prog.log boucle.log; do
-            if grep -qE "Parse Error|Failed to load script" "$f"; then
-              echo "::error::$f — le test ne compile pas."
-              grep -E "Parse Error|Failed to load script" -A2 "$f"
-              exit 1
-            fi
-            if ! grep -q "échec(s)" "$f"; then
-              echo "::error::$f — le test ne s'est pas exécuté."
-              exit 1
-            fi
-          done
-          grep -E "^\s+\[(OK|ÉCHEC)\]" prog.log boucle.log || true
-          if grep -qE "=== [1-9][0-9]* échec\(s\)" prog.log boucle.log; then
-            echo "::error::Régression de la progression ou de la boucle."
+            res://outils_dev/test_progression.tscn -- --relire 2>&1 | tee -a p.log || true
+          if ! grep -q "échec(s)" p.log; then
+            echo "::error::La sauvegarde ne s'est pas testée."
             exit 1
           fi
-          echo "Progression et boucle persistante conformes."
+          grep -E "^\s+\[(OK|ÉCHEC)\]" p.log || true
+          if grep -qE "=== [1-9][0-9]* échec\(s\)" p.log; then
+            echo "::error::La progression ne survit pas à un redémarrage."
+            exit 1
+          fi
+          echo "Sauvegarde conforme."
 
+  # --- EXPORT ------------------------------------------------------------
+  construire:
+    needs: [verifier, sauvegarde]
+    runs-on: ubuntu-latest
+    name: Export web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/moteur
       - name: Exporter en WebAssembly
         run: |
           set -euo pipefail
           mkdir -p web
           ~/godot-bin/godot --headless --path arena-rush --export-release "Web"
           test -f web/index.wasm || { echo "::error::Export web absent."; exit 1; }
+          touch web/.nojekyll
           ls -lh web/
-
-      # Page d'attente : le .wasm fait 34 Mo, donc le premier chargement
-      # prend plusieurs secondes. Sans retour visuel, on croit à un bug.
-      - name: Ajouter un fichier .nojekyll
-        run: touch web/.nojekyll
-
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web
@@ -373,13 +140,13 @@ jobs:
   deployer:
     needs: construire
     runs-on: ubuntu-latest
+    name: Déploiement
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-
       - name: Afficher le lien
         run: |
           echo "### 🎮 Jeu publié" >> $GITHUB_STEP_SUMMARY

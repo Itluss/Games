@@ -1,0 +1,49 @@
+# INSTALLE LE MOTEUR ET VÉRIFIE QUE LES SCRIPTS COMPILENT.
+#
+# Chaque barrière en a besoin, et chacune les recopiait. Regroupé ici, le
+# moteur est mis en cache une seule fois pour tous les travaux — sans quoi
+# on retéléchargerait 1,1 Go huit fois par publication.
+name: Moteur Godot
+description: Installe Godot, ses gabarits d'export, et compile les scripts.
+runs:
+  using: composite
+  steps:
+    - name: Cache du moteur et des gabarits
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/godot-bin
+          ~/.local/share/godot/export_templates
+        key: godot-4.3-web
+
+    - name: Installer Godot
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        BASE="https://github.com/godotengine/godot/releases/download/4.3-stable"
+        mkdir -p ~/godot-bin ~/.local/share/godot/export_templates
+        curl -fsSL -o godot.zip "$BASE/Godot_v4.3-stable_linux.x86_64.zip"
+        unzip -q godot.zip
+        mv "Godot_v4.3-stable_linux.x86_64" ~/godot-bin/godot
+        chmod +x ~/godot-bin/godot
+        curl -fsSL -o templates.tpz \
+          "$BASE/Godot_v4.3-stable_export_templates.tpz"
+        unzip -q templates.tpz
+        mv templates ~/.local/share/godot/export_templates/4.3.stable
+
+    # PREMIÈRE OUVERTURE : elle importe les ressources et compile tous les
+    # scripts. Une erreur GDScript doit arrêter la publication ICI, et non
+    # produire silencieusement une page blanche.
+    - name: Vérifier les scripts
+      shell: bash
+      run: |
+        set -euo pipefail
+        ~/godot-bin/godot --headless --path arena-rush --editor --quit 2>&1 \
+          | tee import.log || true
+        if grep -qE "SCRIPT ERROR|Parse Error" import.log; then
+          echo "::error::Erreurs GDScript — publication interrompue."
+          grep -E "SCRIPT ERROR|Parse Error" -A2 import.log
+          exit 1
+        fi
