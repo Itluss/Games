@@ -57,10 +57,13 @@ var player_spawn_points: Array[Vector3] = []
 var _zone_ring: MeshInstance3D
 var _zone_mat: StandardMaterial3D
 var _obstacles: StaticBody3D
+## Corps distinct pour le mur du monde : la caméra l'ignore volontairement.
+var _enceinte: StaticBody3D
 var _semis: int = 0
 var _props: int = 0
 
 func _ready() -> void:
+	_enceinte = null
 	_obstacles = StaticBody3D.new()
 	_obstacles.name = "Obstacles"
 	_obstacles.collision_layer = Cfg.LAYER_WORLD
@@ -324,7 +327,29 @@ func _marquer_noyau() -> void:
 ## sensation dont on veut sortir. Une ligne de mesas irrégulières dit
 ## « le terrain s'arrête là », ce qui est la même information sans l'aveu.
 ## La brume achève le travail : on ne voit jamais la limite en entier.
+## LE MUR D'ENCEINTE A SON PROPRE CORPS, ET C'EST LA CAMÉRA QUI L'EXIGE.
+##
+## Ce mur est une boîte de 14 m de haut et 5 m d'épaisseur, INVISIBLE : les
+## mesas qu'il représente se dressent 15 m plus loin. Or la caméra se tient
+## 10 m derrière le joueur sur l'axe Z du monde : collée au bord, elle a
+## forcément ce mur entre elle et le personnage.
+##
+## Le dégagement le prenait donc pour un obstacle et rabattait la caméra —
+## puis la relâchait au pas suivant, puis la rabattait. C'est le « zoom
+## désagréable au bord de la carte » signalé en jeu, et il se calcule : la
+## sphère de sonde, partie de la poitrine du joueur plaqué contre la face
+## intérieure, chevauche le mur dès le premier instant, ce qui envoie le
+## dégagement directement à son minimum.
+##
+## Se cacher derrière une limite du monde n'a aucun sens. Le mur reste un
+## obstacle pour les corps, il cesse d'en être un pour le regard.
 func _build_perimeter() -> void:
+	_enceinte = StaticBody3D.new()
+	_enceinte.name = "Enceinte"
+	_enceinte.collision_layer = Cfg.LAYER_WORLD
+	_enceinte.collision_mask = 0
+	_enceinte.add_to_group(&"enceinte")
+	add_child(_enceinte)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 424242
 	var segments := 52
@@ -363,7 +388,7 @@ func _build_perimeter() -> void:
 		shape.position = Vector3(cos(a) * (PlanMonde.RAYON + 2.0), 6.0,
 				sin(a) * (PlanMonde.RAYON + 2.0))
 		shape.rotation.y = -a - PI / 2.0
-		_obstacles.add_child(shape)
+		_enceinte.add_child(shape)
 
 	var mur := KitDecor.semer(&"mesa", formes, 0.0, false)
 	add_child(mur)

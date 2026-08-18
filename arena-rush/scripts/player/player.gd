@@ -568,7 +568,13 @@ func _rattraper_le_monde() -> void:
 	velocity = Vector3.ZERO
 	_accel = Vector3.ZERO
 	_dash_time = 0.0
-	push_warning("Joueur sorti du monde, ramené en %s." % str(global_position))
+	# Le signalement est VISIBLE, pas seulement journalisé : c'est le
+	# téléphone de la joueuse qui sait produire le défaut, pas cette
+	# machine. Une bannière à l'écran vaut six sondes qui ne trouvent rien.
+	var texte := "JOUEUR HORS MONDE %s" % ("sous le sol" if dessous else "au large")
+	push_warning("%s — ramené en %s." % [texte, str(global_position)])
+	if MatchDirector and MatchDirector.has_signal(&"announce"):
+		MatchDirector.announce.emit(texte, Cfg.COL_DANGER)
 
 
 ## Le joueur est-il actuellement protégé par son invulnérabilité de retour ?

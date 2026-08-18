@@ -165,9 +165,23 @@ func is_touch_platform() -> bool:
 ## C'est le genre de défaut qui ne se voit sur aucune machine de
 ## développement, puisque le bureau est légitimement en qualité haute.
 func est_mobile() -> bool:
-	return OS.has_feature("mobile") \
+	return force_mobile or OS.has_feature("mobile") \
 			or OS.has_feature("web_ios") or OS.has_feature("web_android") \
 			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
+
+## Force le profil téléphone sur une machine de bureau, via `-- --mobile`.
+##
+## POURQUOI CE DRAPEAU EXISTE. Une sonde a longé tout le bord du monde et
+## n'a rien trouvé — parce qu'elle tournait en qualité HAUTE, ombres
+## comprises, alors que la joueuse est en qualité BASSE. Un instrument qui
+## ne mesure pas la configuration du joueur ne mesure rien, et celui-là a
+## rendu un verdict rassurant sur un jeu qui ne l'était pas.
+##
+## Sans ombres, une paroi n'a plus que son éclairage ambiant : elle devient
+## un aplat. Le profil du téléphone n'est donc pas seulement « moins beau »,
+## il change ce qui est LISIBLE — c'est exactement ce qu'il faut pouvoir
+## reproduire.
+var force_mobile := false
 
 func _ready() -> void:
 	# Sur mobile, on part en qualité moyenne : mieux vaut 60 FPS stables
@@ -186,6 +200,9 @@ func _ready() -> void:
 	#
 	# C'est volontairement trop prudent. Le jeu doit d'abord TOURNER ; on
 	# remontera le curseur quand on saura ce que le téléphone encaisse.
+	if "--mobile" in OS.get_cmdline_user_args():
+		force_mobile = true
+		print("[Cfg] Profil téléphone forcé.")
 	if est_mobile():
 		quality = Quality.LOW
 	# On ne touche PAS à `scaling_3d_scale` : l'export web utilise le rendu

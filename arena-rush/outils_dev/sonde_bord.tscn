@@ -1,0 +1,4 @@
+[gd_scene load_steps=2 format=3]
+[ext_resource type="Script" path="res://outils_dev/sonde_bord.gd" id="1"]
+[node name="SondeBord" type="Node"]
+script = ExtResource("1")

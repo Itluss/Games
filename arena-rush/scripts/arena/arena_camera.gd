@@ -50,11 +50,21 @@ const YEUX := 1.4
 ## du personnage et le jeu deviendrait illisible : mieux vaut alors accepter
 ## qu'un morceau de décor passe dans le cadre.
 ##
-## REMONTÉE DE 0,3 À 0,45 APRÈS ESSAI SUR TÉLÉPHONE. Une amplitude de zoom
-## de 70 % est spectaculaire à la lecture d'un test et insupportable à
-## jouer : le jeu paraissait respirer. Moins de dégagement, mais un cadre
-## qui tient en place — et un cadre stable vaut mieux qu'un cadre parfait.
-const DEGAGEMENT_MINI := 0.45
+## REMONTÉE DE 0,3 À 0,8 EN DEUX FOIS, ET LA SECONDE EST UNE MESURE, PAS UN
+## COMPROMIS. Le premier essai supposait qu'un dégagement plus doux
+## protégerait moins. Un balayage de la valeur sur les 1 085 positions du
+## monde dit le contraire :
+##
+##     minimum   joueur caché   cadre bouché
+##       0,45         9,3 %          0,0 %
+##       0,62         9,9 %          0,0 %
+##       0,80        10,0 %          0,0 %
+##
+## Autrement dit, rabattre la caméra de 20 % suffit à tout ce que rabattre
+## de 55 % apportait. L'amplitude du mouvement est donc divisée par près de
+## trois pour sept dixièmes de point de visibilité — et c'est ce mouvement,
+## pas le cadre bouché, que la joueuse a décrit comme insupportable.
+const DEGAGEMENT_MINI := 0.8
 ## Rayon de la sonde de dégagement. Un simple rayon se faufilerait entre
 ## deux piliers et laisserait la caméra dans la pierre.
 const RAYON_SONDE := 0.7
@@ -88,6 +98,10 @@ var _degagement: float = 1.0
 var _forme := SphereShape3D.new()
 var _requete := PhysicsShapeQueryParameters3D.new()
 var _controle := 0.0
+## Corps ignorés par le regard : le mur du monde, invisible, n'a rien à
+## cacher. Résolu une seule fois, à la première image utile.
+var _ignores: Array[RID] = []
+var _ignores_prets := false
 
 func _ready() -> void:
 	# La caméra s'enregistre elle-même : les effets n'ont pas à la chercher
@@ -173,6 +187,25 @@ func _process(delta: float) -> void:
 		_controle = CONTROLE
 		_verifier_le_sol()
 
+## Le mur du monde est un obstacle pour les corps, pas pour le regard.
+##
+## Il mesure 14 m de haut et 5 m d'épaisseur, et il est INVISIBLE : les
+## mesas qu'il figure se dressent quinze mètres plus loin. Collée au bord,
+## la caméra l'avait forcément entre elle et le joueur — et se rabattait
+## sur lui sans raison visible, puis se relâchait, en boucle.
+func _resoudre_ignores() -> void:
+	if _ignores_prets:
+		return
+	var murs := get_tree().get_nodes_in_group(&"enceinte")
+	if murs.is_empty():
+		return
+	for m in murs:
+		var corps := m as CollisionObject3D
+		if corps:
+			_ignores.append(corps.get_rid())
+	_ignores_prets = true
+
+
 ## FILET DE SÉCURITÉ — une caméra qui ne voit plus le monde se recale.
 ##
 ## POURQUOI SANS CONNAÎTRE LA CAUSE. Une capture prise sur téléphone
@@ -195,9 +228,30 @@ func _verifier_le_sol() -> void:
 			global_position - Vector3(0.0, 80.0, 0.0))
 	q.collision_mask = Cfg.LAYER_WORLD
 	if espace.intersect_ray(q).is_empty():
-		push_warning("Caméra sans sol sous elle en %s — recalage."
-				% str(global_position))
+		_signaler("CAM PERDUE %s" % _bref(global_position))
 		_snap()
+
+
+## DIAGNOSTIC VISIBLE — temporaire, et assumé comme tel.
+##
+## L'écran violet a résisté à six sondes : aucune ne l'a reproduit, ni au
+## bord du monde, ni en profil téléphone, ni sur 1 085 positions. Continuer
+## à chercher à l'aveugle sur une machine qui n'a pas le défaut est du
+## temps perdu ; le seul appareil qui SAIT le produire est le téléphone de
+## la joueuse.
+##
+## Le jeu se signale donc lui-même. Si l'un des deux filets de sécurité se
+## déclenche, une bannière l'annonce avec les coordonnées : la prochaine
+## capture d'écran répondra à la question, et une absence de bannière y
+## répondra tout autant — elle disculpera la caméra.
+func _signaler(texte: String) -> void:
+	push_warning(texte)
+	if MatchDirector and MatchDirector.has_signal(&"announce"):
+		MatchDirector.announce.emit(texte, Cfg.COL_DANGER)
+
+
+func _bref(v: Vector3) -> String:
+	return "(%d, %d, %d)" % [roundi(v.x), roundi(v.y), roundi(v.z)]
 
 ## Où se met la caméra quand elle ne peut reculer que d'une fraction ?
 ##
@@ -228,9 +282,11 @@ func _mesurer_degagement(oeil: Vector3, course: Vector3) -> float:
 	var espace := get_world_3d().direct_space_state
 	if espace == null or course.length_squared() < 0.01:
 		return 1.0
+	_resoudre_ignores()
 
 	var vue := PhysicsRayQueryParameters3D.create(oeil + course, oeil)
 	vue.collision_mask = Cfg.LAYER_WORLD
+	vue.exclude = _ignores
 	if espace.intersect_ray(vue).is_empty():
 		return 1.0
 
@@ -239,6 +295,7 @@ func _mesurer_degagement(oeil: Vector3, course: Vector3) -> float:
 	# de la poitrine du joueur et monte, il ne le rencontre pas.
 	_requete.transform = Transform3D(Basis(), oeil)
 	_requete.motion = course
+	_requete.exclude = _ignores
 	var bornes := espace.cast_motion(_requete)
 	if bornes.size() < 1:
 		return 1.0
