@@ -13,7 +13,15 @@ var hud: HUD = null
 var _menu: Control = null
 var _debug: Node = null
 var _last_mode: int = 0   # 0 = solo, 1 = hôte, 2 = client
-var _last_bots: int = 3
+## NEUF BOTS ET NON TROIS.
+##
+## Le nombre était écrit en dur à trois endroits — ici, au démarrage
+## automatique et sur le bouton du menu. Relever le plafond du gestionnaire
+## de réseau n'aurait donc rien changé : le jeu aurait continué à en lancer
+## trois. Une valeur dupliquée est une valeur qui finit par diverger, alors
+## elle est désormais unique et les trois endroits la lisent.
+const BOTS_SOLO := 9
+var _last_bots: int = BOTS_SOLO
 
 ## Arguments de lancement, des DEUX côtés du séparateur `--`.
 ##
@@ -48,7 +56,7 @@ func _ready() -> void:
 	# Démarrage direct en solo : sert aux tests automatisés et à relancer
 	# une partie sans repasser par le menu pendant le développement.
 	if "--solo" in args:
-		_start(0, 3)
+		_start(0, BOTS_SOLO)
 		return
 	_show_menu()
 
@@ -88,8 +96,8 @@ func _show_menu() -> void:
 	box.add_child(sub)
 
 	box.add_child(_spacer(28))
-	box.add_child(_menu_button("SOLO — 3 BOTS", Cfg.COL_HEAL,
-			func(): _start(0, 3)))
+	box.add_child(_menu_button("SOLO — %d BOTS" % BOTS_SOLO, Cfg.COL_HEAL,
+			func(): _start(0, BOTS_SOLO)))
 	box.add_child(_menu_button("HÉBERGER UNE PARTIE", Cfg.COL_BASIC,
 			func(): _start(1, 0)))
 	box.add_child(_menu_button("REJOINDRE (127.0.0.1)", Cfg.COL_ENERGY,

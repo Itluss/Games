@@ -31,10 +31,15 @@ var _dossier := ""
 var _vue := 0
 var _chauffe := 0
 
+## Les vues suivent désormais l'échelle du MONDE, pas celle de l'ancienne
+## arène. La vue de dessus doit contenir 156 m de large ; les deux autres
+## se placent dans un secteur, là où le joueur vit réellement.
 var _vues := [
 	{"nom": "jeu", "pos": Vector3(14.0, 15.0, 20.0), "cible": Vector3(0, 1.0, 0)},
-	{"nom": "plongee", "pos": Vector3(0.5, 44.0, 0.6), "cible": Vector3(0, 0, 0)},
-	{"nom": "rasante", "pos": Vector3(21.0, 2.2, 21.0), "cible": Vector3(-2, 3.0, -2)},
+	{"nom": "plongee", "pos": Vector3(1.0, 210.0, 1.2), "cible": Vector3(0, 0, 0)},
+	{"nom": "camp", "pos": Vector3(34.0, 16.0, -34.0), "cible": Vector3(24, 3.0, -46)},
+	{"nom": "canyon", "pos": Vector3(38.0, 14.0, 14.0), "cible": Vector3(54, 4.0, 2)},
+	{"nom": "bosquet", "pos": Vector3(-8.0, 14.0, 34.0), "cible": Vector3(-16, 3.0, 50)},
 ]
 
 func _ready() -> void:

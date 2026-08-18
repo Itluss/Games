@@ -24,14 +24,24 @@ signal connection_failed()
 signal server_disconnected()
 
 const PORT := 8910
-const MAX_PLAYERS := 4
+## DIX PARTICIPANTS AU LIEU DE QUATRE.
+##
+## Sur l'ancienne arène de 34 m, trois bots suffisaient à ce qu'on croise
+## quelqu'un en permanence. Le monde fait maintenant cinq fois la surface :
+## à effectif constant, on pourrait le traverser sans voir âme qui vive, et
+## un monde vide n'est pas un monde ouvert, c'est un désert.
+##
+## Neuf bots pour cinq secteurs et six points d'intérêt : de quoi qu'il se
+## passe toujours quelque chose quelque part, sans que la carte devienne
+## une mêlée permanente.
+const MAX_PLAYERS := 10
 
 enum Mode { NONE, SOLO, HOST, CLIENT }
 var mode: Mode = Mode.NONE
 
 ## Nombre d'adversaires pilotés par l'IA à ajouter en solo, pour que le
 ## prototype soit jouable et testable sans deuxième appareil.
-var bot_count: int = 3
+var bot_count: int = 9
 
 ## id de pair -> { "name": String, "bot": bool }
 var peers: Dictionary = {}
@@ -75,7 +85,7 @@ func all_ids() -> Array:
 # --- DÉMARRAGE -----------------------------------------------------------
 
 ## Partie solo : pair hors-ligne, joueur local serveur, adversaires IA.
-func start_solo(bots: int = 3) -> void:
+func start_solo(bots: int = 9) -> void:
 	_reset_peer()
 	mode = Mode.SOLO
 	bot_count = clampi(bots, 0, MAX_PLAYERS - 1)

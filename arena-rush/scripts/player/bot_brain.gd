@@ -64,11 +64,17 @@ func _physics_process(delta: float) -> void:
 		desired.y = 0.0
 		desired = desired.normalized()
 
-	# La zone prime sur tout : un bot qui meurt hors zone ne joue pas.
-	var safe := MatchDirector.zone_radius - 4.0
+	# LIMITE DU MONDE. En Battle Royale c'est la zone qui contraint ; en
+	# arène persistante il n'y a plus de zone, mais il y a un bord de carte
+	# — un bot qui s'y colle reste bloqué contre les mesas sans jamais
+	# comprendre pourquoi.
+	var limite: float = PlanMonde.RAYON - 8.0
+	if not MatchDirector.est_persistant():
+		limite = MatchDirector.zone_radius - 4.0
 	var flat := Vector2(pos.x, pos.z)
-	if flat.length() > safe:
+	if flat.length() > limite:
 		desired = Vector3(-flat.normalized().x, 0.0, -flat.normalized().y) * 1.5
+		_wander = Vector3.ZERO
 
 	player.move_input = Vector2(desired.x, desired.z).limit_length(1.0)
 
@@ -90,12 +96,39 @@ func _retarget() -> void:
 				continue
 			var d: float = pos.distance_to(node.global_position)
 			var weight: float = 1.0 if group == &"mobs" else 1.35
-			if d * weight < best_d and d < 30.0:
+			# 34 m et non 30 : sur une carte cinq fois plus grande, un bot
+			# myope ne rencontre plus personne. On reste toutefois sous la
+			# portée où le joueur peut réagir — un bot qui vous repère de
+			# 60 m serait perçu comme tricheur.
+			if d * weight < best_d and d < 34.0:
 				best_d = d * weight
 				best = node
 	_target = best
 
+## OÙ VA UN BOT QUI N'A PERSONNE À COMBATTRE ?
+##
+## L'ancienne réponse — un point au hasard dans un disque autour du centre —
+## marchait sur une arène de 34 m : tout y était à portée. Sur 156 m, elle
+## produirait des bots agglutinés au milieu et cinq secteurs déserts. Le
+## monde paraîtrait vide partout sauf en un point.
+##
+## Ils PATROUILLENT donc d'un point d'intérêt à l'autre. Trois effets, tous
+## voulus : la carte semble habitée jusque dans ses coins, les repères
+## deviennent des lieux de rencontre — ce qui est leur raison d'être — et
+## le joueur croise du monde en chemin plutôt qu'en un seul endroit.
+##
+## Une chance sur quatre de viser un point quelconque : sans elle, tous les
+## bots suivraient les mêmes six routes et le monde paraîtrait scripté.
 func _pick_wander_point() -> Vector3:
-	var r: float = maxf(4.0, MatchDirector.zone_radius - 6.0)
-	var a := randf() * TAU
-	return Vector3(cos(a) * r * randf(), 0.0, sin(a) * r * randf())
+	if randf() < 0.25 or PlanMonde.POINTS_INTERET.is_empty():
+		var a := randf() * TAU
+		var r := randf_range(PlanMonde.RAYON_NOYAU, PlanMonde.RAYON * 0.88)
+		return Vector3(cos(a) * r, 0.0, sin(a) * r)
+	var poi: Dictionary = PlanMonde.POINTS_INTERET[
+			randi() % PlanMonde.POINTS_INTERET.size()]
+	var c := PlanMonde.position_poi(poi)
+	# On vise les ABORDS du repère, pas son centre exact : sinon les bots
+	# se marchent dessus en arrivant, et le lieu devient un embouteillage.
+	var ecart := float(poi["rayon_actif"]) * randf_range(0.4, 1.1)
+	var b := randf() * TAU
+	return Vector3(c.x + cos(b) * ecart, 0.0, c.y + sin(b) * ecart)

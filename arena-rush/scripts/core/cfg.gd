@@ -64,6 +64,41 @@ const COL_CIEL_HORIZON := Color("f57a52")
 const COL_SOLEIL_VILLE := Color("ffc79e")
 ## Ambiante violette : elle colore les ombres au lieu de les grisailler.
 const COL_AMBIANTE_VILLE := Color("6b5ca8")
+# --- MATIÈRES DU MONDE OUVERT -------------------------------------------
+#
+# UNE COULEUR PAR MATIÈRE, PAS PAR OBJET. Un rocher du canyon et une mesa
+# partagent la même roche ; ce qui distingue les secteurs, c'est le SOL et
+# la densité, pas cinquante teintes de props. Trop de couleurs et la carte
+# devient un patchwork où plus rien ne se lit.
+#
+# Toutes sont choisies DÉSATURÉES par rapport aux couleurs de gameplay :
+# le décor ne doit jamais concurrencer un projectile, un butin ou un
+# adversaire. C'est la règle qui tient toute la lisibilité du jeu.
+const COL_ROCHE := Color("8b8fa3")
+const COL_ROCHE_CHAUDE := Color("8f6543")
+const COL_PIERRE := Color("c3bdae")
+const COL_BOIS := Color("8a6242")
+const COL_FEUILLAGE := Color("5aa653")
+const COL_TOILE := Color("d8c9a4")
+
+# --- SOLS DES SECTEURS ---------------------------------------------------
+#
+# C'est ICI que se joue le « je suis dans le canyon ». Vu de dessus, le sol
+# occupe les trois quarts de l'écran : changer sa teinte change le secteur
+# bien plus sûrement que n'importe quel prop.
+#
+# ASSOMBRIES APRÈS MESURE EN IMAGE. Les premières valeurs étaient choisies
+# « à la couleur » — un beau sable, une belle terre. Mais l'éclairage du jeu
+# a été réglé pour le béton gris moyen du noyau : posé sur du sable clair,
+# le même soleil sature et le secteur vire au blanc rosé. Ce sont les
+# valeurs RENDUES qui comptent, jamais celles du nuancier.
+const SOL_CAMP := Color("a2915f")
+const SOL_CANYON := Color("8e5c3a")
+const SOL_BOSQUET := Color("55743f")
+const SOL_FONDERIE := Color("767d92")
+const SOL_RUINES := Color("867f6d")
+const SOL_NOYAU := Color("7c7f9c")
+
 ## Brume de rue. VOLONTAIREMENT VIOLETTE et non corail : teintée de la
 ## couleur chaude de l'horizon, elle repeignait tout le sol en rose et
 ## l'arène entière virait monochrome — vérifié en image. Le violet pousse
