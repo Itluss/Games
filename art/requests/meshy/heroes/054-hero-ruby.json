@@ -1,0 +1,15 @@
+{
+  "_lot": "LOT 1 — HEROS, planche « MILO / POPPY / BRUNO / NOX / RUBY / GUS ».",
+  "_role": "TRICKSHOT — chevelure magenta volumineuse, lunettes rondes, pistolet cyan et rose.",
+  "_pourquoi_mode_image": "MODE IMAGE, ET C'EST LA CORRECTION DE FOND. Le premier lot est parti en mode TEXTE : Meshy generait a partir de mots, pas de la planche, et le resultat n'y ressemblait pas. Le commentaire de meshy.py le disait deja — « IMAGE-TO-3D des qu'une reference visuelle existe : c'est LE mode fidele a la direction artistique. Le texte produit des formes approximatives. » Aucun reglage de prompt ne rattrape cela : on obtient une meilleure description, pas une meilleure ressemblance.",
+  "_pourquoi_cette_decoupe": "La planche detouree porte SIX personnages, leurs vues de dos et de profil, un gros plan de visage et leur arme. Meshy image-to-3d attend UN sujet : lui donner la planche entiere produirait une bouillie. La decoupe isole la grande figure 3/4, la centre dans un carre a fond clair uni, et retire tout texte. outils/decouper_planches.py la refait a l'identique.",
+  "_arme_incluse": "LE HEROS EST GENERE AVEC SON ARME, et c'est une decision de conception, pas une facilite. La planche donne a chacun UNE arme signature, montree a part dans son propre encart : le modele suivi est donc « un heros, une arme », a la maniere d'un Brawl Stars, et non un inventaire d'armes interchangeables. Le mode image ne permet de toute facon pas d'imposer des mains vides — il n'accepte qu'une image et une invite de TEXTURE, jamais une consigne de forme.",
+  "_hauteur_cible_m": 1.7,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : le jeu mesure le modele et le remet a cette taille.",
+  "nom": "hero_ruby",
+  "mode": "image",
+  "image": "art/references/decoupes/heros_v2/hero_ruby.png",
+  "prompt": "",
+  "polycount": 10000,
+  "texturer": true
+}

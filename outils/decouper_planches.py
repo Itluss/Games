@@ -20,6 +20,22 @@ FOND = (247, 240, 224)
 COTE = 768
 
 # planche -> { nom : (x0, y0, x1, y1) en fractions }
+# LA PLANCHE V2 EST DECOUPEE PAR GRILLE, pas par coordonnees ecrites une
+# par une : elle est parfaitement reguliere, 3 colonnes sur 2 rangees, et
+# chaque cellule place sa grande figure au meme endroit. Une grille tient
+# en quatre nombres et ne se desynchronise pas.
+GRILLE_V2 = {
+    "planche": "planche_heros_v2_detoure.png",
+    "fond": (245, 245, 245),
+    "colonnes": 3,
+    "rangees": 2,
+    # Fenetre de la grande figure, en fraction de sa cellule.
+    "fenetre": (0.015, 0.155, 0.500, 0.755),
+    "noms": [["hero_milo", "hero_poppy", "hero_bruno"],
+             ["hero_nox", "hero_ruby", "hero_gus"]],
+    "sortie": "heros_v2",
+}
+
 DECOUPES = {
     "heros": ("planche_heros.png", FOND, {
         "hero_brute": (0.045, 0.190, 0.495, 0.448),
@@ -61,5 +77,31 @@ def decouper():
             print("%-14s -> %s" % (nom, sortie))
 
 
+def decouper_grille(g):
+    """Decoupe une planche reguliere : une figure par cellule."""
+    src = Image.open(os.path.join(PLANCHES, g["planche"])).convert("RGB")
+    W, H = src.size
+    dossier = os.path.join(SORTIE, g["sortie"])
+    os.makedirs(dossier, exist_ok=True)
+    fx0, fy0, fx1, fy1 = g["fenetre"]
+    dx = 1.0 / g["colonnes"]
+    dy = 1.0 / g["rangees"]
+    for r in range(g["rangees"]):
+        for c in range(g["colonnes"]):
+            im = src.crop((
+                int((c * dx + dx * fx0) * W), int((r * dy + dy * fy0) * H),
+                int((c * dx + dx * fx1) * W), int((r * dy + dy * fy1) * H)))
+            # Carre a fond uni : Meshy centre mieux un sujet carre, et une
+            # image tres haute le pousse a etirer le modele.
+            cote = int(max(im.size) * 1.06)
+            carre = Image.new("RGB", (cote, cote), g["fond"])
+            carre.paste(im, ((cote - im.width) // 2, (cote - im.height) // 2))
+            carre = carre.resize((COTE, COTE), Image.LANCZOS)
+            sortie = os.path.join(dossier, g["noms"][r][c] + ".png")
+            carre.save(sortie)
+            print("%-14s -> %s" % (g["noms"][r][c], sortie))
+
+
 if __name__ == "__main__":
     decouper()
+    decouper_grille(GRILLE_V2)
