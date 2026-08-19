@@ -256,7 +256,13 @@ func _build_profil() -> void:
 	titre.add_theme_constant_override(&"separation", 14)
 	titre.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(titre)
-	var nom := _label("KAEL", 28)
+	# LE NOM SUIT LE HÉROS RÉELLEMENT JOUÉ.
+	#
+	# Il était écrit en dur : « KAEL ». Vérifié en jeu au format téléphone,
+	# le bandeau annonçait KAEL au-dessus d'un personnage qui est Milo. Un
+	# joueur qui teste six démarches a besoin de savoir laquelle il tient —
+	# c'est même la première chose qu'il regarde après l'avoir vue bouger.
+	var nom := _label(String(Player.HEROS_LOCAL).to_upper(), 28)
 	titre.add_child(nom)
 	# LE NIVEAU EN OR, et pas en blanc. C'est la seule chose du bloc qui
 	# progresse ; lui donner la couleur de la récompense la distingue d'un

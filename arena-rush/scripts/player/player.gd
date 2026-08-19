@@ -381,9 +381,14 @@ const HEROS_DISPONIBLES: Array[StringName] = [
 	&"milo", &"poppy", &"bruno", &"nox", &"ruby", &"gus",
 ]
 
+## Le héros du joueur local. Nommé à part parce que l'interface en a
+## besoin AVANT qu'aucun joueur n'existe : le bandeau se construit au
+## montage du HUD, pas à l'apparition du corps.
+const HEROS_LOCAL := &"milo"
+
 func heros() -> StringName:
 	if peer_id == Net.local_id():
-		return &"milo"
+		return HEROS_LOCAL
 	return HEROS_DISPONIBLES[absi(peer_id) % HEROS_DISPONIBLES.size()]
 
 
