@@ -155,10 +155,6 @@ func _build() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
 
-	# PANNEAU DE DIAGNOSTIC — TEMPORAIRE. À retirer avec son fichier une
-	# fois l'aplat brun expliqué. Il est monté ici et non dans `_root` pour
-	# qu'un `mouse_filter` de l'interface ne lui vole pas ses appuis.
-	add_child(Diagnostic.new())
 
 	_build_top()
 	_build_center()

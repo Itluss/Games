@@ -193,13 +193,29 @@ func _verifier_la_fuite() -> bool:
 	var butins := get_tree().get_nodes_in_group(&"loot").size()
 	var noeuds := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
 	var mem := Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0
+	# LE COMPTE D'INSTANCES VISIBLES, et c'est la barrière qui manquait.
+	#
+	# Un écran entièrement brun a été signalé depuis le téléphone : monde
+	# intact, caméra juste, 60 images par seconde, et plus rien de dessiné.
+	# Mesuré dans un vrai navigateur : au-delà d'un certain nombre de
+	# maillages VISIBLES, le rendu compatibilité de WebGL cesse de soumettre
+	# la géométrie 3D — sans une ligne d'erreur. La bascule s'est produite
+	# entre 523 maillages (sain) et 782 (mort).
+	#
+	# Aucune des veilles existantes ne pouvait l'attraper : elles comptent
+	# les nœuds, le butin, les cellules — jamais ce que le moteur doit
+	# soumettre à chaque image.
+	var maillages := _compter_maillages()
+	var ok_maillages := maillages <= PLAFOND_MAILLAGES
+	print("  [%s] les instances visibles restent bornées %d visibles (max %d)"
+			% ["OK" if ok_maillages else "ÉCHEC", maillages, PLAFOND_MAILLAGES])
 	var ok_butin := butins <= PLAFOND_BUTIN
 	var ok_noeuds := noeuds <= PLAFOND_NOEUDS
 	print("  [%s] le butin reste borné            %d au sol (max %d)"
 			% ["OK" if ok_butin else "ÉCHEC", butins, PLAFOND_BUTIN])
 	print("  [%s] la scène reste bornée           %d nœuds, %.0f Mo (max %d)"
 			% ["OK" if ok_noeuds else "ÉCHEC", noeuds, mem, PLAFOND_NOEUDS])
-	return not (ok_butin and ok_noeuds)
+	return not (ok_butin and ok_noeuds and ok_maillages)
 
 
 ## Plafonds. Le jeu efface le butin au bout de 45 s, avec un maximum de 26
@@ -221,6 +237,46 @@ const PLAFOND_BUTIN := 36
 ## d'exemplaires au sol pour trente autorisés. Ce second plafond attrape
 ## tout le reste : la prochaine fuite ne sera pas dans le butin.
 const PLAFOND_NOEUDS := 4100
+
+## Maillages VISIBLES tolérés, en PROFIL TÉLÉPHONE uniquement.
+##
+## CE PLAFOND EST CALÉ SUR DES MESURES, PAS SUR UN CHIFFRE ROND — le
+## premier essai à 560 refusait le jeu même sans le moindre contour, ce qui
+## en disait plus long sur mon choix que sur le jeu.
+##
+##     572   plancher : aucun contour du tout
+##     620   un contour par personnage — le réglage retenu
+##     686   un contour par pièce au-dessus de 0,70 m — tient, mais en
+##           zone grise
+##     782   un contour par pièce — écran mort, définitif
+##
+## 680 laisse soixante instances de marge au réglage retenu tout en restant
+## franchement sous le premier point mortel constaté.
+##
+## LA MARGE STRUCTURELLE EST MINCE, et c'est à retenir pour la suite : entre
+## le plancher et la bascule il n'y a qu'environ deux cents instances pour
+## TOUT — les contours, les futurs mobs, les futures armes. Chaque
+## personnage à l'écran en coûte une dizaine. Cette barrière existe pour que
+## la prochaine fois, ce soit la publication qui le dise, pas la joueuse.
+##
+## Sur ordinateur le compte est structurellement plus haut — toutes les
+## mailles portent leur contour — et le rendu ne bronche pas : le plafond
+## n'y a aucun sens, d'où le profil téléphone forcé dans la publication.
+const PLAFOND_MAILLAGES := 680
+
+
+## Compte les maillages réellement visibles dans l'arbre.
+func _compter_maillages() -> int:
+	var n := 0
+	var pile: Array[Node] = [get_tree().root]
+	while not pile.is_empty():
+		var e: Node = pile.pop_back()
+		var mi := e as MeshInstance3D
+		if mi != null and mi.is_visible_in_tree():
+			n += 1
+		for f in e.get_children():
+			pile.append(f)
+	return n
 
 
 ## QUI EST LÀ, À LA FIN ? Le compteur de nœuds dit QU'ÇA grossit ; il ne

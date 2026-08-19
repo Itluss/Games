@@ -76,7 +76,11 @@ jobs:
           - nom: Progression
             scene: res://outils_dev/test_progression.tscn
             rendu: false
+          # EN PROFIL TÉLÉPHONE. C'est la seule plateforme où le rendu
+          # lâche au-delà d'un certain nombre d'instances visibles, et donc
+          # la seule où le plafond de maillages a un sens.
           - nom: Stabilité de la scène
+            args: --mobile
             scene: res://outils_dev/sonde_violet.tscn
             rendu: false
     name: ${{ matrix.nom }}
@@ -88,10 +92,10 @@ jobs:
           if [ "${{ matrix.rendu }}" = "true" ]; then
             sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
             arena-rush/outils_dev/barriere.sh "${{ matrix.scene }}" \
-              "${{ matrix.nom }}" --rendu
+              "${{ matrix.nom }}" --rendu ${{ matrix.args }}
           else
             arena-rush/outils_dev/barriere.sh "${{ matrix.scene }}" \
-              "${{ matrix.nom }}"
+              "${{ matrix.nom }}" ${{ matrix.args }}
           fi
 
   # --- LA SAUVEGARDE SURVIT-ELLE À UN REDÉMARRAGE ? ----------------------

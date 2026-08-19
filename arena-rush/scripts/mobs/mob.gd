@@ -97,6 +97,11 @@ func _build_visual() -> void:
 	#   tireur    étroit, HAUT, flottant, à œil     → « ça me vise de loin »
 	#   kamikaze  rond, petit, hérissé, instable    → « ça va exploser »
 	#
+	# UNE SEULE PIÈCE PORTE LE CONTOUR SUR TÉLÉPHONE — le corps. C'est un
+	# budget, pas un choix esthétique : au-delà d'un certain nombre
+	# d'instances visibles, le rendu WebGL cesse purement et simplement de
+	# dessiner la 3D. Voir `VisualKit.add_outline`.
+	#
 	# La couleur n'arrive qu'en quatrième position. C'est volontaire : elle
 	# est le seul signal qui disparaisse à contre-jour ou dans une ombre.
 	#
@@ -109,8 +114,10 @@ func _build_visual() -> void:
 			# LARGE ET BAS. Le corps est aplati verticalement et étiré en
 			# largeur : vu de dessus, il occupe presque deux fois la surface
 			# d'un tireur, ce qui se lit avant toute couleur.
-			_visual.add_child(VisualKit.capsule(0.62 * s, 1.42 * s, body,
-					Vector3(0, 0.60 * s, 0), Vector3(PI / 2.2, 0, 0)))
+			var corps_fonceur := VisualKit.capsule(0.62 * s, 1.42 * s, body,
+					Vector3(0, 0.60 * s, 0), Vector3(PI / 2.2, 0, 0))
+			VisualKit.add_outline(corps_fonceur, 0.05, true)
+			_visual.add_child(corps_fonceur)
 			_visual.add_child(VisualKit.sphere(0.40 * s, dark,
 					Vector3(0, 0.70 * s, -0.56 * s),
 					Vector3(1.25, 0.85, 1.0)))
@@ -140,8 +147,10 @@ func _build_visual() -> void:
 			# ÉTROIT ET HAUT. Son œil culmine à 2 m alors que le fonceur
 			# plafonne à 1 m : c'est un rapport du simple au double, visible
 			# même quand les deux ne sont que deux taches à l'écran.
-			_visual.add_child(VisualKit.sphere(0.40 * s, body,
-					Vector3(0, 1.62 * s, 0), Vector3(0.9, 1.30, 0.9)))
+			var corps_tireur := VisualKit.sphere(0.40 * s, body,
+					Vector3(0, 1.62 * s, 0), Vector3(0.9, 1.30, 0.9))
+			VisualKit.add_outline(corps_tireur, 0.05, true)
+			_visual.add_child(corps_tireur)
 			_visual.add_child(VisualKit.sphere(0.20 * s, glow,
 					Vector3(0, 1.66 * s, -0.32 * s)))
 			# Collerette large sur un corps étroit : le contraste de largeur
@@ -157,8 +166,10 @@ func _build_visual() -> void:
 			# ROND ET PETIT, hérissé sur tout son pourtour. Une boule n'a pas
 			# d'orientation lisible — et c'est exactement le message : elle
 			# ne charge pas, elle ne vise pas, elle arrive.
-			_visual.add_child(VisualKit.sphere(0.52 * s, body,
-					Vector3(0, 0.58 * s, 0), Vector3(1.0, 0.92, 1.0)))
+			var corps_kamikaze := VisualKit.sphere(0.52 * s, body,
+					Vector3(0, 0.58 * s, 0), Vector3(1.0, 0.92, 1.0))
+			VisualKit.add_outline(corps_kamikaze, 0.05, true)
+			_visual.add_child(corps_kamikaze)
 			for i in 8:
 				var a := TAU * float(i) / 8.0
 				_visual.add_child(VisualKit.cone(0.11 * s, 0.34 * s, glow,

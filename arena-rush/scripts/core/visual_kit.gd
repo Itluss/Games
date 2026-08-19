@@ -100,7 +100,22 @@ static func glow_mat(color: Color, energy: float = 3.0,
 ## résultat est un liseré sombre qui suit exactement la silhouette.
 ##
 ## Godot expose `grow` et `cull_mode`, donc là encore aucun shader maison.
+## Matériaux de contour, mis en cache par épaisseur.
+##
+## CE N'EST PAS LA CORRECTION DE L'ÉCRAN BRUN, et je l'ai cru un moment.
+## Partager le matériau entre toutes les mailles ne change RIEN à la panne :
+## mesuré au navigateur, elle revient à l'identique. Ce n'était donc jamais
+## une question de nombre de matériaux — voir `add_outline` pour la vraie
+## cause, qui est le nombre d'INSTANCES.
+##
+## Le cache reste parce qu'il est juste : tous les contours partagent la
+## même couleur et le même mode, rien ne justifie un exemplaire par maille.
+static var _cache_contour: Dictionary = {}
+
 static func outline_mat(width: float = 0.05) -> StandardMaterial3D:
+	var cle := snappedf(width, 0.005)
+	if _cache_contour.has(cle):
+		return _cache_contour[cle]
 	var m := StandardMaterial3D.new()
 	# Pas un noir pur : un violet très sombre s'intègre mieux à une
 	# palette chaude qu'un trait de feutre.
@@ -110,6 +125,7 @@ static func outline_mat(width: float = 0.05) -> StandardMaterial3D:
 	m.grow = true
 	m.grow_amount = width
 	m.disable_receive_shadows = true
+	_cache_contour[cle] = m
 	return m
 
 ## Greffe un contour sur une maille. Désactivé en qualité basse : c'est un
@@ -120,53 +136,61 @@ static func outline_mat(width: float = 0.05) -> StandardMaterial3D:
 ## cube les trois normales d'un coin divergent et la coque se déchire aux
 ## arêtes. Les blocs du décor s'en passent donc, et comptent sur leur
 ## chapeau clair et l'éclairage cellulé pour se détacher.
-## Taille minimale d'une pièce pour mériter un contour sur téléphone.
+## CONTOUR — greffé sur une maille, et sur téléphone UNIQUEMENT sur celle
+## qui fait la silhouette.
 ##
-## LE CONTOUR N'EST PLUS COUPÉ SUR MOBILE, IL EST TRIÉ. C'est le signal le
-## plus efficace dont on dispose pour détacher un personnage d'un décor —
-## le supprimer là où l'écran est le plus petit était le pire des choix.
-## Mais chaque contour coûte un appel de dessin, et une corne de dix
-## centimètres n'en mérite pas un : à treize mètres, son liseré ne couvre
-## même pas un pixel. On ne garde donc que les pièces qui FONT la
-## silhouette — torse, tête, corps de mob — soit environ un tiers des
-## mailles, pour la quasi-totalité de l'effet.
+## CE QUE CE RÉGLAGE CORRIGE : UNE PANNE D'AFFICHAGE COMPLÈTE.
 ##
-## MESURÉ : le durcir à 0,50 ne change RIEN à la médiane des appels de
-## dessin — 213 dans les deux cas, seul le 95e centile descend de 240 à
-## 227. La dépense ne se trouve donc pas dans les petites pièces mais dans
-## le nombre de personnages à l'écran. Autant garder le seuil bas et le
-## contour complet : on paierait le même prix pour moins de lisibilité.
-const TAILLE_CONTOUR_MOBILE := 0.34
-
-## Plus grande dimension d'une pièce, en mètres.
+## L'écran devenait un aplat brun plein cadre au bout de deux minutes de
+## jeu, sur téléphone uniquement, et n'en repartait plus — mort et
+## réapparition comprises. Interface intacte, minicarte vivante, 60 images
+## par seconde, caméra parfaitement placée qui projetait le joueur au
+## centre du cadre. Le monde était là ; il n'était plus DESSINÉ.
 ##
-## ON LIT LES PARAMÈTRES DE LA PRIMITIVE, PAS SON `get_aabb()`. La boîte
-## englobante passe par le serveur de rendu : en mode sans affichage — donc
-## dans TOUS les bancs d'essai — celui-ci répond « maille nulle » et crache
-## une erreur par maille. Un outil de mesure qui ne fonctionne que quand
-## l'écran est allumé n'en est pas un.
-static func _encombrement(mi: MeshInstance3D) -> float:
-	var e := maxf(mi.scale.x, maxf(mi.scale.y, mi.scale.z))
-	var m := mi.mesh
-	if m is SphereMesh:
-		return (m as SphereMesh).radius * 2.0 * e
-	if m is CapsuleMesh:
-		return (m as CapsuleMesh).height * e
-	if m is CylinderMesh:
-		var c := m as CylinderMesh
-		return maxf(c.height, maxf(c.top_radius, c.bottom_radius) * 2.0) * e
-	if m is BoxMesh:
-		var t := (m as BoxMesh).size
-		return maxf(t.x, maxf(t.y, t.z)) * e
-	# Maille inconnue : on la contourne plutôt que de la manquer.
-	return INF
-
-static func add_outline(mi: MeshInstance3D, width: float = 0.05) -> void:
-	if mi.mesh == null:
+## Mesuré dans un vrai navigateur, en profil téléphone, sur des sessions de
+## huit à neuf minutes identiques — c'est le compte de maillages VISIBLES
+## qui décide, et rien d'autre :
+##
+##     un contour par maille        416 → 782 maillages → écran mort
+##                                  primitives 49 565 → 10 730
+##     aucun contour                346 → 523 → aucune panne
+##                                  primitives 39 946 → 64 308
+##
+## Plus d'objets ET moins de dessin : ce n'est pas une saturation
+## progressive mais un SEUIL du rendu compatibilité de WebGL, au-delà
+## duquel la géométrie 3D cesse d'être soumise — sans une ligne d'erreur
+## dans le journal du navigateur. La bascule est entre 523 et 782.
+##
+## DEUX FAUSSES PISTES ÉCARTÉES PAR LA MESURE, annoncées trop vite toutes
+## les deux : la mémoire vidéo monte sans à-coup (101 → 114 Mo de part et
+## d'autre de la bascule), et partager le matériau de contour entre toutes
+## les mailles ne change RIEN. Ni la mémoire, ni les matériaux : les
+## INSTANCES.
+##
+## POURQUOI UNE DÉSIGNATION EXPLICITE ET NON UN SEUIL DE TAILLE. Un seuil a
+## été essayé — 0,70 m — et il tient sur huit minutes, mais il laisse 686
+## maillages, c'est-à-dire la zone grise entre le dernier point sûr et le
+## premier point mortel. Il gardait encore le canon du fusil et le tube du
+## lance-grenades, invisibles à treize mètres ; et le monter davantage
+## aurait fait perdre son contour au TORSE DU JOUEUR, à 0,78 m, exactement
+## celui qui compte le plus. Deviner à la taille était le mauvais outil :
+## chaque personnage désigne donc lui-même sa pièce, et l'on retombe à 620.
+##
+## `impose` est ce que la pièce désignée passe. Sur ordinateur rien ne
+## change : toutes les mailles gardent leur contour.
+static func add_outline(mi: MeshInstance3D, width: float = 0.05,
+		impose := false) -> void:
+	if mi == null or mi.mesh == null:
 		return
-	if Cfg.quality == Cfg.Quality.LOW and _encombrement(mi) < TAILLE_CONTOUR_MOBILE:
+	if Cfg.quality == Cfg.Quality.LOW and not impose:
+		return
+	# Idempotent : en qualité haute la pièce désignée reçoit déjà son
+	# contour par la fabrique commune, et on ne veut pas l'en coiffer deux
+	# fois.
+	if mi.has_node("Contour"):
 		return
 	var o := MeshInstance3D.new()
+	o.name = "Contour"
 	o.mesh = mi.mesh
 	o.material_override = outline_mat(width)
 	o.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -251,6 +275,10 @@ static func build_humanoid(color: Color, accent: Color,
 
 	var torso := capsule(0.30 * u, 0.78 * u, body_mat, Vector3(0, 0.86 * u, 0))
 	torso.name = "Torso"
+	# LA PIÈCE DÉSIGNÉE. Sur téléphone, c'est le seul contour du personnage
+	# — et c'est celui que l'œil lit : le torse porte la silhouette, les
+	# membres et l'arme n'y ajoutent rien à treize mètres de haut.
+	add_outline(torso, 0.05, true)
 	root.add_child(torso)
 
 	# Épaulières : elles élargissent la silhouette vue du dessus, ce qui

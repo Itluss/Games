@@ -181,15 +181,7 @@ var _veille := 0.0
 var _plaintes: Dictionary = {}
 
 
-## Battements de `_process`. Un compteur, rien de plus, mais il répond à la
-## question qu'aucune veille ne posait : l'arène tourne-t-elle ENCORE ? Si
-## le replacement des cellules s'arrête, le monde reste garé là où il était
-## pendant que le joueur s'en va — et aucun test « y a-t-il du décor » ne le
-## dirait, puisqu'ils sont tous appelés depuis cette même fonction.
-var battements := 0
-
 func _process(delta: float) -> void:
-	battements += 1
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		_veiller(null)
@@ -550,16 +542,14 @@ func _build_ground() -> void:
 		for ix in NB_CELLULES:
 			var base := _base_cellule(ix, iz)
 			var mi := MeshInstance3D.new()
-			# NOMMÉES, et ce n'est pas cosmétique : c'est à ce nom qu'on
-			# reconnaît une dalle de sol parmi les enfants d'une cellule,
-			# donc qu'on peut la compter, la situer, ou la garder quand on
-			# masque le reste du décor pour isoler une panne.
+			# NOMMÉE : c'est à ce nom qu'on reconnaît une dalle de sol
+			# parmi les enfants d'une cellule, ce qui a servi à isoler une
+			# panne d'affichage et resservira.
 			mi.name = "Sol"
 			mi.mesh = _tapis(base)
 			mi.material_override = mat
 			mi.position = Vector3(0, -0.02, 0)
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			mi.add_to_group(&"dalles_sol")
 			_cellule(base).add_child(mi)
 
 
