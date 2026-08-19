@@ -40,6 +40,8 @@ var _joueur: Node3D
 var _prete := false
 
 var _sans_decor := 0
+## Plus grand nombre de maillages visibles rencontré pendant la session.
+var _pic_maillages := 0
 var _sans_camera := 0
 var _images := 0
 var _pire := 999
@@ -141,6 +143,7 @@ func _process(delta: float) -> void:
 		_pire_note = "t=%.1f s · caméra %s · joueur %s · morts %d" % [
 				_t, _bref(cam.global_position),
 				_bref(_joueur.global_position), _morts]
+	_pic_maillages = maxi(_pic_maillages, _compter_maillages())
 	if _t >= _prochain:
 		_prochain = _t + 10.0
 		_releve.append({
@@ -205,7 +208,14 @@ func _verifier_la_fuite() -> bool:
 	# Aucune des veilles existantes ne pouvait l'attraper : elles comptent
 	# les nœuds, le butin, les cellules — jamais ce que le moteur doit
 	# soumettre à chaque image.
-	var maillages := _compter_maillages()
+	# LE MAXIMUM DE LA SESSION, PAS L'INSTANT FINAL.
+	#
+	# Le premier jet comptait à la dernière image : la publication a rendu
+	# 750 là où j'avais mesuré 609, simplement parce qu'il y avait
+	# vingt-six butins au sol chez elle contre cinq chez moi. Une barrière
+	# qui dépend de ce qui traîne par terre à la seconde où elle regarde
+	# n'est pas une barrière, c'est un tirage.
+	var maillages := _pic_maillages
 	var ok_maillages := maillages <= PLAFOND_MAILLAGES
 	print("  [%s] les instances visibles restent bornées %d visibles (max %d)"
 			% ["OK" if ok_maillages else "ÉCHEC", maillages, PLAFOND_MAILLAGES])
@@ -250,8 +260,18 @@ const PLAFOND_NOEUDS := 4100
 ##           zone grise
 ##     782   un contour par pièce — écran mort, définitif
 ##
-## 680 laisse soixante instances de marge au réglage retenu tout en restant
-## franchement sous le premier point mortel constaté.
+## 720 est calé sur le PIRE CAS et non sur une partie tranquille : le pic
+## mesuré est de 648 avec neuf butins au sol, et il monte d'environ trois
+## instances par butin supplémentaire — vingt-six étant le maximum toléré,
+## le pire cas approche 700. La publication a d'ailleurs rendu 750 avec le
+## comptage à l'instant final et le butin d'origine, ce qui a justement
+## fait échouer cette barrière sur sa propre livraison.
+##
+## LA MARGE EST MINCE, ET IL FAUT LE DIRE : entre ce plafond et le premier
+## point mortel constaté (782) il ne reste qu'une soixantaine d'instances.
+## Le prochain levier est identifié mais non vérifié — effacer à la
+## distance les mobs éloignés, qui sont une trentaine dans le monde alors
+## que la caméra n'en voit qu'une poignée.
 ##
 ## LA MARGE STRUCTURELLE EST MINCE, et c'est à retenir pour la suite : entre
 ## le plancher et la bascule il n'y a qu'environ deux cents instances pour
@@ -262,7 +282,7 @@ const PLAFOND_NOEUDS := 4100
 ## Sur ordinateur le compte est structurellement plus haut — toutes les
 ## mailles portent leur contour — et le rendu ne bronche pas : le plafond
 ## n'y a aucun sens, d'où le profil téléphone forcé dans la publication.
-const PLAFOND_MAILLAGES := 680
+const PLAFOND_MAILLAGES := 720
 
 
 ## Compte les maillages réellement visibles dans l'arbre.

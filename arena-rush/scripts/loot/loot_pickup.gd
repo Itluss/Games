@@ -71,7 +71,30 @@ func _ready() -> void:
 	shape.shape = sphere
 	add_child(shape)
 
-	_model = VisualKit.build_weapon(_data.silhouette, _data.color)
+	# SUR TÉLÉPHONE, L'ARME AU SOL EST UN JETON, PAS UN MODÈLE.
+	#
+	# Un modèle d'arme coûte quatre à six maillages, et il peut y avoir
+	# vingt-six butins au sol en même temps : cent trente instances pour un
+	# objet large de trente centimètres à treize mètres de haut. Or le rendu
+	# web cesse de dessiner la 3D au-delà d'un certain nombre d'instances
+	# visibles — voir `VisualKit.add_outline`. C'est le poste le plus cher
+	# du jeu pour le moins de lisibilité gagnée.
+	#
+	# Ce qu'on repère d'un butin, le commentaire ci-dessous le dit déjà :
+	# c'est son HALO et sa colonne, pas sa silhouette. Et sa couleur suffit
+	# à dire laquelle des quatre armes c'est. On garde donc la couleur et le
+	# mouvement, on abandonne le détail qu'on ne voit pas.
+	if Cfg.quality == Cfg.Quality.LOW:
+		_model = Node3D.new()
+		var jeton := MeshInstance3D.new()
+		var boite := BoxMesh.new()
+		boite.size = Vector3(0.34, 0.16, 0.62)
+		jeton.mesh = boite
+		jeton.material_override = VisualKit.mat(_data.color, 0.5)
+		jeton.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_model.add_child(jeton)
+	else:
+		_model = VisualKit.build_weapon(_data.silhouette, _data.color)
 	_model.scale = Vector3.ONE * 1.25
 	add_child(_model)
 
