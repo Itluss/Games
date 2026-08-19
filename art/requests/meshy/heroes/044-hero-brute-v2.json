@@ -1,0 +1,13 @@
+{
+  "_lot": "LOT 1 — HEROS, reprise apres controle qualite.",
+  "_pourquoi_cette_reprise": "REPRISE DE hero_brute. Le premier jet est ecarte pour DEUX echecs durs, verifies en rendu.\n\n1. IL PORTAIT UNE ARME. Un tube long en bandouliere, fondu dans le maillage. Or les six armes sont un lot a part et doivent toutes pouvoir etre portees par les quatre heros : une arme fondue dans le corps rend le heros inutilisable avec les cinq autres. « no weapon » figurait pourtant dans le prompt ET dans le negatif.\n\n2. LE STYLE AVAIT DERIVE VERS LE REALISTE. Proportions d'environ cinq tetes, visage d'homme adulte burine, finition metallique brillante. La planche impose du chibi mat et chaleureux, et le cahier des charges interdit explicitement le realisme.\n\nCE QUI CHANGE, ET POURQUOI CA DEVRAIT MARCHER. Dans le premier prompt, « heavily armored tank hero » ouvrait la description et « no weapon » la fermait. Un generateur pondere ce qui vient en tete : l'armure lourde a gagne, le reste a ete lu comme du detail. La v2 ouvre donc par le STYLE et par les MAINS VIDES, et ne parle d'armure qu'ensuite. La contrainte est aussi repetee sous plusieurs formes — rien tenu, rien en bandouliere, aucun tube — parce qu'une seule formulation peut etre ignoree, cinq beaucoup moins.",
+  "_ecarte": "La version precedente du meme nom est remplacee.",
+  "_hauteur_cible_m": 2.15,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : le jeu mesure le modele et le remet a cette taille.",
+  "nom": "hero_brute",
+  "mode": "texte",
+  "famille": "heros",
+  "prompt": "cute chunky cartoon mascot character, chibi proportions three and a half heads tall, oversized head, big friendly eyes, no beard, matte toy plastic finish, both arms held out away from the body in a clean A-pose, both hands completely open and empty, holding nothing, nothing slung across the chest, no strap, no tube, no gun, no rifle, no cannon, the character is a heavy armored tank: extremely bulky top-heavy trapezoid silhouette, enormous smooth rounded shoulder pads far wider than the hips, oversized thick forearms, short stubby legs, big rounded boots, a small rounded helmet with one glowing red eye lens, few large smooth armor plates with almost no small details, burnt orange and warm rust armor with grey steel joints and cream accents",
+  "polycount": 11000,
+  "texturer": true
+}

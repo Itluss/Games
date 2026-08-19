@@ -1,0 +1,13 @@
+{
+  "_lot": "LOT 1 — HEROS, reprise apres controle qualite.",
+  "_pourquoi_cette_reprise": "REPRISE DE hero_spark. Le premier jet sort MIGNON ET LISIBLE — casquette orange, grosses lunettes a verres verts, ceinture d'outils — mais il a perdu ses DEUX elements signature : pas de sac techno, pas de drone d'epaule.\n\nPOURQUOI C'EST GRAVE ALORS QUE LE MODELE EST JOLI. Vu de dessus, a la distance de la camera, il ne reste qu'une casquette orange. Le sac etait ce qui donnait a Spark sa silhouette RECTANGULAIRE et LARGE — la seule chose qui le distingue d'un autre petit personnage — et le drone etait ce qui disait « ingenieur » sans qu'on ait besoin de regarder son visage. Un heros qu'on ne reconnait pas a son role n'est pas un heros, c'est un figurant.\n\nCE QUI CHANGE. Le sac et le drone passent en TETE de description, avant le personnage lui-meme, et la couleur dominante redevient le vert — le premier jet est sorti presque entierement orange, ce qui le rapproche de Brute au lieu de l'en distinguer.",
+  "_ecarte": "La version precedente du meme nom est remplacee.",
+  "_hauteur_cible_m": 1.62,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : le jeu mesure le modele et le remet a cette taille.",
+  "nom": "hero_spark",
+  "mode": "texte",
+  "famille": "heros",
+  "prompt": "cute chunky cartoon mascot character, chibi proportions three and a half heads tall, oversized head, big friendly eyes, matte toy plastic finish, both arms held out away from the body in a clean A-pose, both hands completely open and empty, holding nothing, no wrench, no tool in hands, no gun, the character is a small engineer defined by two things: first, a very large bright green technical backpack with two big rounded canisters and thick curved pipes, wide enough to make the silhouette clearly rectangular from above; second, a small round yellow drone with one big blue eye and a single rotor sitting on the right shoulder, he also wears an orange cap with a short brim and very large round goggles with glowing bright green lenses, a tool belt with big simple pouches, thick gloves and heavy boots, dominant grass green with warm yellow and small orange accents",
+  "polycount": 9000,
+  "texturer": true
+}
