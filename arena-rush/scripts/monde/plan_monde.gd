@@ -159,60 +159,59 @@ enum Densite { CALME, MOYENNE, FORTE, EXTREME }
 const SECTEURS: Array[Dictionary] = [
 	{
 		"id": &"creuset",
-		"nom": "LE CREUSET",
+		"nom": "L'ESPLANADE",
 		"centre": Vector2(-56.0, 14.0),
 		"poids": 0.62,
-		"sol": Cfg.SOL_NOYAU,
+		"sol": Cfg.SOL_ESPLANADE,
 		"danger": Densite.EXTREME,
-		"familles": [&"pilier", &"ruine", &"caillou"],
-		# DENSITÉ BASSE, ET C'EST VOULU. Le Creuset porte DÉJÀ tout le plan
+		"familles": [&"dalle", &"pilier", &"borne"],
+		# DENSITÉ BASSE, ET C'EST VOULU. L'esplanade porte DÉJÀ tout le plan
 		# de l'ancienne arène — ses structures, ses abris, sa garniture. Y
 		# semer en plus au tarif d'un secteur ordinaire empilait deux décors
 		# au même endroit : mesuré, le joueur y devenait invisible depuis la
 		# caméra une fois sur sept. On ne meuble pas deux fois la même pièce.
 		"densite_decor": 0.025,
-		"note": "Le point chaud du monde. Densité maximale, meilleur butin, aucun endroit où se cacher longtemps. Il remplace le noyau du disque : sur un tore, le danger ne peut plus venir du centre, il vient d'un LIEU.",
+		"note": "Le cœur dallé des Ruines Solaires. Sol clair, presque vide, bordé de bornes : c'est l'arène à ciel ouvert du monde, et le seul endroit où l'on se voit venir de loin.",
 	},
 	{
 		"id": &"ruines",
-		"nom": "LES RUINES",
+		"nom": "LES RUINES BASSES",
 		"centre": Vector2(-46.0, -38.0),
 		"poids": 0.85,
 		"sol": Cfg.SOL_RUINES,
 		"danger": Densite.FORTE,
 		# LA LISTE VAUT PONDÉRATION : une famille répétée sort plus souvent.
 		#
-		# C'EST ICI QUE SE JOUE LA LISIBILITÉ DU SECTEUR. L'ancienne liste
-		# donnait une chance sur quatre au pilier, soit près de soixante
-		# colonnes de trois mètres et demi sur la zone — une forêt qui
-		# attirait l'œil plus que le personnage et masquait les combats,
-		# vérifié en capture.
-		#
-		# Le pilier tombe à une chance sur quatorze : il devient un repère
-		# qu'on aperçoit de loin, ce qu'un grand élément doit être. Le
-		# couvert est repris par des masses BASSES — murs, blocs, rochers —
-		# derrière lesquelles on s'abrite sans perdre l'action de vue.
+		# LE COUVERT EST BAS, ET C'EST LA RÈGLE DE TOUTE LA CARTE. Un pan de
+		# mur à 1,1 m cache un corps sans cacher le combat ; une colonne de
+		# 3,4 m cache le combat. Les colonnes restent donc RARES — une sur
+		# quatorze — et ne servent plus qu'à se repérer.
 		"familles": [
 			&"mur_bas", &"mur_bas", &"mur_bas",
 			&"bloc", &"bloc", &"bloc",
-			&"caillou", &"caillou", &"caillou",
-			&"cactus", &"cactus",
-			&"touffe", &"cristal",
-			&"pilier",
+			&"dalle", &"dalle",
+			&"caillou", &"caillou",
+			&"gravier", &"gravier",
+			&"plante", &"pilier",
 		],
 		"densite_decor": 0.062,
-		"note": "Ruines ensoleillées. Couvert bas, quelques colonnes pour se repérer, et des cactus.",
+		"note": "Le quartier effondré. Murets à hauteur de poitrine et dalles descellées : on s'y bat à couvert sans jamais perdre l'action de vue.",
 	},
 	{
 		"id": &"camp",
-		"nom": "LE CAMP",
+		"nom": "LES DUNES",
 		"centre": Vector2(32.0, -50.0),
 		"poids": 1.25,
-		"sol": Cfg.SOL_CAMP,
+		"sol": Cfg.SOL_DUNES,
 		"danger": Densite.CALME,
-		"familles": [&"tente", &"caisse", &"cloture", &"tonneau", &"caillou"],
-		"densite_decor": 0.055,
-		"note": "Le plus large. Peu de mobs, beaucoup d'abris bas : on y apprend à jouer sans être puni.",
+		# LE SECTEUR LE PLUS VIDE DE LA CARTE, VOLONTAIREMENT. Une carte
+		# uniformément dense n'a pas de respiration : c'est le contraste
+		# entre ce sable presque nu et les ruines qui donne sa valeur au
+		# couvert quand on le retrouve.
+		"familles": [&"caillou", &"caillou", &"gravier", &"gravier",
+				&"plante", &"rocher", &"borne"],
+		"densite_decor": 0.04,
+		"note": "Le plus large et le plus dégagé. Peu de mobs, peu d'abris : on y traverse vite et on y est vu de loin.",
 	},
 	{
 		"id": &"canyon",
@@ -221,31 +220,37 @@ const SECTEURS: Array[Dictionary] = [
 		"poids": 1.05,
 		"sol": Cfg.SOL_CANYON,
 		"danger": Densite.MOYENNE,
-		"familles": [&"mesa", &"rocher", &"caillou", &"touffe"],
+		"familles": [&"rocher", &"rocher", &"bloc", &"caillou",
+				&"gravier", &"arche_basse", &"plante"],
 		"densite_decor": 0.075,
-		"note": "Mesas hautes et défilés étroits. Le secteur où l'on tend une embuscade.",
+		"note": "Sable roux et masses de pierre. Les arches basses y font des passages obligés : le secteur où l'on tend une embuscade.",
 	},
 	{
 		"id": &"bosquet",
-		"nom": "LE BOSQUET",
+		"nom": "L'OASIS",
 		"centre": Vector2(-20.0, 46.0),
 		"poids": 1.1,
-		"sol": Cfg.SOL_BOSQUET,
+		"sol": Cfg.SOL_OASIS,
 		"danger": Densite.MOYENNE,
-		"familles": [&"arbre", &"pin", &"buisson", &"touffe", &"caillou"],
-		"densite_decor": 0.11,
-		"note": "Couvert dense. On y voit mal et on y est mal vu — le contraire du canyon.",
+		# LE SEUL VERT DE LA CARTE, ET C'EST CE QUI LE REND REPÉRABLE. Il ne
+		# faut pas plus d'une tache de verdure sur un monde de sable : la
+		# deuxième détruirait la première.
+		"familles": [&"plante", &"plante", &"plante", &"caillou",
+				&"mur_bas", &"gravier", &"cristal"],
+		"densite_decor": 0.1,
+		"note": "La tache verte du monde. Couvert dense, visible de très loin : on y va pour se soigner, on y reste rarement seul.",
 	},
 	{
 		"id": &"fonderie",
-		"nom": "LA FONDERIE",
+		"nom": "LE CHAMP DE CRISTAUX",
 		"centre": Vector2(6.0, -6.0),
 		"poids": 1.0,
-		"sol": Cfg.SOL_FONDERIE,
+		"sol": Cfg.SOL_CRISTAUX,
 		"danger": Densite.FORTE,
-		"familles": [&"caisse", &"tonneau", &"barricade", &"caillou"],
+		"familles": [&"cristal", &"cristal", &"cristal", &"caisse",
+				&"caisse", &"bloc", &"gravier", &"cristal_grand"],
 		"densite_decor": 0.07,
-		"note": "Béton et conteneurs. Le secteur le plus « habité ».",
+		"note": "L'énergie affleure. Cristaux turquoise et caisses techno : le secteur le plus coloré, donc celui vers lequel l'œil part tout seul.",
 	},
 ]
 
@@ -295,34 +300,34 @@ static func secteur(id: StringName) -> Dictionary:
 ## « retrouve-moi à la tour ».
 const POINTS_INTERET: Array[Dictionary] = [
 	{
-		"id": &"tour", "nom": "TOUR DE GUET", "secteur": &"camp",
+		"id": &"tour", "nom": "LE PILIER SOLAIRE", "secteur": &"camp",
 		"deport": Vector2(-9.0, 7.0), "hauteur": 17.0, "rayon_actif": 13.0,
-		"note": "LE repère du monde. La plus haute chose de la carte, visible de partout : c'est elle qui permet de se réorienter.",
+		"note": "LE repère du monde. Un obélisque de pierre claire cerclé d'or, cœur d'énergie au sommet, planté au milieu du secteur le plus dégagé pour être visible de partout.",
 	},
 	{
-		"id": &"pont", "nom": "LE PONT DE PIERRE", "secteur": &"canyon",
+		"id": &"pont", "nom": "L'ARCHE ANCIENNE", "secteur": &"canyon",
 		"deport": Vector2(6.0, -8.0), "hauteur": 11.0, "rayon_actif": 12.0,
 		"note": "Une arche que l'on franchit par-dessous. Un passage obligé fabrique des rencontres.",
 	},
 	{
-		"id": &"temple", "nom": "LE TEMPLE ENGLOUTI", "secteur": &"bosquet",
+		"id": &"temple", "nom": "LE TEMPLE ENSABLÉ", "secteur": &"bosquet",
 		"deport": Vector2(8.0, 5.0), "hauteur": 9.5, "rayon_actif": 14.0,
-		"note": "Le seul volume clair du bosquet, donc son unique repère.",
+		"note": "Le seul volume bâti de l'oasis, donc son unique repère. Il est incomplet : une ruine se lit à ce qui lui manque.",
 	},
 	{
-		"id": &"depot", "nom": "LE DÉPÔT", "secteur": &"fonderie",
+		"id": &"depot", "nom": "LE HANGAR COBALT", "secteur": &"fonderie",
 		"deport": Vector2(-7.0, 9.0), "hauteur": 12.0, "rayon_actif": 15.0,
-		"note": "Halle ouverte et grue. Le meilleur butin hors Creuset.",
+		"note": "La seule grande masse bleue de la carte. Le meilleur butin hors Esplanade.",
 	},
 	{
-		"id": &"carcasse", "nom": "LA CARCASSE", "secteur": &"ruines",
+		"id": &"carcasse", "nom": "LE PORTAIL BRISÉ", "secteur": &"ruines",
 		"deport": Vector2(5.0, 6.0), "hauteur": 10.0, "rayon_actif": 12.0,
-		"note": "Un vaisseau échoué, planté de travers. Une silhouette qu'on ne confond avec rien.",
+		"note": "Un anneau de pierre tombé de travers, encore alimenté. Une silhouette qu'on ne confond avec rien.",
 	},
 	{
 		"id": &"place", "nom": "LA PLACE", "secteur": &"creuset",
 		"deport": Vector2(0.0, 0.0), "hauteur": 14.0, "rayon_actif": 16.0,
-		"note": "Le cœur du Creuset. C'est là qu'on va quand on veut se battre.",
+		"note": "Le cœur de l'Esplanade. C'est là qu'on va quand on veut se battre.",
 	},
 ]
 

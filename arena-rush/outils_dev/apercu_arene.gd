@@ -38,16 +38,29 @@ var _chauffe := 0
 var _vues := [
 	{"nom": "jeu", "pos": Vector3(14.0, 15.0, 20.0), "cible": Vector3(0, 1.0, 0)},
 	{"nom": "plongee", "pos": Vector3(1.0, 200.0, 1.2), "cible": Vector3(0, 0, 0)},
-	# LES RUINES sont la zone d'essai visuel : deux vues, une de loin pour
-	# juger la masse et la couleur, une au ras pour juger la lisibilité.
+	# LES RUINES BASSES : deux vues, une de loin pour juger la masse et la
+	# couleur, une au ras pour juger la lisibilité du couvert.
 	{"nom": "ruines", "pos": Vector3(-34.0, 14.0, -26.0), "cible": Vector3(-46, 2.0, -38)},
 	{"nom": "ruines_pres", "pos": Vector3(-42.0, 9.0, -30.0), "cible": Vector3(-46, 1.2, -37)},
-	# SOUS LE PONT, AU PLACEMENT EXACT DE LA CAMÉRA DE JEU. Le tablier est à
-	# 8,3 m, la caméra à 10,4 m : cette vue répond en une image à la question
+	# SOUS L'ARCHE, AU PLACEMENT EXACT DE LA CAMÉRA DE JEU. Le tablier est à
+	# 8,6 m, la caméra à 10,4 m : cette vue répond en une image à la question
 	# « que voit le joueur quand il franchit l'arche par-dessous ? ».
-	{"nom": "sous_pont", "pos": Vector3(60.0, 10.4, 26.0), "cible": Vector3(60, 1.4, 18)},
-	{"nom": "creuset", "pos": Vector3(-46.0, 16.0, 4.0), "cible": Vector3(-56, 3.0, 14)},
-	{"nom": "bosquet", "pos": Vector3(-10.0, 14.0, 36.0), "cible": Vector3(-20, 3.0, 46)},
+	{"nom": "sous_arche", "pos": Vector3(60.0, 10.4, 26.0), "cible": Vector3(60, 1.4, 18)},
+	{"nom": "esplanade", "pos": Vector3(-46.0, 16.0, 4.0), "cible": Vector3(-56, 3.0, 14)},
+	{"nom": "oasis", "pos": Vector3(-10.0, 14.0, 36.0), "cible": Vector3(-20, 3.0, 46)},
+	# LES CINQ REPÈRES DE LA PLANCHE, chacun sous l'angle où sa silhouette
+	# se lit. C'est en image, et seulement en image, qu'on voit si un repère
+	# se distingue du sable derrière lui.
+	{"nom": "pilier_solaire", "pos": Vector3(38.0, 11.0, -33.0), "cible": Vector3(23, 8.0, -43)},
+	{"nom": "portail_brise", "pos": Vector3(-29.0, 9.0, -24.0), "cible": Vector3(-41, 4.0, -32)},
+	{"nom": "hangar_cobalt", "pos": Vector3(13.0, 12.0, 15.0), "cible": Vector3(-1, 4.0, 3)},
+	{"nom": "temple", "pos": Vector3(0.0, 11.0, 61.0), "cible": Vector3(-12, 3.5, 51)},
+	{"nom": "cristaux", "pos": Vector3(20.0, 13.0, -22.0), "cible": Vector3(6, 1.5, -6)},
+	{"nom": "dunes", "pos": Vector3(44.0, 13.0, -38.0), "cible": Vector3(32, 1.0, -50)},
+	{"nom": "canyon", "pos": Vector3(66.0, 13.0, 38.0), "cible": Vector3(54, 1.5, 26)},
+	# Gros plan sur une tour du plan d'origine : c'est la pièce Meshy la
+	# plus grande, donc celle où un défaut de matière se voit le mieux.
+	{"nom": "tour_meshy", "pos": Vector3(-46.0, 8.0, 28.0), "cible": Vector3(-54.5, 5.0, 32.6)},
 ]
 
 func _ready() -> void:

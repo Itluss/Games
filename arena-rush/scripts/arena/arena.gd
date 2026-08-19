@@ -568,9 +568,10 @@ func _tapis(base: Vector2) -> ArrayMesh:
 	for j in FINESSE_SOL + 1:
 		for i in FINESSE_SOL + 1:
 			var local := Vector2(-demi + float(i) * pas, -demi + float(j) * pas)
-			var s := PlanMonde.secteur(PlanMonde.secteur_de(
-					PlanMonde.enrouler(base + local)))
-			teintes.append(s["sol"] if s.has("sol") else Cfg.SOL_NOYAU)
+			var monde := PlanMonde.enrouler(base + local)
+			var s := PlanMonde.secteur(PlanMonde.secteur_de(monde))
+			var teinte: Color = s["sol"] if s.has("sol") else Cfg.SOL_ESPLANADE
+			teintes.append(_ondulation(teinte, monde))
 	var largeur := FINESSE_SOL + 1
 	for j in FINESSE_SOL:
 		for i in FINESSE_SOL:
@@ -582,6 +583,32 @@ func _tapis(base: Vector2) -> ArrayMesh:
 			_triangle(st, base, i, j, b, c, d, teintes, pas, demi)
 	st.generate_normals()
 	return st.commit()
+
+
+## MODULATION DU SABLE — ce qui empêche le sol d'être un aplat.
+##
+## LE DÉFAUT QUE CECI CORRIGE. Passer le monde entier en un seul biome
+## règle le problème des six univers contradictoires, mais en crée un
+## autre : six teintes de sable très proches donnent, vues de la caméra,
+## un aplat beige de bord à bord. Le sol occupe les trois quarts de
+## l'écran — un aplat sur les trois quarts de l'écran, c'est une carte qui
+## paraît vide même quand elle est meublée.
+##
+## On module donc la CLARTÉ de chaque sommet, jamais sa teinte. Deux sinus
+## de longues périodes font les ondulations de dune, un troisième beaucoup
+## plus court fait le grain. L'amplitude reste sous les 7 % : de près on ne
+## voit rien de particulier, de loin le sol respire et la distance
+## parcourue se lit.
+##
+## LES PÉRIODES DIVISENT LE CÔTÉ DU MONDE. Sans cela l'ondulation ne se
+## recollerait pas d'un bord à l'autre, et la couture qu'on passe tout ce
+## fichier à masquer réapparaîtrait — une seule fois, en pleine lumière.
+func _ondulation(teinte: Color, p: Vector2) -> Color:
+	var dune := sin(p.x * TAU / 48.0 + p.y * TAU / 72.0) * 0.5 \
+			+ sin(p.y * TAU / 36.0 - p.x * TAU / 144.0) * 0.35 \
+			+ sin((p.x + p.y) * TAU / 18.0) * 0.15
+	var f := dune * 0.068
+	return teinte.lightened(f) if f > 0.0 else teinte.darkened(-f)
 
 
 func _triangle(st: SurfaceTool, base: Vector2, i: int, j: int,
@@ -696,28 +723,27 @@ func _batir_secteurs() -> void:
 const PAS_SEMIS := 2.0
 
 ## collision se paie sur un téléphone.
-const FAMILLES_SOLIDES := [&"mesa", &"rocher", &"arbre", &"pin", &"ruine",
-		&"pilier", &"tente", &"mur_bas", &"bloc"]
+const FAMILLES_SOLIDES := [&"rocher", &"pilier", &"mur_bas", &"bloc",
+		&"cristal_grand", &"arche_basse", &"borne"]
 const RAYON_SOLIDE := {
-	&"mesa": 1.2, &"rocher": 0.95, &"arbre": 0.32, &"pin": 0.3,
-	&"ruine": 1.5, &"pilier": 0.45, &"tente": 1.3,
-	&"mur_bas": 1.05, &"bloc": 0.6,
+	&"rocher": 0.95, &"pilier": 0.45, &"mur_bas": 1.05, &"bloc": 0.6,
+	&"cristal_grand": 0.55, &"arche_basse": 1.4, &"borne": 0.28,
 }
 const HAUTEUR_SOLIDE := {
-	&"mesa": 4.0, &"rocher": 1.3, &"arbre": 2.0, &"pin": 1.4,
-	&"ruine": 2.0, &"pilier": 3.4, &"tente": 2.0,
+	&"rocher": 1.3, &"pilier": 3.4,
 	# Le muret arrête les corps mais pas le regard : 1,1 m, sous la ligne
 	# des yeux de la caméra. C'est toute la différence entre un abri et un
 	# mur qui cache le combat.
 	&"mur_bas": 1.1, &"bloc": 0.62,
+	&"cristal_grand": 2.6, &"arche_basse": 2.4, &"borne": 1.5,
 }
 ## Distance d'effacement par famille. Zéro = jamais effacé.
 ##
 ## RÈGLE : une famille solide n'a JAMAIS de portée. Un obstacle effacé au
 ## loin reste un obstacle — on se cognerait dans du vide.
 const PORTEE := {
-	&"caillou": 46.0, &"touffe": 34.0, &"buisson": 52.0, &"tonneau": 58.0,
-	&"caisse": 62.0, &"cloture": 62.0, &"cactus": 50.0, &"cristal": 58.0,
+	&"caillou": 46.0, &"gravier": 34.0, &"plante": 50.0, &"cactus": 50.0,
+	&"caisse": 62.0, &"dalle": 44.0, &"cristal": 58.0,
 }
 
 ## Distance d'effacement effective, raccourcie de 40 % sur téléphone.
@@ -816,7 +842,12 @@ func _balise(base: Vector3, hauteur: float) -> void:
 	s.radial_segments = 10
 	s.rings = 6
 	orbe.mesh = s
-	orbe.material_override = VisualKit.glow_mat(Cfg.COL_NEON_CYAN, 3.2)
+	# ÉCLAIRÉE, PAS EN APLAT. Un matériau de halo est non éclairé : la
+	# sphère rendait alors un disque turquoise parfaitement plat, vérifié en
+	# image — de près, une gommette collée sur le ciel. Un matériau éclairé
+	# ET émissif garde les facettes visibles tout en brillant dans la
+	# brume, ce qui est précisément le travail d'une balise.
+	orbe.material_override = VisualKit.mat(Cfg.COL_TURQUOISE, 1.4, 0.3)
 	orbe.position = base + Vector3(0, hauteur + 0.8, 0)
 	orbe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_ajouter(orbe)
@@ -842,80 +873,96 @@ func _bloc(taille: Vector3, pos: Vector3, teinte: Color, rot := 0.0,
 	_obstacles.add_child(shape)
 
 
-## TOUR DE GUET — le repère principal du monde, et le plus haut.
+## LE PILIER SOLAIRE — le repère principal du monde, et le plus haut.
 ##
-## Quatre pieds évasés, une cage, une plateforme. La silhouette ajourée est
-## volontaire : massive, elle boucherait la vue depuis le camp.
+## LA PLANCHE EN FAIT SON SUJET CENTRAL, ET ELLE A RAISON. Sur un monde qui
+## s'enroule, aucun bord ne dit où l'on est : il faut UNE silhouette qu'on
+## reconnaisse à cent mètres et sous n'importe quel angle. Un obélisque
+## étagé la donne — chaque étage plus étroit que le précédent, un liseré
+## d'or à chaque rupture, un cœur turquoise au sommet.
+##
+## Il est ÉTROIT. Une tour massive de dix-sept mètres au milieu du secteur
+## le plus dégagé masquerait justement ce qu'on vient y voir : les autres.
 func _poi_tour(base: Vector3) -> void:
-	var bois := Cfg.COL_BOIS
+	var pierre := Cfg.COL_PIERRE_CREME
+	var ombre := Cfg.COL_PIERRE_OMBRE
+	# Socle large, en deux marches : c'est lui qui donne l'assise. Sans
+	# marches, un fût planté dans le sable a l'air posé, pas bâti.
+	_bloc(Vector3(9.0, 0.7, 9.0), base + Vector3(0, 0.35, 0), ombre, 0.0, false)
+	_bloc(Vector3(7.0, 0.6, 7.0), base + Vector3(0, 1.0, 0), pierre, 0.0, false)
+	# Fût étagé : quatre tronçons de moins en moins larges, chacun coiffé
+	# d'un bandeau d'or. C'est le biseau de la planche, répété — la seule
+	# règle de forme qui tient toute l'unité de la carte.
+	var y := 1.3
+	var large := 3.2
+	for etage in 4:
+		var h := 3.6 - etage * 0.35
+		_bloc(Vector3(large, h, large), base + Vector3(0, y + h * 0.5, 0),
+				pierre if etage % 2 == 0 else ombre, 0.0, etage == 0)
+		y += h
+		_bloc(Vector3(large + 0.5, 0.28, large + 0.5), base + Vector3(0, y, 0),
+				Cfg.COL_OR, 0.0, false)
+		y += 0.28
+		large -= 0.5
+	# Quatre contreforts cobalt en bas : ils ancrent la base et donnent au
+	# pilier la seule touche froide qui le détache d'un ciel chaud.
 	for i in 4:
 		var a := TAU * float(i) / 4.0 + PI * 0.25
 		var d := Vector3(cos(a), 0, sin(a))
-		# Pieds INCLINÉS vers l'extérieur : c'est ce qui donne l'assise et
-		# rend la tour crédible plutôt que posée.
-		var mi := MeshInstance3D.new()
-		var c := CylinderMesh.new()
-		c.bottom_radius = 0.34
-		c.top_radius = 0.24
-		c.height = 13.0
-		c.radial_segments = 6
-		mi.mesh = c
-		mi.material_override = VisualKit.mat(bois, 0.0, 0.9)
-		mi.position = base + d * 2.1 + Vector3(0, 6.5, 0)
-		mi.rotation = Vector3(d.z * 0.1, 0, -d.x * 0.1)
-		_ajouter(mi)
-	for niveau in 3:
-		var y := 4.0 + niveau * 4.0
-		_bloc(Vector3(5.6, 0.3, 5.6), base + Vector3(0, y, 0),
-				bois.darkened(0.08), 0.0, niveau == 0)
-	_bloc(Vector3(6.4, 0.4, 6.4), base + Vector3(0, 13.4, 0),
-			Cfg.COL_TOILE, 0.0, false)
-	_bloc(Vector3(5.0, 1.5, 0.3), base + Vector3(0, 14.2, 2.6), bois, 0.0, false)
-	_bloc(Vector3(5.0, 1.5, 0.3), base + Vector3(0, 14.2, -2.6), bois, 0.0, false)
-	# Toit conique, la touche qui la fait lire comme un poste et non une
-	# grue.
-	var toit := MeshInstance3D.new()
-	var cone := CylinderMesh.new()
-	cone.bottom_radius = 4.6
-	cone.top_radius = 0.0
-	cone.height = 2.6
-	cone.radial_segments = 6
-	toit.mesh = cone
-	toit.material_override = VisualKit.mat(Cfg.COL_KAEL_ACCENT.darkened(0.2),
-			0.0, 0.85)
-	toit.position = base + Vector3(0, 16.0, 0)
-	_ajouter(toit)
+		_bloc(Vector3(0.8, 4.2, 0.8), base + d * 2.4 + Vector3(0, 2.1, 0),
+				Cfg.COL_COBALT, a, false)
+	# Cœur d'énergie au sommet : c'est lui qu'on voit percer la brume.
+	var noyau := MeshInstance3D.new()
+	var oct := SphereMesh.new()
+	oct.radius = 1.0
+	oct.height = 2.6
+	oct.radial_segments = 6
+	oct.rings = 3
+	noyau.mesh = oct
+	noyau.material_override = VisualKit.mat(Cfg.COL_TURQUOISE, 1.6, 0.28)
+	noyau.position = base + Vector3(0, y + 1.4, 0)
+	noyau.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_ajouter(noyau)
 
 
-## LE PONT DE PIERRE — une arche que l'on franchit PAR-DESSOUS.
+## L'ARCHE ANCIENNE — une arche que l'on franchit PAR-DESSOUS.
 ##
 ## Le passage obligé est le vrai sujet : il fabrique des rencontres, ce
 ## qu'aucun décor purement visuel ne fait.
 func _poi_pont(base: Vector3) -> void:
-	var pierre := Cfg.COL_ROCHE_CHAUDE
+	var pierre := Cfg.COL_PIERRE_CREME
+	var ombre := Cfg.COL_PIERRE_OMBRE
 	for cote in [-1.0, 1.0]:
-		_bloc(Vector3(3.0, 8.0, 5.0), base + Vector3(cote * 6.0, 4.0, 0),
-				pierre)
+		# Pile en deux volumes : un fût, puis un chapiteau plus large. Le
+		# ressaut est ce qui distingue une pile bâtie d'un bloc dressé.
+		_bloc(Vector3(3.0, 7.2, 5.0), base + Vector3(cote * 6.0, 3.6, 0), ombre)
+		_bloc(Vector3(3.6, 0.8, 5.6), base + Vector3(cote * 6.0, 7.6, 0),
+				pierre, 0.0, false)
+		_bloc(Vector3(3.2, 0.3, 5.2), base + Vector3(cote * 6.0, 8.15, 0),
+				Cfg.COL_OR, 0.0, false)
 	# Tablier en trois segments légèrement cintrés : trois boîtes suffisent
 	# à faire lire une arche, là où une vraie courbe coûterait une géométrie
 	# sur mesure pour un gain nul à cette distance.
-	_bloc(Vector3(6.0, 1.4, 5.2), base + Vector3(-3.6, 8.3, 0), pierre, 0.0, false)
-	_bloc(Vector3(6.0, 1.4, 5.2), base + Vector3(3.6, 8.3, 0), pierre, 0.0, false)
-	_bloc(Vector3(4.4, 1.6, 5.2), base + Vector3(0, 8.8, 0), pierre, 0.0, false)
-	_bloc(Vector3(15.0, 0.8, 0.6), base + Vector3(0, 9.9, 2.4),
-			pierre.lightened(0.14), 0.0, false)
-	_bloc(Vector3(15.0, 0.8, 0.6), base + Vector3(0, 9.9, -2.4),
-			pierre.lightened(0.14), 0.0, false)
+	_bloc(Vector3(6.0, 1.4, 5.2), base + Vector3(-3.6, 8.6, 0), pierre, 0.0, false)
+	_bloc(Vector3(6.0, 1.4, 5.2), base + Vector3(3.6, 8.6, 0), pierre, 0.0, false)
+	_bloc(Vector3(4.4, 1.6, 5.2), base + Vector3(0, 9.1, 0), pierre, 0.0, false)
+	_bloc(Vector3(15.0, 0.8, 0.6), base + Vector3(0, 10.2, 2.4),
+			Cfg.COL_COBALT, 0.0, false)
+	_bloc(Vector3(15.0, 0.8, 0.6), base + Vector3(0, 10.2, -2.4),
+			Cfg.COL_COBALT, 0.0, false)
+	# Clé de voûte dorée : le point que l'œil accroche sous l'arche, et le
+	# seul détail qui dise que ce pont a été CONSTRUIT.
+	_bloc(Vector3(1.6, 0.6, 5.4), base + Vector3(0, 8.0, 0), Cfg.COL_OR, 0.0, false)
 
 
-## LE TEMPLE ENGLOUTI — des colonnes émergeant du couvert.
+## LE TEMPLE ENSABLÉ — des colonnes émergeant de l'oasis.
 ##
-## Le seul volume clair du bosquet, donc son unique repère. Il est
+## Le seul volume bâti du secteur, donc son unique repère. Il est
 ## volontairement INCOMPLET : une ruine se lit à ce qui lui manque.
 func _poi_temple(base: Vector3) -> void:
-	var pierre := Cfg.COL_PIERRE
-	_bloc(Vector3(13.0, 0.8, 13.0), base + Vector3(0, 0.4, 0),
-			pierre.darkened(0.1), 0.0, false)
+	var pierre := Cfg.COL_PIERRE_CREME
+	var ombre := Cfg.COL_PIERRE_OMBRE
+	_bloc(Vector3(13.0, 0.8, 13.0), base + Vector3(0, 0.4, 0), ombre, 0.0, false)
 	_bloc(Vector3(10.0, 0.6, 10.0), base + Vector3(0, 1.0, 0), pierre, 0.0, false)
 	var debout := [Vector2(-4, -4), Vector2(4, -4), Vector2(-4, 4),
 			Vector2(4, 4), Vector2(0, -4.6)]
@@ -924,75 +971,164 @@ func _poi_temple(base: Vector3) -> void:
 		var h := 6.5 if i < 3 else 3.4     # deux colonnes brisées
 		_bloc(Vector3(1.0, h, 1.0), base + Vector3(c.x, 1.3 + h * 0.5, c.y),
 				pierre)
-	_bloc(Vector3(10.4, 0.9, 2.2), base + Vector3(0, 8.1, -4.0),
-			pierre.lightened(0.1), 0.0, false)
+		# Bague d'or à la cassure ou au chapiteau : c'est elle qui empêche
+		# une colonne claire de se fondre dans un ciel clair.
+		_bloc(Vector3(1.3, 0.24, 1.3), base + Vector3(c.x, 1.3 + h, c.y),
+				Cfg.COL_OR, 0.0, false)
+	_bloc(Vector3(10.4, 0.9, 2.2), base + Vector3(0, 8.3, -4.0), pierre, 0.0, false)
 	# Un fragment de linteau tombé au sol : c'est ce détail qui raconte que
 	# le lieu s'est effondré, et non qu'il a été bâti comme ça.
-	_bloc(Vector3(3.2, 0.9, 1.9), base + Vector3(2.6, 1.8, 3.4),
-			pierre.lightened(0.1), 0.5)
+	_bloc(Vector3(3.2, 0.9, 1.9), base + Vector3(2.6, 1.8, 3.4), ombre, 0.5)
 
 
-## LE DÉPÔT — halle ouverte et grue. Le meilleur butin hors noyau.
+## LE HANGAR COBALT — la seule grande masse bleue de la carte.
+##
+## POURQUOI IL EST BLEU ALORS QUE TOUT LE RESTE EST SABLE. Un monde d'une
+## seule matière devient illisible : il faut UN contrepoint froid, un seul,
+## assez grand pour servir de repère et assez rare pour ne pas casser
+## l'unité. Ce hangar le porte, et le champ de cristaux qui l'entoure le
+## prolonge en petit.
 func _poi_depot(base: Vector3) -> void:
-	var beton := Cfg.COL_BETON_SOMBRE
-	var metal := Cfg.COL_METAL
-	_bloc(Vector3(16.0, 0.5, 12.0), base + Vector3(0, 0.25, 0), beton, 0.0, false)
+	var cobalt := Cfg.COL_COBALT
+	var clair := Cfg.COL_COBALT_CLAIR
+	_bloc(Vector3(16.0, 0.5, 12.0), base + Vector3(0, 0.25, 0),
+			Cfg.COL_PIERRE_OMBRE, 0.0, false)
+	# DES PILES, PAS DEUX MURS PLEINS. Deux parois de 12 m faisaient de la
+	# halle une boîte : on n'y voyait pas au travers, donc on ne savait pas
+	# s'il y avait quelqu'un dedans avant d'y entrer. Trois piles par côté
+	# laissent voir à travers le bâtiment tout en gardant les mêmes appuis.
 	for cote in [-1.0, 1.0]:
-		_bloc(Vector3(0.8, 7.0, 12.0), base + Vector3(cote * 7.6, 3.5, 0), metal)
-	_bloc(Vector3(17.0, 0.7, 13.0), base + Vector3(0, 7.3, 0),
-			metal.lightened(0.1), 0.0, false)
+		for k in 3:
+			_bloc(Vector3(1.1, 7.0, 2.6),
+					base + Vector3(cote * 7.6, 3.5, (k - 1) * 4.6), cobalt)
+		# UN CHAPITEAU PAR PILE, ET NON UNE POUTRE CONTINUE. La poutre
+		# faisait 12,4 m de long sur 1,4 m de large : vérifiée en image,
+		# elle sortait comme une barre jaune vif traversant tout l'écran.
+		# La règle de la planche est « l'or par touches » — une poutre de
+		# douze mètres n'est pas une touche, c'est une façade.
+		for k in 3:
+			_bloc(Vector3(1.3, 0.22, 2.8),
+					base + Vector3(cote * 7.6, 7.15, (k - 1) * 4.6),
+					Cfg.COL_OR, 0.0, false)
+	# TOIT À LANTERNEAU, PAS UN PLATEAU. Premier jet : une dalle de
+	# 17 × 13 m d'un bleu uni, vérifiée en image — de la caméra de jeu, elle
+	# lisait comme un plateau de table posé sur quatre pieds. Deux versants
+	# bas et une travée centrale SURÉLEVÉE, portée par un bandeau clair,
+	# donnent une échelle au bâtiment et le font lire comme une halle.
+	for cote in [-1.0, 1.0]:
+		_bloc(Vector3(17.0, 0.6, 4.4), base + Vector3(0, 7.6, cote * 4.3),
+				cobalt, 0.0, false)
+	# Le bandeau du lanterneau : c'est la seule bande vraiment claire du
+	# bâtiment, et elle court sur toute sa longueur — de loin, c'est elle
+	# qu'on reconnaît.
+	_bloc(Vector3(17.0, 0.9, 4.4), base + Vector3(0, 8.35, 0), clair, 0.0, false)
+	_bloc(Vector3(17.2, 0.5, 4.6), base + Vector3(0, 8.95, 0), cobalt, 0.0, false)
+	# PAS DE LISERÉ D'OR SUR LES JOINTS DU TOIT. Il y en avait un de chaque
+	# côté du lanterneau, longs de 17 m : deux lignes jaunes qui coupaient
+	# tout le bâtiment. Le décrochement du lanterneau donne déjà la ligne
+	# horizontale ; l'or ajouté par-dessus ne dessinait plus rien, il
+	# répétait.
 	# Un pignon ouvert d'un côté : on peut entrer, donc s'y battre.
-	_bloc(Vector3(16.0, 5.0, 0.6), base + Vector3(0, 3.5, -6.0), beton)
+	_bloc(Vector3(16.0, 5.0, 0.6), base + Vector3(0, 3.5, -6.0), cobalt)
+	_bloc(Vector3(12.0, 0.4, 0.7), base + Vector3(0, 5.4, -6.0),
+			Cfg.COL_OR, 0.0, false)
+	# Mât d'antenne et son bras : la verticale qui dépasse du toit et fait
+	# reconnaître le hangar de loin, quand la halle elle-même est masquée.
 	var mat := MeshInstance3D.new()
 	var c := CylinderMesh.new()
-	c.bottom_radius = 0.5
-	c.top_radius = 0.4
-	c.height = 11.0
+	c.bottom_radius = 0.4
+	c.top_radius = 0.3
+	c.height = 9.0
 	c.radial_segments = 6
 	mat.mesh = c
-	mat.material_override = VisualKit.mat(Cfg.COL_KAEL_ACCENT.darkened(0.15),
-			0.0, 0.7)
-	mat.position = base + Vector3(9.5, 5.5, 4.0)
+	mat.material_override = VisualKit.mat(clair, 0.0, 0.7)
+	mat.position = base + Vector3(9.5, 4.5, 4.0)
 	_ajouter(mat)
-	_bloc(Vector3(9.0, 0.6, 0.8), base + Vector3(5.6, 10.6, 4.0),
-			Cfg.COL_KAEL_ACCENT.darkened(0.15), 0.0, false)
+	_bloc(Vector3(4.6, 0.26, 0.4), base + Vector3(7.6, 8.8, 4.0), Cfg.COL_OR,
+			0.0, false)
+	var feu := MeshInstance3D.new()
+	var s := SphereMesh.new()
+	s.radius = 0.42
+	s.height = 0.84
+	s.radial_segments = 6
+	s.rings = 4
+	feu.mesh = s
+	feu.material_override = VisualKit.mat(Cfg.COL_TURQUOISE, 1.5, 0.3)
+	feu.position = base + Vector3(9.5, 9.3, 4.0)
+	feu.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_ajouter(feu)
 
 
-## LA CARCASSE — un vaisseau échoué, planté de travers.
+## LE PORTAIL BRISÉ — un anneau de pierre tombé de travers.
 ##
-## L'INCLINAISON est tout le sujet. Posé droit, c'est un bâtiment ; planté
-## en biais, c'est un accident, et une silhouette qu'on ne confond avec
-## rien d'autre sur la carte.
+## L'INCLINAISON est tout le sujet. Posé droit, c'est une porte ; planté en
+## biais et à demi enfoncé dans le sable, c'est un accident, et une
+## silhouette qu'on ne confond avec rien d'autre sur la carte.
 func _poi_carcasse(base: Vector3) -> void:
-	var coque := Cfg.COL_METAL.lightened(0.12)
-	var brulé := Cfg.COL_METAL_SOMBRE
-	var mi := MeshInstance3D.new()
-	var c := CylinderMesh.new()
-	c.bottom_radius = 2.6
-	c.top_radius = 1.5
-	c.height = 15.0
-	c.radial_segments = 8
-	mi.mesh = c
-	mi.material_override = VisualKit.mat(coque, 0.0, 0.66)
-	mi.position = base + Vector3(0, 4.2, 0)
-	mi.rotation = Vector3(0.42, 0.6, 0.22)
-	_ajouter(mi)
+	var pierre := Cfg.COL_PIERRE_CREME
+	var ombre := Cfg.COL_PIERRE_OMBRE
+	# L'ANNEAU EST FAIT DE DOUZE SEGMENTS DROITS, et c'est délibéré. Un tore
+	# lisse jurerait au milieu d'un monde entièrement facetté ; douze
+	# facettes se lisent comme un anneau et restent dans la langue de la
+	# planche.
+	var incline := Basis.from_euler(Vector3(0.38, 0.6, 0.24))
+	var rayon := 5.4
+	# LE SEGMENT EST TANGENT, PAS RADIAL, et c'est tout le sujet. Premier
+	# jet : le grand axe des boîtes pointait vers le centre — vérifié en
+	# image, l'anneau sortait en ÉTOILE, douze dalles plantées en rayons
+	# avec deux mètres de vide entre chacune. Le pas angulaire vaut
+	# 2 π R ⁄ 12 ≈ 2,8 m : c'est la longueur que le segment doit couvrir,
+	# et la tourner de `a` au lieu de `a + 90°` suffit à l'y mettre.
+	var pas := TAU * rayon / 12.0
+	for i in 12:
+		var a := TAU * float(i) / 12.0
+		var local := Vector3(cos(a) * rayon, sin(a) * rayon, 0.0)
+		var b := BoxMesh.new()
+		# Léger recouvrement (+8 %) : sans lui, les arêtes des segments
+		# laissent voir le ciel entre eux dès qu'on tourne autour.
+		b.size = Vector3(1.15, pas * 1.08, 1.5)
+		# FONDU, PAS POSÉ. Douze MeshInstance3D distincts pour un seul objet
+		# décoratif, c'est douze instances de plus sur le compteur qui a
+		# déjà tué le rendu web une fois. Deux teintes seulement : elles se
+		# fondent en deux maillages, quel que soit le nombre de segments.
+		_fondre(b, Transform3D(
+				incline * Basis.from_euler(Vector3(0, 0, a)),
+				base + Vector3(0, 4.4, 0) + incline * local),
+				pierre if i % 2 == 0 else ombre)
+	# Le disque d'énergie qui reste allumé dans l'anneau : la seule vraie
+	# tache turquoise des ruines, et ce qui dit que le portail fonctionne
+	# encore.
+	var voile := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.bottom_radius = 4.7
+	cyl.top_radius = 4.7
+	cyl.height = 0.14
+	cyl.radial_segments = 12
+	voile.mesh = cyl
+	voile.material_override = VisualKit.glow_mat(Cfg.COL_TURQUOISE, 1.5, 0.42)
+	voile.transform = Transform3D(
+			incline * Basis.from_euler(Vector3(PI * 0.5, 0, 0)),
+			base + Vector3(0, 4.4, 0))
+	voile.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_ajouter(voile)
+	# Collision : une seule boîte au pied de l'anneau. On contourne le
+	# portail, on ne le traverse pas.
 	var shape := CollisionShape3D.new()
 	var cb := BoxShape3D.new()
-	cb.size = Vector3(9.0, 5.0, 5.0)
+	cb.size = Vector3(9.0, 5.0, 3.0)
 	shape.shape = cb
 	shape.position = base + Vector3(0, 2.5, 0)
 	shape.rotation.y = 0.6
 	_obstacles.add_child(shape)
 
-	# Deux ailerons brisés, plantés dans le sol autour de l'épave.
-	_bloc(Vector3(5.0, 0.5, 3.0), base + Vector3(-5.4, 1.6, 3.0), brulé, 0.9)
-	_bloc(Vector3(4.0, 0.5, 2.4), base + Vector3(5.0, 1.1, -3.6), brulé, -0.6)
-	# Traînée d'impact : elle dit d'où l'engin est arrivé.
+	# Deux fragments de l'anneau plantés dans le sol autour de lui.
+	_bloc(Vector3(4.4, 0.9, 1.4), base + Vector3(-5.4, 0.9, 3.6), ombre, 0.9)
+	_bloc(Vector3(3.4, 0.9, 1.4), base + Vector3(5.0, 0.7, -3.6), ombre, -0.6)
+	# Traînée de dalles descellées : elle dit d'où le portail est tombé.
 	for i in 4:
-		_bloc(Vector3(3.4 - i * 0.5, 0.35, 2.2), 
-				base + Vector3(7.0 + i * 4.0, 0.18, -5.0 - i * 2.6),
-				Cfg.SOL_RUINES.darkened(0.22), -0.5 + i * 0.1, false)
+		_bloc(Vector3(3.4 - i * 0.5, 0.3, 2.2),
+				base + Vector3(7.0 + i * 4.0, 0.16, -5.0 - i * 2.6),
+				Cfg.SOL_RUINES.darkened(0.16), -0.5 + i * 0.1, false)
 
 # --- NOYAU ---------------------------------------------------------------
 
@@ -1009,14 +1145,14 @@ func _build_pieces() -> void:
 	_toit_boites.clear()
 	_ouvrir_fusion()
 	for piece in PlanArene.STRUCTURES:
-		_poser(piece, Cfg.COL_METAL)
+		_poser(piece, Cfg.COL_PIERRE_CREME)
 	for piece in PlanArene.ABRIS:
-		_poser(piece, Cfg.COL_BETON_SOMBRE)
+		_poser(piece, Cfg.COL_COBALT)
 	var pas := 2 if Cfg.quality == Cfg.Quality.LOW else 1
 	var i := 0
 	for piece in PlanArene.GARNITURE:
 		if i % pas == 0:
-			_poser(piece, Cfg.COL_METAL, false)
+			_poser(piece, Cfg.COL_PIERRE_OMBRE, false)
 		i += 1
 	_fermer_fusion()
 	_declarer_toit()
@@ -1246,20 +1382,33 @@ func _poser(piece: Dictionary, teinte: Color, solide := true) -> void:
 var _pieces_habillees: int = 0
 var _pieces_totales: int = 0
 
-## FLAQUE DE NÉON sous une pièce du Creuset.
+## APRON DALLÉ au pied d'une pièce de l'Esplanade.
 ##
 ## Trente d'entre elles, chacune avec son propre matériau lumineux : trente
 ## appels de dessin pour un liseré décoratif, mesuré. Elles sont maintenant
-## fondues avec les autres — deux maillages, un par couleur — et coupées
-## sur téléphone, où elles ne valent pas ce qu'elles coûtent.
+## fondues avec les autres — deux maillages, un par couleur.
+##
+## RENDUES AU TÉLÉPHONE. Elles en étaient coupées du temps où chacune
+## coûtait son propre appel de dessin ; fondues, les trente n'en coûtent
+## plus que deux, et elles sont devenues le dallage qui donne son nom à
+## l'Esplanade. Couper sur mobile ce qui ne coûte rien et porte la
+## direction artistique n'a plus de sens.
 func _flaque(pos: Vector3, taille: Vector3, rot: float) -> void:
-	if Cfg.est_mobile():
-		return
 	var b := BoxMesh.new()
 	b.size = Vector3(taille.x + 0.5, 0.02, taille.z + 0.5)
-	var couleur := Cfg.COL_NEON_MAGENTA if taille.y > 3.0 else Cfg.COL_NEON_CYAN
+	# NON ÉMISSIF, ET C'EST LE CORRECTIF. Ces liserés étaient des néons :
+	# transposés tels quels en turquoise, ils sortaient — vérifié en image —
+	# comme des flaques d'eau lumineuses sous chaque abri, une trentaine de
+	# taches brillantes sur une esplanade en plein soleil. Ce ne sont pas
+	# des néons ici, ce sont des DALLES : de la pierre posée au pied de
+	# chaque volume, plus claire que le sol, qui dit « bâti » sans briller.
+	#
+	# Or sur les hauts volumes, pierre claire sur les bas : deux couleurs,
+	# donc deux maillages fondus, et l'œil apprend en une partie que le
+	# doré marque ce qui dépasse.
+	var couleur := Cfg.COL_OR if taille.y > 3.0 else Cfg.COL_PIERRE_CREME
 	_fondre(b, Transform3D(Basis.from_euler(Vector3(0, rot, 0)),
-			pos + Vector3(0, 0.05, 0)), couleur, true)
+			pos + Vector3(0, 0.05, 0)), couleur)
 
 static func _sans_ombre(n: Node) -> void:
 	var gi := n as GeometryInstance3D

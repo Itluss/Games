@@ -73,9 +73,19 @@ const COL_CIEL_HAUT := Color("2f8fdb")
 const COL_CIEL_HORIZON := Color("ffd6a0")
 ## Soleil de milieu de matinée : blanc à peine doré. Il éclaire, il ne teinte pas.
 const COL_SOLEIL_JOUR := Color("fff3dc")
-## Ambiante = rebond du ciel. Bleue et CLAIRE : les ombres restent lisibles,
-## on distingue encore un mob dans l'ombre d'une colonne.
-const COL_AMBIANTE_JOUR := Color("a8d4f2")
+## Ambiante = LE REBOND DU SOL, pas seulement celui du ciel.
+##
+## Elle était d'un bleu de ciel franc (a8d4f2), ce qui se défend sur une
+## dalle de béton. Sur du sable, non : mesurée en image, une grande face de
+## pierre crème à l'ombre — le flanc d'une tour, celui d'un mur — virait au
+## gris-vert et sortait de la palette. La faute n'est pas à la pierre, elle
+## est à la lumière qui l'atteint. Dans un désert, ce qui éclaire les
+## ombres est le sable, et le sable est chaud.
+##
+## On garde un reste de bleu pour que les ombres ne se confondent pas avec
+## les faces éclairées — c'est ce qui donne le relief. Mais le rebond
+## domine, et les ombres restent DANS le monde au lieu de le contredire.
+const COL_AMBIANTE_JOUR := Color("d2c4a6")
 # --- MATIÈRES DU MONDE OUVERT -------------------------------------------
 #
 # UNE COULEUR PAR MATIÈRE, PAS PAR OBJET. Un rocher du canyon et une mesa
@@ -86,62 +96,126 @@ const COL_AMBIANTE_JOUR := Color("a8d4f2")
 # Toutes sont choisies DÉSATURÉES par rapport aux couleurs de gameplay :
 # le décor ne doit jamais concurrencer un projectile, un butin ou un
 # adversaire. C'est la règle qui tient toute la lisibilité du jeu.
-## Roche GRISE MAIS CHAUDE. Elle était bleutée (8b8fa3) : sur un sol de
-## sable orange, chaque caillou virait au bleu et le désert paraissait
-## sale — vérifié en image. Un gris légèrement beige reste distinct du
-## sable sans s'y opposer.
-const COL_ROCHE := Color("9c8d7c")
-const COL_ROCHE_CHAUDE := Color("8f6543")
-const COL_PIERRE := Color("b5aa97")
-const COL_BOIS := Color("8a6242")
-const COL_FEUILLAGE := Color("5aa653")
-const COL_TOILE := Color("d8c9a4")
 
-# --- MATIÈRES DE LA ZONE D'ESSAI : RUINES ENSOLEILLÉES -------------------
+# --- RUINES SOLAIRES : LA PALETTE DE LA PLANCHE ---------------------------
 #
-# UNE RÈGLE, ET ELLE PRIME SUR LE RESTE : le décor est un FOND. Ces teintes
-# sont choisies chaudes et lumineuses pour sortir le secteur de la grisaille,
-# mais toutes restent MOINS saturées que celles du gameplay — un rocher ne
-# doit jamais accrocher l'œil autant qu'un mob ou qu'un projectile.
+# UN SEUL BIOME SUR TOUTE LA CARTE, et c'est la décision qui commande tout
+# le reste. Le monde comptait six univers — cité néon, fonderie, bosquet,
+# canyon, camp, ruines — qui se contredisaient d'un secteur à l'autre. La
+# planche de direction artistique en impose un seul : un désert ensoleillé
+# où des civilisations avancées ont laissé des ruines de pierre claire,
+# de métal cobalt et d'énergie solaire.
 #
-# Les accents froids — vert, turquoise, violet — sont volontairement RARES.
-# Posés partout ils annuleraient le contraste chaud du sable ; posés par
-# touches, ce sont eux qui donnent l'impression de couleur.
-## Pierre chaude des ruines : franchement plus contrastée que le sable.
-const COL_PIERRE_CHAUDE := Color("b98a5e")
-## Sommet des pierres, éclairé : c'est ce liseré clair qui détache une
-## silhouette basse d'un sol de la même famille de teintes.
-const COL_PIERRE_CRETE := Color("dcb283")
-## Cactus et plantes grasses — la seule vraie note verte du secteur.
-const COL_CACTUS := Color("4f9e5c")
-const COL_CACTUS_CLAIR := Color("6fc47a")
-## Fleur de cactus, minuscule et vive : un point de couleur, pas une masse.
-const COL_FLEUR := Color("ff6fae")
-## Cristal turquoise. Émissif, sans lumière dynamique : il brille sans rien
-## coûter au rendu mobile.
-const COL_CRISTAL := Color("35e0d0")
+# Les six secteurs ne disparaissent pas pour autant : ils deviennent SIX
+# LIEUX DU MÊME MONDE. Ce qui les distingue n'est plus la matière — c'est
+# le RELIEF, la DENSITÉ et le rôle qu'ils jouent dans le parcours. Une
+# esplanade dallée ne se confond pas avec un champ de dunes, même bâtie
+# dans la même pierre.
+#
+# HUIT TEINTES, PAS UNE DE PLUS. C'est le nuancier de la planche, et s'y
+# tenir est ce qui donnera l'unité. Chaque fois qu'on est tenté d'en
+# ajouter une neuvième, c'est qu'on cherche à distinguer par la couleur ce
+# qu'il faudrait distinguer par la forme.
 
-# --- SOLS DES SECTEURS ---------------------------------------------------
+## SABLE DORÉ — le sol du monde, et les trois quarts de l'écran vu de haut.
+const COL_SABLE := Color("f2cc86")
+## Sable d'ombre, pour creuser les creux et les abords de ruine.
+const COL_SABLE_OMBRE := Color("d9ab63")
+## PIERRE CRÈME — toute la maçonnerie ancienne. Claire, chaude, propre.
+##
+## ABAISSÉE DE ead9bd À dfc59a APRÈS MESURE EN IMAGE. La valeur de la
+## planche, lue au nuancier, arrivait à l'écran presque blanche : sous un
+## soleil à pleine énergie, avec une saturation poussée à 1,32, une pierre
+## déjà claire brûle. Les murets et les colonnes devenaient des masses
+## blanches sans relief, et le sable pâle derrière elles ne les détachait
+## plus. Ce n'est pas une trahison de la planche — c'est ce qu'il faut
+## écrire dans le fichier pour OBTENIR la planche à l'écran.
+const COL_PIERRE_CREME := Color("dfc59a")
+## Sa face à l'ombre. Deux valeurs suffisent à faire lire un biseau.
+const COL_PIERRE_OMBRE := Color("b8996b")
+## COBALT PROFOND — le métal des anciens. C'est LUI qui dit « technologie »
+## et qui empêche le désert de virer au monochrome sépia.
+const COL_COBALT := Color("1e3f8f")
+const COL_COBALT_CLAIR := Color("3560c4")
+## TURQUOISE LUMINEUX — l'énergie. Émissif, jamais éclairant : il brille
+## sur lui-même sans coûter une seule lumière dynamique au rendu mobile.
+const COL_TURQUOISE := Color("2fd6e8")
+## OR SOLAIRE — les liserés, les cerclages, les emblèmes. Par touches.
+const COL_OR := Color("e0a63c")
+## MAGENTA VIVANT — les fleurs, et rien d'autre. Le point le plus saturé de
+## la carte, donc le plus rare : c'est ce qui lui garde son pouvoir.
+const COL_MAGENTA := Color("e2467f")
+## VERT OASIS — cactus et plantes grasses.
+const COL_VERT := Color("7cb05a")
+const COL_VERT_CLAIR := Color("9ecd77")
+## GRIS DOUX — les cailloux et le gravier. Neutre, il repose l'œil entre
+## deux accents et ne concurrence rien.
+##
+## RÉCHAUFFÉ. Un gris parfaitement neutre posé sur du sable doré ne se lit
+## pas comme neutre : il se lit comme BLEU, et le canyon s'est retrouvé
+## semé de rochers qui ressemblaient à des blocs de glace — vérifié en
+## image. Un gris légèrement sableux tient le même rôle de repos sans
+## quitter le désert.
+const COL_GRIS := Color("b8ab93")
+
+# --- ANCIENS NOMS, CONSERVÉS LE TEMPS DE LA TRANSITION --------------------
 #
-# C'est ICI que se joue le « je suis dans le canyon ». Vu de dessus, le sol
-# occupe les trois quarts de l'écran : changer sa teinte change le secteur
-# bien plus sûrement que n'importe quel prop.
+# Le décor et les mobs les citent encore. Ils pointent désormais vers la
+# palette solaire : le monde change de peau sans qu'une seule ligne de
+# gameplay ne bouge.
+const COL_PIERRE_CHAUDE := COL_PIERRE_CREME
+const COL_PIERRE_CRETE := Color("f6ead4")
+const COL_CACTUS := COL_VERT
+const COL_CACTUS_CLAIR := COL_VERT_CLAIR
+const COL_FLEUR := COL_MAGENTA
+const COL_CRISTAL := COL_TURQUOISE
+const COL_ROCHE := COL_GRIS
+const COL_ROCHE_CHAUDE := COL_SABLE_OMBRE
+const COL_PIERRE := COL_PIERRE_CREME
+
+# --- SOLS DES SIX LIEUX --------------------------------------------------
 #
-# ASSOMBRIES APRÈS MESURE EN IMAGE. Les premières valeurs étaient choisies
-# « à la couleur » — un beau sable, une belle terre. Mais l'éclairage du jeu
-# a été réglé pour le béton gris moyen du noyau : posé sur du sable clair,
-# le même soleil sature et le secteur vire au blanc rosé. Ce sont les
-# valeurs RENDUES qui comptent, jamais celles du nuancier.
-const SOL_CAMP := Color("a2915f")
-const SOL_CANYON := Color("8e5c3a")
-const SOL_BOSQUET := Color("55743f")
-const SOL_FONDERIE := Color("767d92")
-## LES RUINES SONT LA ZONE D'ESSAI VISUEL. Leur sol passe d'un gris-beige
-## terne à un sable chaud et lumineux : vu de dessus, le sol occupe les
-## trois quarts de l'écran, c'est donc lui qui décide de l'ambiance d'un
-## secteur bien avant le moindre prop.
-const SOL_RUINES := Color("e39a4a")
-const SOL_NOYAU := Color("7c7f9c")
+# TOUS DÉRIVÉS DU SABLE, et c'est voulu : on ne change pas de monde en
+# traversant, on change d'endroit. L'écart entre le plus clair et le plus
+# sombre tient en une valeur et demie — assez pour qu'on sente le passage,
+# trop peu pour qu'on croie avoir changé de planète.
+#
+# ─── TOUS ASSOMBRIS D'UN CRAN APRÈS MESURE ──────────────────────────────
+#
+# LE DÉFAUT. Les valeurs de la planche, lues au nuancier, donnaient un
+# sable très clair. À l'écran, sous un soleil à pleine énergie et une
+# saturation poussée à 1,32, ce sable arrivait au HAUT de la plage de
+# tonalité — et tout ce qui était posé dessus y arrivait aussi. Sol et
+# props se retrouvaient à la même valeur : vérifié en image, un muret de
+# 1,1 m disparaissait dans le sable à la distance de la caméra de jeu.
+#
+# Ce qui a été essayé d'abord, et qui n'a rien donné : inverser les
+# valeurs de la pierre, corps sombre et crête claire. Le principe était
+# bon et il est resté, mais il ne pouvait pas suffire — quand le SOL est
+# saturé, aucun réglage du prop ne recrée le contraste, parce que ce n'est
+# pas le prop qui manque de place, c'est le fond qui n'en laisse plus.
+#
+# Le sol descend donc d'un cran. Il reste doré, il reste chaud, il reste
+# la planche — mais il redevient un FOND, c'est-à-dire ce sur quoi les
+# choses se détachent.
+## L'ESPLANADE — dalles de pierre claire autour du pilier central.
+const SOL_ESPLANADE := Color("d3b784")
+## LES RUINES — sable mêlé de gravats, le plus couvert.
+const SOL_RUINES := Color("d9a95d")
+## LES DUNES — sable pur, ouvert, rapide.
+const SOL_DUNES := Color("e2b968")
+## LE CANYON — sable d'ombre entre les parois.
+const SOL_CANYON := Color("bd8748")
+## L'OASIS — le sable verdit à peine. C'est la seule note fraîche du sol.
+const SOL_OASIS := Color("b3ad57")
+## LE CHAMP DE CRISTAUX — sable pâli par la lumière qui en sort.
+const SOL_CRISTAUX := Color("d8bd85")
+
+# --- ANCIENS SOLS, REDIRIGÉS ---------------------------------------------
+const SOL_CAMP := SOL_DUNES
+const SOL_BOSQUET := SOL_OASIS
+const SOL_FONDERIE := SOL_CRISTAUX
+const SOL_NOYAU := SOL_ESPLANADE
 
 ## Brume de lointain. Elle reste FROIDE face à un sol chaud : c'est ce
 ## contraste qui creuse la profondeur au lieu de l'aplatir. Mais elle est

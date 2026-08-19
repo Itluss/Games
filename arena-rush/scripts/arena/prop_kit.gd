@@ -24,8 +24,6 @@ class_name PropKit
 
 const DOSSIER := "res://assets/models/"
 
-## Force du mélange entre la couleur du modèle et celle de sa famille.
-const TEINTE_FORCE := 0.5
 
 ## Le plan déclare un volume en mètres. Le modèle est ramené À L'INTÉRIEUR
 ## de ce volume — jamais au-delà —, ce qui borne ce que l'art génératif
@@ -177,33 +175,50 @@ static func _toutes_les_mailles(n: Node, sortie: Array = []) -> Array:
 ## défaut de la spécification est 1.0 : un modèle Meshy importé tel quel
 ## arrive donc entièrement métallique. Sans carte d'environnement, un métal
 ## pur ne réfléchit rien — il rend NOIR. Kael est arrivé en silhouette
-## noire pour cette exact raison ; le mobilier arriverait de même.
-## `teinte` : couleur de la FAMILLE à laquelle la pièce appartient. Elle
-## est mélangée à l'albédo, pas substituée — le modèle garde ses valeurs et
-## ses détails, il change seulement de température.
+## noire pour cette exacte raison ; le mobilier arriverait de même.
 ##
-## POURQUOI TEINTER : la charte demandait « béton pâle, panneaux bleu nuit,
-## néons cyan et magenta ». Meshy a livré quinze pièces d'un gris beige
-## uniforme, sans en tenir compte. Regénérer coûterait quinze crédits pour
-## un résultat toujours incertain ; teinter coûte une multiplication et
-## rend l'ensemble cohérent d'un coup. Les immeubles virent au bleu nuit,
-## les abris au béton froid — et la couleur redevient une INFORMATION :
-## une masse sombre ne se contourne pas en deux pas.
+## ─── POURQUOI LA TEXTURE D'ALBÉDO EST RETIRÉE ───────────────────────────
+##
+## CE QUI A ÉTÉ MESURÉ. Les quinze modèles ont été générés pour la CITÉ
+## NÉON. Passé le monde aux Ruines Solaires, l'Esplanade est restée semée
+## de masses anthracite au milieu d'un désert doré. Premier réflexe :
+## pousser le mélange de teinte de 0,5 à 0,88. Sans effet — vérifié en
+## image, puis expliqué en sondant les fichiers : l'`albedo_color` de ces
+## matériaux vaut BLANC, et toute la couleur vit dans la TEXTURE. Or la
+## texture MULTIPLIE la couleur. Blanc × texture sombre donne sombre ;
+## cobalt × texture sombre donne sombre aussi. Aucune valeur de mélange
+## n'aurait pu y changer quoi que ce soit — c'était l'idée qui était
+## fausse, pas le réglage.
+##
+## On retire donc la texture et on pose la teinte de la famille en aplat.
+##
+## CE QU'ON PERD ET CE QU'ON GAGNE. On perd le détail peint par Meshy. On
+## garde la SILHOUETTE — la seule chose qu'un générateur 3D fait mieux
+## qu'une primitive, et la seule qui se lise à la distance de la caméra.
+## Et l'on gagne l'unité : le mobilier de l'Esplanade parle enfin la même
+## langue que le reste de la carte, qui est faite d'aplats facettés.
+##
+## LA VRAIE CORRECTION RESTE LA RETEXTURATION. Meshy sait retexturer sans
+## regénérer la forme ; les bons de commande sont déposés dans
+## art/requests/. Le jour où ces textures arrivent, il suffira de rendre
+## ce retrait conditionnel. En attendant, la carte est cohérente sans
+## dépendre d'une génération qui peut échouer.
+##
+## `teinte` : couleur de la FAMILLE à laquelle la pièce appartient.
 static func _traiter_matieres(racine: Node3D, teinte: Color) -> void:
 	for n in _toutes_les_mailles(racine):
 		var mi := n as MeshInstance3D
-		for i in mi.get_surface_override_material_count():
-			var source := mi.mesh.surface_get_material(i)
-			var std := source as StandardMaterial3D
-			if std == null:
-				continue
-			var copie := std.duplicate() as StandardMaterial3D
+		for i in mi.mesh.get_surface_count():
+			# BaseMaterial3D et non StandardMaterial3D : Meshy exporte en
+			# ORMMaterial3D dès qu'il joint une carte occlusion/rugosité/
+			# métal, et ces pièces-là auraient été sautées en silence.
+			var source := mi.mesh.surface_get_material(i) as BaseMaterial3D
+			var copie := (source.duplicate() if source != null
+					else StandardMaterial3D.new()) as BaseMaterial3D
+			copie.albedo_texture = null
+			copie.albedo_color = teinte
 			copie.metallic = 0.0
-			copie.roughness = 0.62
-			# Mélange à mi-chemin : au-delà, les modèles perdent leurs
-			# nuances et l'arène redevient monochrome — le défaut qu'on
-			# vient justement de corriger sur l'éclairage.
-			copie.albedo_color = copie.albedo_color.lerp(teinte, TEINTE_FORCE)
+			copie.roughness = 0.68
 			# Même éclairage cellulé que le reste du jeu : sans cela, le
 			# décor serait rendu en dégradé continu et jurerait avec les
 			# personnages, qui sont en aplats.
@@ -212,6 +227,15 @@ static func _traiter_matieres(racine: Node3D, teinte: Color) -> void:
 			copie.rim_enabled = true
 			copie.rim = 0.35
 			copie.rim_tint = 0.25
+			# Les autres cartes suivent la texture d'albédo. Une carte de
+			# rugosité ou de normales peinte pour un panneau de métal noir
+			# creuserait des rayures et des rivets dans une pierre crème :
+			# le détail resterait celui de la cité néon, sur une forme
+			# repeinte en désert. C'est le contraire de ce qu'on cherche.
+			copie.normal_enabled = false
+			copie.roughness_texture = null
+			copie.metallic_texture = null
+			copie.ao_enabled = false
 			# L'émissif de Meshy vaut souvent la couleur de base à pleine
 			# puissance : la pièce s'éclairerait elle-même et perdrait tout
 			# relief. Le néon du décor est ajouté séparément, où on le

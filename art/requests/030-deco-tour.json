@@ -1,0 +1,13 @@
+{
+  "_pourquoi": "Repere vertical de l'Esplanade. Sa forme actuelle est un segment d'immeuble de ville : fenetres en bandeau, parapet plat. Un obelisque etage la remplace — meme role, meme encombrement, mais la silhouette raconte enfin une ruine et non un bureau.",
+  "_pourquoi_regenerer": "RUINES SOLAIRES — remplacement de la piece du meme nom. Le fichier produit ecrase l'ancien : aucun code a changer, PropKit le chargera par son nom et le remettra a la taille declaree par le plan de l'arene. POURQUOI CELLE-CI ET PAS LES QUINZE. La carte est passee a un seul biome. Sur les quinze pieces Meshy de l'Esplanade, la plupart sont des masses neutres — un conteneur, un bloc, une caisse — qui redeviennent credibles une fois repeintes aux couleurs du desert. Cinq ne le sont pas : leur FORME dit « ville ». Un lampadaire de rue et un panneau publicitaire restent une rue quelle que soit leur couleur. Ce sont celles-la, et seulement celles-la, qu'il faut regenerer.",
+  "_role": "structure",
+  "_hauteur_cible_m": 5.0,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : l'arene mesure le modele et le remet a cette taille. Kael mesure 1,90 m.",
+  "nom": "deco_tour",
+  "mode": "texte",
+  "famille": "decor",
+  "prompt": "ancient desert ruin tower segment, stacked stepped rectangular stone volumes each narrower than the one below, heavy chamfered edges, a gold trim band at every setback, deep cobalt blue metal panels inset into two faces, a small turquoise glowing crystal set high on one side, broken weathered top",
+  "polycount": 4000,
+  "texturer": true
+}
