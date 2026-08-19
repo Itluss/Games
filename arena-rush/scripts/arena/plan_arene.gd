@@ -121,10 +121,22 @@ const ABRIS: Array[Dictionary] = [
 		"taille": Vector3(2.6, 2.4, 2.6)},
 	{"modele": &"deco_kiosque", "pos": Vector2(-5.5, 12.5), "rot": 0.80,
 		"taille": Vector3(2.6, 2.4, 2.6)},
+	# L'AUTEL EST LARGE ET BAS, PAS CUBIQUE — et c'est la garantie de
+	# PropKit qui l'a dit, pas moi. Le bloc de ventilation qui occupait
+	# cette place était un cube de 2 m ; la pièce qui le remplace est un
+	# autel de pierre, dont la forme même est d'être posé au sol. Elle
+	# arrivait donc à 1,49 m dans un volume qui en réclamait 2,00, et
+	# l'avertissement « hauteur rendue 1.49 m pour 2.00 m attendus »
+	# tombait à chaque construction du monde.
+	#
+	# Ce n'était pas un défaut du modèle : c'était le PLAN qui décrivait
+	# encore l'ancienne pièce. On déclare la vraie intention — un couvert
+	# bas et large, qu'on enjambe du regard — et l'avertissement disparaît
+	# parce qu'il n'a plus rien à signaler.
 	{"modele": &"deco_ventilation", "pos": Vector2(3.5, 9.2), "rot": 1.40,
-		"taille": Vector3(2.0, 2.0, 2.0)},
+		"taille": Vector3(2.4, 1.5, 2.4)},
 	{"modele": &"deco_ventilation", "pos": Vector2(-11.8, -1.5), "rot": 0.30,
-		"taille": Vector3(2.0, 2.0, 2.0)},
+		"taille": Vector3(2.4, 1.5, 2.4)},
 	{"modele": &"deco_generateur", "pos": Vector2(10.8, 12.2), "rot": 0.0,
 		"taille": Vector3(1.7, 1.8, 1.7)},
 	{"modele": &"deco_generateur", "pos": Vector2(-12.6, 10.5), "rot": 0.0,
