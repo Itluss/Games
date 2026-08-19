@@ -23,8 +23,23 @@ JOURNAL="$(mktemp)"
 # quarante-cinq secondes, bloquant toute la publication derrière elle,
 # alors que le même banc passait en trois secondes en local. Après le délai
 # de grâce, on tue pour de bon.
+# `timeout` DOIT ENVELOPPER GODOT, PAS `xvfb-run`.
+#
+# C'était l'inverse, et cela a bloqué une publication entière. `timeout`
+# tuait le LANCEUR ; Godot, petit-fils du processus, survivait, gardait
+# ouvert le tuyau vers `tee`, et l'étape ne se terminait jamais. Mesuré :
+# deux barrières restées dix-neuf minutes sur une étape dont le délai
+# interne est de cinq minutes vingt, et toute la file de publication
+# derrière elles.
+#
+# Le `-k 30` ajouté la fois précédente ne pouvait rien y faire : il
+# renforce la mise à mort de l'enfant direct, or l'enfant direct n'était
+# pas le coupable. On place donc le délai À L'INTÉRIEUR de `xvfb-run` —
+# son enfant est alors Godot lui-même, et le tuer laisse le lanceur se
+# refermer proprement.
 if [ "$RENDU" = "1" ]; then
-  timeout -k 30 320 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
+  xvfb-run -a -s "-screen 0 1280x720x24" \
+    timeout -k 30 320 ~/godot-bin/godot \
     --path arena-rush "$SCENE" --rendering-driver opengl3 -- --solo "$@" \
     2>&1 | tee "$JOURNAL" || true
 else
