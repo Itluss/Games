@@ -112,11 +112,26 @@ func _show_menu() -> void:
 	box.add_child(sub)
 
 	box.add_child(_spacer(28))
-	box.add_child(_menu_button("SOLO — %d BOTS" % bots_solo(), Cfg.COL_HEAL,
-			func(): _start(0, bots_solo())))
+	# LE MONDE OUVERT D'ABORD : c'est le jeu.
+	box.add_child(_menu_button("MONDE OUVERT — %d BOTS" % BOTS_SOLO,
+			Cfg.COL_HEAL, func(): _lancer_monde()))
+	# ─── L'ARÈNE DOIT ÊTRE ATTEIGNABLE SANS LIGNE DE COMMANDE ───────────
+	#
+	# Elle n'existait que derrière `-- --arene-test`. Or le jeu se joue au
+	# NAVIGATEUR, sur un téléphone : il n'y a pas de ligne de commande, et
+	# l'arène était donc rigoureusement injouable là où elle devait
+	# précisément être essayée. Un mode de test qu'on ne peut pas atteindre
+	# depuis l'appareil du joueur ne teste rien.
+	#
+	# Le drapeau reste, pour les bancs automatiques ; le bouton le pose.
+	# LIBELLÉ COURT : vérifié en navigateur au format téléphone, « ARÈNE DE
+	# COMBAT — 10 BOTS + 10 MOBS » touchait les deux bords de son cadre.
+	# Sur un écran plus étroit il aurait débordé.
+	box.add_child(_menu_button("ARÈNE DE COMBAT", Cfg.COL_ENERGY,
+			func(): _lancer_arene()))
 	box.add_child(_menu_button("HÉBERGER UNE PARTIE", Cfg.COL_BASIC,
 			func(): _start(1, 0)))
-	box.add_child(_menu_button("REJOINDRE (127.0.0.1)", Cfg.COL_ENERGY,
+	box.add_child(_menu_button("REJOINDRE (127.0.0.1)", Cfg.COL_BASIC,
 			func(): _start(2, 0)))
 
 	var hint := Label.new()
@@ -126,6 +141,22 @@ func _show_menu() -> void:
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_spacer(20))
 	box.add_child(hint)
+
+## POSE LE DRAPEAU AVANT DE BÂTIR, et l'ordre est tout.
+##
+## `Arena._ready()` lit `Cfg.arene_test` une seule fois, au moment où elle
+## se construit. Le poser après aurait donné une partie annoncée « arène »
+## et bâtie « monde ouvert » — le genre d'incohérence qui se débogue une
+## heure pour une ligne mal placée.
+func _lancer_arene() -> void:
+	Cfg.arene_test = true
+	_start(0, BOTS_ARENE)
+
+
+func _lancer_monde() -> void:
+	Cfg.arene_test = false
+	_start(0, BOTS_SOLO)
+
 
 func _spacer(h: int) -> Control:
 	var c := Control.new()
