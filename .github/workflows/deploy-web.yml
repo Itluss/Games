@@ -29,9 +29,18 @@ permissions:
   pages: write
   id-token: write
 
+# UNE PUBLICATION BLOQUÉE NE DOIT PAS BLOQUER LES SUIVANTES.
+#
+# `cancel-in-progress: false` est la recommandation habituelle pour un
+# déploiement : on n'interrompt pas une mise en ligne à mi-chemin. Sauf
+# qu'une barrière restée coincée quinze minutes sur une étape de quarante
+# secondes a gardé le verrou et mis toute la file derrière elle, sans
+# moyen de la débloquer. Le risque inverse est bien plus faible : l'étape
+# de déploiement elle-même dure six secondes, et la publication qui
+# annule est toujours la plus récente, donc la bonne.
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   GODOT_VERSION: "4.3"
