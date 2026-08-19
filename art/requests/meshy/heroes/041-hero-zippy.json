@@ -1,0 +1,14 @@
+{
+  "_lot": "LOT 1 — HEROS. Kit obligatoire, planche « HEROS : 4 heros, 4 styles de jeu ».",
+  "_role": "SCOUT — la plus fine et la plus nerveuse. On doit lire « rapide » avant meme qu'elle bouge.",
+  "_lecture_de_la_planche": "CE QUE LA PLANCHE MONTRE. Une eclaireuse mince, cheveux bleu cyan vif dresses en pointes larges vers l'arriere, visiere violette translucide sur les yeux, casque-ecouteurs, echarpe violette qui flotte derriere, combinaison sombre a lisereis cyan, gants sans doigts, grosses baskets violet et cyan. Le contour est une FLECHE : tout part vers l'arriere.\n\nLES POINTES ET L'ECHARPE SONT DEMANDEES EPAISSES. Sur la planche elles sont effilees ; effilees en 3D, elles disparaissent a la distance de la camera et coutent des triangles pour rien. On garde la direction — le mouvement vers l'arriere — en volumes francs.",
+  "_pourquoi_sans_arme": "Les six armes sont un lot a part et doivent toutes pouvoir etre portees par les quatre heros. Un modele genere une arme a la main obligerait a la decouper, ou a renoncer aux cinq autres. Le point d'ancrage de l'arme sera pose au riggage, pas ici.",
+  "_hauteur_cible_m": 1.72,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : le jeu mesure le modele et le remet a cette taille. Kael mesure 1,90 m et sert d'etalon aux quatre heros.",
+  "nom": "hero_zippy",
+  "mode": "texte",
+  "famille": "heros",
+  "prompt": "agile scout heroine, slim and light build, forward-leaning arrow silhouette, spiky bright cyan hair swept back in a few thick chunky spikes, large purple translucent visor covering the eyes, headphone style headset, a thick purple scarf flowing back from the neck in broad solid folds, dark navy bodysuit with bright cyan trim panels, fingerless gloves, chunky oversized cyan and purple sneakers, dominant cyan purple and violet palette with small warm cream accents, A-pose, arms away from the body, empty hands, no weapon",
+  "polycount": 9000,
+  "texturer": true
+}

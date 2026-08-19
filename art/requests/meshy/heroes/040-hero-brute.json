@@ -1,0 +1,14 @@
+{
+  "_lot": "LOT 1 — HEROS. Kit obligatoire, planche « HEROS : 4 heros, 4 styles de jeu ».",
+  "_role": "TANK — le plus massif des quatre. Sa silhouette doit dire « je n'irai pas vite, mais rien ne me deplacera ».",
+  "_lecture_de_la_planche": "CE QUE LA PLANCHE MONTRE, ET CE QUE J'EN RETIENS. Un colosse blinde orange et acier chaud, plus large que haut du haut du corps : epaulieres enormes, avant-bras surdimensionnes, un canon-tambour a l'avant-bras gauche, un casque rouge a oeil unique lumineux, un fanion a tete de mort dans le dos, des jambes courtes et trapues. Le contour est un TRAPEZE — large en haut, ramasse en bas.\n\nCE QUE JE NE REPRENDS PAS : le canon d'avant-bras. Les armes sont un lot a part et doivent pouvoir s'echanger ; un canon fondu dans le corps rendrait le heros inutilisable avec les cinq autres armes. Il garde ses avant-bras massifs, qui portent la meme lecture.",
+  "_pourquoi_sans_arme": "Les six armes sont un lot a part et doivent toutes pouvoir etre portees par les quatre heros. Un modele genere une arme a la main obligerait a la decouper, ou a renoncer aux cinq autres. Le point d'ancrage de l'arme sera pose au riggage, pas ici.",
+  "_hauteur_cible_m": 2.15,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : le jeu mesure le modele et le remet a cette taille. Kael mesure 1,90 m et sert d'etalon aux quatre heros.",
+  "nom": "hero_brute",
+  "mode": "texte",
+  "famille": "heros",
+  "prompt": "heavily armored tank hero, extremely bulky and stocky, top-heavy trapezoid silhouette, enormous rounded pauldrons far wider than the hips, oversized thick forearms and armored gauntlets, short sturdy legs with heavy boots, small round helmet with a single glowing red eye lens set in a red helmet crest, thick riveted armor plates with big smooth surfaces, a small skull pennant flag on a short pole behind the right shoulder, burnt orange and warm rust armor with grey steel joints and cream accents, A-pose, arms away from the body, empty hands, no weapon",
+  "polycount": 11000,
+  "texturer": true
+}

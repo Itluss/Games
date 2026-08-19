@@ -1,0 +1,14 @@
+{
+  "_lot": "LOT 1 — HEROS. Kit obligatoire, planche « HEROS : 4 heros, 4 styles de jeu ».",
+  "_role": "EQUILIBRE — le soldat de reference. C'est lui l'etalon : les trois autres se lisent par rapport a sa masse.",
+  "_lecture_de_la_planche": "CE QUE LA PLANCHE MONTRE. Un combattant net et heroique, cheveux rouges en pointes, bandeau bleu et lunettes d'aviateur relevees sur le front, echarpe orange autour du cou, veste bleue a plastron gris et orange, gants et bottes epais. Proportions les plus « normales » des quatre.\n\nIL EST LE PLUS PROCHE DE KAEL, ET C'EST VOULU : c'est le heros par defaut, celui auquel on compare. Sa palette rouge / bleu / orange le distingue tout de meme de la veste bleu roi de Kael.",
+  "_pourquoi_sans_arme": "Les six armes sont un lot a part et doivent toutes pouvoir etre portees par les quatre heros. Un modele genere une arme a la main obligerait a la decouper, ou a renoncer aux cinq autres. Le point d'ancrage de l'arme sera pose au riggage, pas ici.",
+  "_hauteur_cible_m": 1.88,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : le jeu mesure le modele et le remet a cette taille. Kael mesure 1,90 m et sert d'etalon aux quatre heros.",
+  "nom": "hero_bolt",
+  "mode": "texte",
+  "famille": "heros",
+  "prompt": "balanced soldier hero, clear heroic proportions, stable upright silhouette, spiky bright red hair, a blue headband with round aviator goggles pushed up on the forehead, a thick orange scarf around the neck falling in broad folds, blue jacket with a grey and orange chest plate and shoulder pads, sturdy belt, thick gloves and heavy boots, dominant red blue and warm orange palette with cream accents, A-pose, arms away from the body, empty hands, no weapon",
+  "polycount": 10000,
+  "texturer": true
+}

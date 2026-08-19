@@ -1,0 +1,14 @@
+{
+  "_lot": "LOT 1 — HEROS. Kit obligatoire, planche « HEROS : 4 heros, 4 styles de jeu ».",
+  "_role": "INGENIEUR — le plus petit et le plus charge. On doit lire « bricoleur » : des outils partout, rien de militaire.",
+  "_lecture_de_la_planche": "CE QUE LA PLANCHE MONTRE. Un petit ingenieur trapu, casquette orange a visiere, grosses lunettes rondes a verres vert lumineux, sac a dos technique vert avec tuyaux et bonbonnes, ceinture d'outils, une grosse cle a molette, et un petit drone jaune rond a helice qui l'accompagne.\n\nLE DRONE EST INCLUS DANS LE MODELE, pose sur l'epaule. Genere a part, il faudrait l'attacher par du code, et le lot 1 ne doit pas creer de systeme. Pose sur l'epaule, il fait partie de la silhouette — et c'est justement ce qui distingue Spark de loin.\n\nPAS DE CLE A MOLETTE DANS LES MAINS : c'est une arme, donc un lot a part. Le sac et les lunettes portent deja le metier.",
+  "_pourquoi_sans_arme": "Les six armes sont un lot a part et doivent toutes pouvoir etre portees par les quatre heros. Un modele genere une arme a la main obligerait a la decouper, ou a renoncer aux cinq autres. Le point d'ancrage de l'arme sera pose au riggage, pas ici.",
+  "_hauteur_cible_m": 1.62,
+  "_note_echelle": "Meshy renvoie une echelle arbitraire. C'est cette hauteur en metres qui fait autorite : le jeu mesure le modele et le remet a cette taille. Kael mesure 1,90 m et sert d'etalon aux quatre heros.",
+  "nom": "hero_spark",
+  "mode": "texte",
+  "famille": "heros",
+  "prompt": "small stocky engineer hero, short and compact build, wide rectangular silhouette from the backpack, orange baseball cap with a short brim worn forward, very large round goggles with glowing bright green lenses covering most of the face, chunky green technical backpack with thick pipes and two rounded canisters, a wide tool belt with big simple pouches, thick work gloves and heavy boots, a small round yellow drone with a single rotor and one big blue eye perched on the right shoulder, dominant grass green and warm yellow palette with orange accents, A-pose, arms away from the body, empty hands, no weapon, no wrench",
+  "polycount": 9000,
+  "texturer": true
+}
