@@ -1,0 +1,16 @@
+32292209524
+Lot HÉROS v2 — MILO, POPPY, BRUNO, NOX, RUBY, GUS.
+
+POURQUOI PASSER PAR LA RÉCUPÉRATION PLUTÔT QUE DE COMMITER DIRECTEMENT.
+Les six modèles existent déjà sur la branche assets-3d, et ils sont
+BEAUCOUP TROP LOURDS : 64 Mo à eux six, pour un build web qui en fait
+douze au total. Leurs textures sont en 4K.
+
+Ce workflow-ci ne regénère rien — il ressort l'artefact du run, RAMÈNE LES
+TEXTURES À 512 px, et dépose les seuls fichiers de modèles sur main. Aucun
+crédit Meshy consommé.
+
+512 px n'est pas une économie de misère : la caméra du jeu est à 10,4 m
+au-dessus du joueur, et un héros y occupe quelques centaines de pixels de
+haut sur un écran de téléphone. Une texture 4K sur cette surface, c'est
+payer seize fois le prix d'un détail que personne ne verra jamais.
