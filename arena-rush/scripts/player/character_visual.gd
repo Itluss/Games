@@ -194,6 +194,7 @@ func _monter_modele(height: float) -> void:
 	_rig.add_child(_modele)
 
 	_anim = _trouver(_modele, "AnimationPlayer") as AnimationPlayer
+	_normaliser_clips()
 	_squelette = _trouver(_modele, "Skeleton3D") as Skeleton3D
 	if _anim == null:
 		push_warning("Aucun AnimationPlayer dans %s." % MODELE)
@@ -620,8 +621,59 @@ func _play_death() -> void:
 
 ## `speed_ratio` : 0 à l'arrêt, 1 à pleine course.
 ## Hauteur réelle du modèle monté, en unités du fichier.
+## LES NOMS DE MESHY NE SONT PAS LES NÔTRES.
+##
+## L'auto-riggeur livre ses clips sous les étiquettes de sa bibliothèque —
+## « Idle », « RunFast » — là où tout le jeu demande « repos » et
+## « course ». Kael avait été renommé à la fusion ; les six héros non,
+## parce que leurs noms sources diffèrent d'un fichier à l'autre et que le
+## renommage a glissé sans bruit.
+##
+## On traduit donc À L'ARRIVÉE plutôt qu'à la génération. C'est le bon
+## endroit : la correspondance vit là où les noms sont utilisés, elle
+## survit à une regénération, et un clip inconnu n'empêche rien — il reste
+## simplement inutilisé au lieu de faire disparaître le personnage.
+const TRADUCTION_CLIPS := {
+	"Idle": A_REPOS, "idle": A_REPOS,
+	"RunFast": A_COURSE, "Run": A_COURSE, "run": A_COURSE,
+	"Walk": A_COURSE, "walk": A_COURSE,
+}
+
+func _normaliser_clips() -> void:
+	if _anim == null:
+		return
+	var bib := _anim.get_animation_library("")
+	if bib == null:
+		return
+	for source in TRADUCTION_CLIPS:
+		var cible: String = TRADUCTION_CLIPS[source]
+		if bib.has_animation(source) and not bib.has_animation(cible):
+			bib.add_animation(cible, bib.get_animation(source))
+
+
 func _hauteur_native() -> float:
 	if _heros == &"":
+		return MODELE_HAUTEUR
+	# ─── NE JAMAIS MESURER UN MAILLAGE PEAUFINÉ ────────────────────────
+	#
+	# `get_aabb()` d'un MeshInstance3D peaufiné à un squelette rend la
+	# boîte de sa POSE DE LIAISON, exprimée dans le repère de l'armature
+	# — laquelle est en centimètres chez Meshy. Mesuré : Kael comme Milo
+	# y répondent 0,02, quand ils font 1,9 m à l'écran. Diviser par 0,02
+	# au lieu de 1,9 donnait un facteur QUATRE-VINGT-CINQ FOIS trop grand.
+	#
+	# Le défaut est resté invisible tant que les héros n'avaient pas d'os :
+	# Kael passait par le raccourci du dessus, et les six étaient des blocs
+	# statiques dont la boîte est juste. C'est le riggage qui l'a réveillé,
+	# et c'est la barrière de l'enroulement qui l'a signalé — son témoin ne
+	# touchait plus, et soixante-quatre projectiles partaient à l'autre
+	# bout du monde, tirés par un personnage géant.
+	#
+	# LA RÈGLE : on ne mesure QUE ce dont la taille est inconnue. Un modèle
+	# riggé sort de cette chaîne, donc de sa convention — 1,9 m. Un
+	# maillage statique arrive à une échelle arbitraire et doit être
+	# mesuré.
+	if _trouver(_modele, "Skeleton3D") != null:
 		return MODELE_HAUTEUR
 	var boites: Array[AABB] = []
 	_boites(_modele, Transform3D.IDENTITY, boites)
@@ -730,11 +782,23 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	elif _court:
 		state = State.RUN
 		_jouer(A_COURSE_TIR if tire else A_COURSE)
+		# LA POSTURE EST UNE INTENTION, PAS UN NOM DE CLIP.
+		#
+		# Ce chemin sert aux modèles qui n'ont PAS de clip de tir en
+		# course — c'est le cas des six héros, que l'auto-riggeur livre
+		# avec un repos et une course, rien de plus. `_jouer` retombe
+		# alors silencieusement sur la course simple, ce qui est le bon
+		# comportement visuel ; mais laisser `_posture` suivre le clip
+		# revenait à déclarer « ce joueur ne tire pas » parce qu'il lui
+		# manque un fichier. Le reste du jeu, et les bancs, lisent cette
+		# valeur pour savoir ce que le personnage FAIT.
+		_posture = A_COURSE_TIR if tire else A_COURSE
 		if _anim:
 			_anim.speed_scale = lerpf(CADENCE_MIN, CADENCE_MAX, a)
 	else:
 		state = State.ATTACK if tire else State.IDLE
 		_jouer(A_GARDE if tire else A_REPOS)
+		_posture = "tir_debout" if tire else A_REPOS
 		if _anim:
 			_anim.speed_scale = 1.0
 
