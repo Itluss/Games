@@ -65,6 +65,22 @@ jobs:
           # est vu comme un RENOMMAGE et le filtre « ajouté » l'exclut. Le
           # workflow finissait alors en vert sans rien faire — un succès
           # trompeur, bien pire qu'un échec.
+          # ─── MÊME DÉFAUT QUE LA GÉNÉRATION, MÊME CORRECTIF ────────────
+          #
+          # `fetch-depth: 2` ne ramène que HEAD et son parent. Un push de
+          # DEUX commits met le point de départ hors du clone, `git diff`
+          # répond « bad object » et l'étape meurt. Vérifié sur le
+          # workflow jumeau, run 32289911098 : six demandes déposées,
+          # aucune vue. On approfondit au lieu de supposer.
+          if [ -n "$BASE" ] && ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            git fetch --deepen=100 origin "$GITHUB_REF_NAME" 2>/dev/null || true
+          fi
+          if [ -n "$BASE" ] && ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            git fetch --unshallow origin 2>/dev/null || true
+          fi
+          if [ -n "$BASE" ] && ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            BASE=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
           if [ -n "$BASE" ]; then
             FICHIERS=$(git diff --name-only --no-renames --diff-filter=A \
               "$BASE" "${{ github.sha }}" -- 'art/rig/*.json' | tr '\n' ' ')

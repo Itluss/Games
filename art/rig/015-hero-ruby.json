@@ -1,0 +1,9 @@
+{
+  "_lot": "LOT 1 — RIGGAGE DES SIX HEROS.",
+  "_pourquoi": "Les six modeles sont des MAILLAGES STATIQUES : un seul noeud, aucun squelette, aucune animation — verifie en lisant le .glb. Godot joue des animations, il n'en fabrique pas a partir d'un bloc sans os. Kael, lui, est passe par ce meme auto-riggeur et porte 26 noeuds, un skin et cinq clips.",
+  "_ce_que_le_rig_ne_donnera_PAS": "La PERSONNALITE de la demarche. La bibliotheque Meshy livre une course generique, la meme pour les six — c'est exactement ce que le cahier des charges interdit. Le rig apporte le squelette et une base propre ; la cadence, le centre de gravite, le balancement et le secondary motion viennent de la couche de locomotion ecrite dans Godot (scripts/player/profil_demarche.gd).",
+  "nom": "hero_ruby",
+  "tache": "01a01b7d-de26-7e91-bd06-dec4b6a5e073",
+  "hauteur": 1.7,
+  "actions": "repos,course"
+}
