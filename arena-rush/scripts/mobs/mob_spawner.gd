@@ -39,9 +39,35 @@ var _oubli_timer: float = 0.0
 var world: Node = null
 var _timer: float = 0.0
 
+## Nombre exact de mobs en arène de combat, et ils ne sont pondus qu'UNE
+## fois. Le test demande dix mobs à des endroits voulus : une vague qui en
+## rajoute, ou un recyclage qui en déplace, rendrait le test illisible —
+## on ne saurait plus si une zone est déserte par conception ou parce que
+## le pondeur a décidé autrement.
+const MOBS_ARENE := 10
+## Délai entre deux venues, en secondes.
+##
+## 2,5 s d'abord, et c'était trop lent : mesuré, l'effectif se maintenait
+## à 0,8 mob en moyenne pour dix demandés. Dix bots abattent plus d'un mob
+## par seconde à eux tous — un remplacement toutes les deux secondes et
+## demie ne pouvait pas suivre, et l'arène restait vide de mobs pendant
+## qu'on croyait en tester dix.
+const DELAI_RETOUR := 0.5
+## Venues par tour, tant qu'on est loin du compte : remplir dix places une
+## par une prendrait cinq secondes au démarrage.
+const PAR_TOUR := 2
+var _recharge := 0.0
+var _prochain := 0
+
+
 func _process(delta: float) -> void:
 	if not Net.is_server():
 		return
+
+	if Cfg.arene_test:
+		_peupler_arene()
+		return
+
 	_recycler(delta)
 	if MatchDirector.phase not in [MatchDirector.Phase.WARMUP,
 			MatchDirector.Phase.ESCALATION, MatchDirector.Phase.CLOSING]:
@@ -123,3 +149,42 @@ func _pick_type(pressure: float) -> StringName:
 
 func reset() -> void:
 	_timer = 0.0
+
+
+## PEUPLE L'ARÈNE DE COMBAT — dix mobs, une seule fois.
+##
+## Pas de cadence, pas de rafales, pas d'oubli à distance : rien de ce qui
+## fait vivre un monde ouvert n'a de sens sur quarante mètres, où tout est
+## à portée de marche. On pose la composition et on la laisse tranquille.
+##
+## LES TROIS FAMILLES SONT REPRÉSENTÉES, en alternance sur les foyers :
+## un test de combat qui n'affronterait qu'un seul type de mob ne dirait
+## rien de la lisibilité des autres.
+func _peupler_arene() -> void:
+	if MatchDirector.phase not in [MatchDirector.Phase.WARMUP,
+			MatchDirector.Phase.ESCALATION, MatchDirector.Phase.CLOSING]:
+		return
+	# L'EFFECTIF EST MAINTENU, PAS POSÉ UNE FOIS.
+	#
+	# Premier jet : dix mobs pondus au démarrage, plus jamais rien. Mesuré
+	# sur 150 s de partie avec dix bots — il n'en restait ZÉRO à la fin.
+	# Les bots les avaient tous tués dans la première minute, et le reste
+	# du banc observait une arène sans mobs en croyant en observer dix.
+	#
+	# Ce n'est pas une vague pour autant : on ne dépasse jamais dix, et
+	# chacun revient au foyer que le plan lui a assigné. La composition
+	# reste celle qu'on a voulue, elle ne s'épuise simplement plus.
+	_recharge -= get_process_delta_time()
+	if _recharge > 0.0:
+		return
+	var vivants := get_tree().get_nodes_in_group(&"mobs").size()
+	if vivants >= MOBS_ARENE:
+		return
+	# Un délai entre deux venues : sans lui, un mob tué réapparaît dans
+	# l'image suivante, au même endroit, sous le nez de celui qui vient de
+	# l'abattre. On ne teste plus un combat, on teste un tapis roulant.
+	_recharge = DELAI_RETOUR
+	var familles: Array[StringName] = [&"charger", &"shooter", &"exploder"]
+	for i in mini(PAR_TOUR, MOBS_ARENE - vivants):
+		world.call(&"server_spawn_mob", familles[_prochain % familles.size()])
+		_prochain += 1

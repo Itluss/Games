@@ -164,7 +164,7 @@ func setup(id: int, name_text: String, bot: bool) -> void:
 func _ready() -> void:
 	add_to_group(&"players")
 	collision_layer = Cfg.LAYER_PLAYER
-	collision_mask = Cfg.LAYER_WORLD
+	collision_mask = Cfg.LAYER_WORLD | Cfg.LAYER_BORDURE
 
 	var shape := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
@@ -530,7 +530,7 @@ func revivre(position: Vector3) -> void:
 	health.reset()
 	health_bar.visible = true
 	collision_layer = Cfg.LAYER_PLAYER
-	collision_mask = Cfg.LAYER_WORLD
+	collision_mask = Cfg.LAYER_WORLD | Cfg.LAYER_BORDURE
 	set_physics_process(true)
 	visual.revive()
 
@@ -819,7 +819,7 @@ func _update_aim_visuals() -> void:
 	var dir := Vector3(sin(_facing), 0.0, cos(_facing))
 	var space := get_world_3d().direct_space_state
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * reach)
-	q.collision_mask = Cfg.LAYER_WORLD
+	q.collision_mask = Cfg.LAYER_WORLD | Cfg.LAYER_BORDURE
 	var hit := space.intersect_ray(q)
 	var length: float = reach
 	if hit:

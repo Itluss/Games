@@ -21,7 +21,19 @@ var _last_mode: int = 0   # 0 = solo, 1 = hôte, 2 = client
 ## trois. Une valeur dupliquée est une valeur qui finit par diverger, alors
 ## elle est désormais unique et les trois endroits la lisent.
 const BOTS_SOLO := 9
-var _last_bots: int = BOTS_SOLO
+
+## DIX BOTS EN ARÈNE DE COMBAT, contre neuf dans le jeu.
+##
+## Le compte du jeu n'est pas touché : ce serait changer l'équilibre au
+## prétexte d'un test. L'arène, elle, est un banc — on y veut exactement
+## les onze corps demandés, dix bots plus le joueur local, pour que la
+## densité observée soit celle qu'on a voulue et pas une de moins.
+const BOTS_ARENE := 10
+
+static func bots_solo() -> int:
+	return BOTS_ARENE if Cfg.arene_test else BOTS_SOLO
+
+var _last_bots: int = BOTS_SOLO   # remplacé au premier lancement
 
 ## Arguments de lancement, des DEUX côtés du séparateur `--`.
 ##
@@ -56,7 +68,7 @@ func _ready() -> void:
 	# Démarrage direct en solo : sert aux tests automatisés et à relancer
 	# une partie sans repasser par le menu pendant le développement.
 	if "--solo" in args:
-		_start(0, BOTS_SOLO)
+		_start(0, bots_solo())
 		return
 	_show_menu()
 
@@ -100,8 +112,8 @@ func _show_menu() -> void:
 	box.add_child(sub)
 
 	box.add_child(_spacer(28))
-	box.add_child(_menu_button("SOLO — %d BOTS" % BOTS_SOLO, Cfg.COL_HEAL,
-			func(): _start(0, BOTS_SOLO)))
+	box.add_child(_menu_button("SOLO — %d BOTS" % bots_solo(), Cfg.COL_HEAL,
+			func(): _start(0, bots_solo())))
 	box.add_child(_menu_button("HÉBERGER UNE PARTIE", Cfg.COL_BASIC,
 			func(): _start(1, 0)))
 	box.add_child(_menu_button("REJOINDRE (127.0.0.1)", Cfg.COL_ENERGY,

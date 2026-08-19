@@ -51,7 +51,7 @@ func setup(mob_data: MobData, id: int) -> void:
 func _ready() -> void:
 	add_to_group(&"mobs")
 	collision_layer = Cfg.LAYER_MOB
-	collision_mask = Cfg.LAYER_WORLD
+	collision_mask = Cfg.LAYER_WORLD | Cfg.LAYER_BORDURE
 
 	var shape := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()

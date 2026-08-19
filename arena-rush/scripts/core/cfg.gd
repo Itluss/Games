@@ -23,6 +23,22 @@ const LAYER_PICKUP := 16
 ## n'existent que pour que la caméra sache qu'elle regarde à travers un toit.
 const LAYER_TOIT := 32
 
+## BORDURE D'ARÈNE — arrête les corps, laisse passer le REGARD.
+##
+## LE DÉFAUT QU'ELLE CORRIGE, ET IL EST GÉOMÉTRIQUE, PAS ACCIDENTEL. La
+## caméra se pose huit mètres au SUD du joueur. Quand celui-ci s'approche
+## du bord sud de l'arène, la caméra se retrouve donc DEHORS, et regarde à
+## l'intérieur à travers le mur d'enceinte. Mesuré au balayage
+## déterministe : 10 % des positions praticables rendaient le joueur
+## invisible, et la quasi-totalité était collée au bord sud.
+##
+## Aucune hauteur de mur ne règle cela — près du bord, le rayon traverse
+## l'enceinte à moins de deux mètres du sol, sous n'importe quel mur digne
+## de ce nom. Le mur ne doit donc pas être sur la couche que la caméra
+## interroge. Il garde toute sa fonction physique : les corps s'y arrêtent,
+## puisque joueurs et mobs l'ajoutent à leur masque.
+const LAYER_BORDURE := 64
+
 # --- ÉQUIPES -------------------------------------------------------------
 enum Team { PLAYER, MOB }
 
@@ -301,6 +317,18 @@ func est_mobile() -> bool:
 ## un aplat. Le profil du téléphone n'est donc pas seulement « moins beau »,
 ## il change ce qui est LISIBLE — c'est exactement ce qu'il faut pouvoir
 ## reproduire.
+## ARÈNE DE COMBAT PLUTÔT QUE MONDE OUVERT, via `-- --arene-test`.
+##
+## POURQUOI UN DRAPEAU ET NON UNE SCÈNE À PART. Une arène de test ne vaut
+## que si elle est jouée par le VRAI jeu — mêmes bots, mêmes mobs, même
+## caméra, même HUD, même réseau. Une scène parallèle qui recrée tout cela
+## dériverait dès la première semaine, et l'on testerait un jeu qui n'est
+## pas celui qu'on publie.
+##
+## Le drapeau ne change donc qu'une chose : ce que l'arène BÂTIT. Tout le
+## reste du jeu ignore jusqu'à son existence.
+var arene_test := false
+
 var force_mobile := false
 
 func _ready() -> void:
@@ -323,6 +351,9 @@ func _ready() -> void:
 	if "--mobile" in OS.get_cmdline_user_args():
 		force_mobile = true
 		print("[Cfg] Profil téléphone forcé.")
+	if "--arene-test" in OS.get_cmdline_user_args():
+		arene_test = true
+		print("[Cfg] Arène de combat 40 × 40 m (composition manuelle).")
 	if est_mobile():
 		quality = Quality.LOW
 	# On ne touche PAS à `scaling_3d_scale` : l'export web utilise le rendu

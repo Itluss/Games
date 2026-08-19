@@ -50,6 +50,8 @@ class_name Arena
 const NB_CELLULES := int(PlanMonde.COTE / PlanMonde.CELLULE)
 
 var mob_spawn_points: Array[Vector3] = []
+## Prochain foyer à servir en arène de combat. Voir `mob_spawn`.
+var _index_mob_test: int = 0
 var player_spawn_points: Array[Vector3] = []
 
 var _zone_ring: MeshInstance3D
@@ -70,6 +72,24 @@ func _ready() -> void:
 	# effacer ; sans groupe, elle devrait deviner un chemin dans l'arbre.
 	add_to_group(&"arene")
 	_build_environment()
+
+	# ─── ARÈNE DE COMBAT : UN AUTRE MONDE, LE MÊME JEU ──────────────────
+	#
+	# Tout ce que le monde ouvert fait ici — semer le décor, poser les
+	# repères, replier les collisions à la couture, repositionner les
+	# cellules à chaque image — est SAUTÉ. Ce n'est pas une optimisation :
+	# c'est la condition pour juger un level design. Un semis qui repasse
+	# par-dessus une composition manuelle en détruit la lecture, et l'on ne
+	# saurait plus si ce qu'on voit vient du plan ou du hasard.
+	if Cfg.arene_test:
+		_batir_arene_test()
+		print("Arène de combat : %.0f × %.0f m · %d pièces posées · %d apparitions · %d mobs · bâtie en %d ms."
+				% [PlanAreneTest.COTE, PlanAreneTest.COTE, _props,
+					player_spawn_points.size(),
+					PlanAreneTest.positions_mobs().size(),
+					Time.get_ticks_msec() - depart])
+		return
+
 	_build_ground()
 	_batir_secteurs()
 	_batir_points_interet()
@@ -182,6 +202,12 @@ var _plaintes: Dictionary = {}
 
 
 func _process(delta: float) -> void:
+	# L'arène de combat n'a ni cellules à replier ni couture à surveiller :
+	# elle tient d'un seul tenant autour de l'origine. La veille du monde
+	# ouvert n'aurait ici rien à mesurer, et se plaindrait de l'absence
+	# d'un décor qui n'est pas censé exister.
+	if Cfg.arene_test:
+		return
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		_veiller(null)
@@ -1623,6 +1649,18 @@ func player_spawn(index: int) -> Vector3:
 ## le dos (injuste), assez près pour être rencontré (sinon le mob vit et
 ## meurt sans que personne ne le voie, et le plafond se remplit pour rien).
 func mob_spawn(players: Array) -> Vector3:
+	# EN ARÈNE DE COMBAT, LES DIX POSITIONS SONT ÉCRITES À LA MAIN et on
+	# les consomme dans l'ordre. Le choix « au foyer le plus proche d'un
+	# joueur, à 26 m environ » est réglé pour un monde de 144 m ; sur 40 m
+	# aucun point n'est à 26 m de qui que ce soit, et le score deviendrait
+	# arbitraire. Or ce qu'on veut ici est précisément l'inverse d'un
+	# choix : que les mobs soient là où le plan les a mis.
+	if Cfg.arene_test:
+		if mob_spawn_points.is_empty():
+			return Vector3.ZERO
+		var p := mob_spawn_points[_index_mob_test % mob_spawn_points.size()]
+		_index_mob_test += 1
+		return p
 	var best := Vector3.ZERO
 	var best_score := -INF
 	for point in mob_spawn_points:
@@ -1641,3 +1679,150 @@ func mob_spawn(players: Array) -> Vector3:
 	if best == Vector3.ZERO and not mob_spawn_points.is_empty():
 		best = mob_spawn_points[randi() % mob_spawn_points.size()]
 	return best
+
+
+# --- ARÈNE DE COMBAT -----------------------------------------------------
+#
+# BÂTIE PIÈCE PAR PIÈCE DEPUIS `PlanAreneTest`, sans une seule ligne de
+# semis. Ce bloc est délibérément court : toute la réflexion de level
+# design vit dans le plan, ici on ne fait que poser.
+
+## Bord de l'arène : au-delà, un mur invisible. Il est à un mètre du bord
+## déclaré pour que le joueur ne colle jamais la limite exacte.
+const MARGE_BORD := 1.0
+
+
+func _batir_arene_test() -> void:
+	_sol_arene_test()
+	_groupe = null
+	for piece: Dictionary in PlanAreneTest.toutes_les_pieces():
+		_poser_arene_test(piece)
+	_mur_arene_test()
+
+	player_spawn_points.clear()
+	for p: Vector3 in PlanAreneTest.APPARITIONS:
+		player_spawn_points.append(p)
+	mob_spawn_points.clear()
+	for p: Vector3 in PlanAreneTest.positions_mobs():
+		mob_spawn_points.append(p)
+
+
+## LE SOL : UNE SEULE DALLE, UNE SEULE COULEUR, AUCUN MOTIF.
+##
+## POURQUOI PAS LA MOSAÏQUE DU MONDE. Le sol du monde ouvert est un
+## assemblage de trente-six dalles à couleurs de sommets, avec ondulation
+## de dune et frontières de secteur qui se fondent. C'est ce qu'il faut
+## pour donner de la distance à 144 m. Sur 40 m, c'est exactement le
+## contraire du besoin : le sol doit être un FOND, c'est-à-dire la seule
+## surface de l'écran dont on n'a rien à lire. Tout motif y entre en
+## concurrence avec les silhouettes qu'on doit repérer en une fraction de
+## seconde.
+##
+## Une dalle, une teinte sable claire et chaude, et c'est tout.
+func _sol_arene_test() -> void:
+	# LE SOL DÉBORDE TRÈS LARGEMENT L'ARÈNE, et ce n'est pas du gaspillage.
+	#
+	# Premier jet : une dalle de 46 m pour une arène de 40. Vérifié en
+	# image depuis la caméra de jeu, posée dans un bastion d'angle — le
+	# BORD DE LA DALLE entrait dans le cadre, et l'on voyait le vide
+	# derrière. Une arène dont on aperçoit la fin du monde cesse d'être un
+	# lieu. Le sol va donc jusqu'à 120 m : la caméra n'en voit jamais la
+	# limite, et cela ne coûte rien — c'est une seule boîte, un seul appel
+	# de dessin, quelle que soit sa taille.
+	#
+	# Les murs invisibles, eux, restent à 20 m : c'est l'arène qui borne le
+	# jeu, pas le sol qui borne le regard.
+	var cote := 120.0
+	var mi := MeshInstance3D.new()
+	mi.name = "Sol"
+	var b := BoxMesh.new()
+	b.size = Vector3(cote, 0.5, cote)
+	mi.mesh = b
+	# SABLE ÉCLAIRCI ET ADOUCI. Celui du monde ouvert (e2b968) est réglé
+	# pour une carte qu'on traverse ; sur une arène où l'œil ne quitte
+	# jamais le sol, ce jaune saturé fatigue et concurrence les props. Un
+	# fond se remarque par son silence.
+	mi.material_override = VisualKit.mat(Color("ecd7a4"), 0.0, 0.95)
+	# Le dessus de la dalle affleure y = 0 : les pièces sont posées dessus.
+	mi.position = Vector3(0, -0.25, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(cote, 0.5, cote)
+	col.shape = box
+	col.position = Vector3(0, -0.25, 0)
+	_obstacles.add_child(col)
+
+
+## POSE UNE PIÈCE, ET LA LÈVE DE DOUZE MILLIMÈTRES.
+##
+## LA LEVÉE EST LE CORRECTIF ANTI-SCINTILLEMENT. PropKit pose chaque modèle
+## pieds à y = 0, donc sa face inférieure exactement dans le plan du sol.
+## Deux surfaces coplanaires se disputent le même pixel, et le gagnant
+## dépend de l'arrondi de la profondeur : la pièce clignote dès que la
+## caméra bouge. Douze millimètres les départagent sans qu'on voie rien
+## flotter depuis dix mètres de haut.
+func _poser_arene_test(piece: Dictionary) -> void:
+	var plan_pos: Vector2 = piece["pos"]
+	var taille: Vector3 = piece["taille"]
+	var rendu := PropKit.instancier(piece["modele"], taille,
+			piece.get("teinte", Cfg.COL_PIERRE_CREME))
+	var noeud: Node3D = rendu["noeud"]
+	var reelle: Vector3 = rendu["taille"]
+	# NOMMÉE PAR SON MODÈLE. Sans cela, une anomalie signalée par la sonde
+	# de scintillement s'appelle « @Node3D@102 » et il faut la retrouver à
+	# la main dans le plan. Un diagnostic qu'on ne peut pas relier à une
+	# ligne de code ne sert à rien.
+	noeud.name = "Prop_%s" % piece["modele"]
+	noeud.position = Vector3(plan_pos.x, PlanAreneTest.LEVEE, plan_pos.y)
+	noeud.rotation.y = piece["rot"]
+	add_child(noeud)
+	_props += 1
+
+	# COLLISION AUX DIMENSIONS RENDUES, PAS AUX DIMENSIONS DEMANDÉES.
+	# Meshy livre souvent plus petit que le volume réclamé ; une collision
+	# à la taille demandée entourerait la pièce d'un mur invisible, et l'on
+	# se cognerait dans du vide à côté d'un conteneur.
+	var shape := CollisionShape3D.new()
+	var cb := BoxShape3D.new()
+	cb.size = Vector3(maxf(reelle.x, 0.3), maxf(reelle.y, 0.3),
+			maxf(reelle.z, 0.3))
+	shape.shape = cb
+	shape.position = Vector3(plan_pos.x, reelle.y * 0.5, plan_pos.y)
+	shape.rotation.y = piece["rot"]
+	_obstacles.add_child(shape)
+
+
+## LE BORD DE L'ARÈNE — quatre murs invisibles, et rien de visible.
+##
+## POURQUOI RIEN DE VISIBLE. Un mur bâti sur 40 m de côté, c'est quatre
+## murs qui entrent dans le champ de la caméra dès qu'on approche du bord,
+## et l'écran se remplit de paroi. C'est le défaut qui a coûté trois
+## corrections au monde ouvert avant qu'on ne supprime la limite. Ici la
+## limite est nécessaire — une arène a des bords — mais elle n'a aucune
+## raison d'être VUE : la couronne d'apparitions et les repères d'angle
+## disent déjà où s'arrête le terrain.
+func _mur_arene_test() -> void:
+	# SUR SA PROPRE COUCHE, ET C'EST TOUT LE SUJET. Sur la couche du monde,
+	# l'enceinte bloquait le regard de la caméra dès qu'on longeait le bord
+	# sud — voir Cfg.LAYER_BORDURE. Elle a donc son propre corps.
+	var enceinte := StaticBody3D.new()
+	enceinte.name = "Bordure"
+	enceinte.collision_layer = Cfg.LAYER_BORDURE
+	enceinte.collision_mask = 0
+	add_child(enceinte)
+
+	var d := PlanAreneTest.DEMI + MARGE_BORD
+	var h := 6.0
+	for i in 4:
+		var a := TAU * float(i) / 4.0
+		var n := Vector2(cos(a), sin(a))
+		var shape := CollisionShape3D.new()
+		var cb := BoxShape3D.new()
+		cb.size = Vector3(1.0, h, PlanAreneTest.COTE + MARGE_BORD * 4.0)
+		shape.shape = cb
+		shape.position = Vector3(n.x * d, h * 0.5, n.y * d)
+		shape.rotation.y = a
+		enceinte.add_child(shape)

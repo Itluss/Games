@@ -36,6 +36,19 @@ const PORT := 8910
 ## une mêlée permanente.
 const MAX_PLAYERS := 10
 
+## PLAFOND RELEVÉ D'UN CRAN EN ARÈNE DE COMBAT, et d'un seul.
+##
+## Le banc demande onze corps : dix bots et le joueur local. Avec le
+## plafond du jeu, `clampi(bots, 0, MAX_PLAYERS - 1)` ramenait
+## silencieusement la commande de dix bots à neuf — on aurait cru tester
+## la densité demandée en en testant une autre. Le plafond du JEU, lui, ne
+## bouge pas : ce serait changer la taille des parties au prétexte d'un
+## test.
+const MAX_PLAYERS_ARENE := 11
+
+static func plafond() -> int:
+	return MAX_PLAYERS_ARENE if Cfg.arene_test else MAX_PLAYERS
+
 enum Mode { NONE, SOLO, HOST, CLIENT }
 var mode: Mode = Mode.NONE
 
@@ -88,7 +101,7 @@ func all_ids() -> Array:
 func start_solo(bots: int = 9) -> void:
 	_reset_peer()
 	mode = Mode.SOLO
-	bot_count = clampi(bots, 0, MAX_PLAYERS - 1)
+	bot_count = clampi(bots, 0, plafond() - 1)
 	peers = {1: {"name": "Vous", "bot": false}}
 	# Les bots reçoivent des identifiants négatifs : impossible de les
 	# confondre avec un vrai pair réseau, qui est toujours positif.
