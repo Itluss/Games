@@ -1,0 +1,14 @@
+{
+  "_lot": "KIT WESTERN — planche « assets western ».",
+  "_role": "cactus, decor sans collision",
+  "_pourquoi_mode_image": "Le mode TEXTE a deja montre ses limites sur les heros : Meshy y genere a partir de mots et le resultat ne ressemble pas a la planche. Le commentaire de meshy.py le dit — « IMAGE-TO-3D des qu'une reference visuelle existe : c'est LE mode fidele ».",
+  "_socle_de_sable": "La planche pose chaque objet sur un petit disque de sable. Le mode image ne permet pas de l'interdire — il n'accepte qu'une image et une invite de TEXTURE, jamais une consigne de forme. Le socle sera donc genere avec l'objet, et enfonce dans le sol au montage : sur un rocher c'est meme souhaitable, cela le plante au lieu de le poser.",
+  "_hauteur_cible_m": 2.1,
+  "_note_echelle": "L'echelle est fixee dans Godot, jamais par Meshy. Reference : les heros mesurent de 1,48 a 2,05 m.",
+  "nom": "west_cactus_a",
+  "mode": "image",
+  "image": "art/references/decoupes/western/cactus_a.png",
+  "prompt": "Stylized 3D cartoon Wild West environment asset for a colorful mobile arena shooter. Warm inviting western art direction, large rounded chunky shapes, slightly exaggerated proportions, extremely clear silhouette from an elevated gameplay camera, polished game-ready appearance, minimal unnecessary surface detail, warm sand terracotta and honey wood palette, optimized for mobile, no photorealism, no gritty post-apocalyptic style, no background, isolated object.",
+  "polycount": 1500,
+  "texturer": true
+}
