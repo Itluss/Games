@@ -188,7 +188,7 @@ func _ready() -> void:
 	# Kael n'occupait qu'une poignée de pixels et se lisait comme une
 	# tache sombre. Les jeux d'arène en vue de dessus exagèrent tous
 	# l'échelle du personnage pour cette raison.
-	visual.build(body_col, accent, VISUAL_HEIGHT)
+	visual.build(body_col, accent, VISUAL_HEIGHT, heros())
 
 	weapon = Weapon.new()
 	var mount := visual.get_weapon_mount()
@@ -262,6 +262,10 @@ func _physics_process(delta: float) -> void:
 	var local_v := Vector3(velocity.x, 0, velocity.z).rotated(Vector3.UP, -_facing)
 	var local_a := _accel.rotated(Vector3.UP, -_facing)
 	visual.set_motion(local_v / maxf(SPEED, 0.01), local_a / 40.0)
+	# LA VITESSE BRUTE, EN PLUS DE LA NORMALISÉE. La couche de démarche
+	# cadence les appuis sur la DISTANCE parcourue : il lui faut des
+	# mètres par seconde, pas un rapport sans unité.
+	visual.set_world_velocity(velocity)
 	# La mise en joue suit l'intention de tir, pas l'évènement de tir :
 	# le personnage épaule tant qu'on maintient, et non le temps d'une
 	# image à chaque projectile.
@@ -363,6 +367,26 @@ func _simulate(delta: float) -> void:
 
 ## Le joueur est-il ENGAGÉ ? Sert à la fois à l'orientation du corps et
 ## au choix de l'animation, pour que les deux restent d'accord.
+## LE HÉROS DE CE JOUEUR.
+##
+## POURQUOI DÉRIVÉ DE L'IDENTIFIANT DE PAIR ET NON TIRÉ AU SORT. Le
+## personnage doit être le MÊME sur tous les postes : un bot qui serait
+## Bruno chez l'un et Gus chez l'autre briserait la lecture du combat, et
+## chacun jouerait contre une silhouette différente. L'identifiant de pair
+## est la seule donnée que tous partagent déjà — il fait donc autorité.
+##
+## Le joueur local reçoit MILO, l'étalon des six : c'est le personnage par
+## rapport auquel les autres démarches ont été réglées.
+const HEROS_DISPONIBLES: Array[StringName] = [
+	&"milo", &"poppy", &"bruno", &"nox", &"ruby", &"gus",
+]
+
+func heros() -> StringName:
+	if peer_id == Net.local_id():
+		return &"milo"
+	return HEROS_DISPONIBLES[absi(peer_id) % HEROS_DISPONIBLES.size()]
+
+
 func en_combat() -> bool:
 	return _combat > COMBAT_SEUIL
 

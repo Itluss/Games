@@ -34,6 +34,18 @@ enum State { IDLE, RUN, ATTACK, HIT, DEATH }
 ## doublons pour quatre clips. Fusionnés et texture ramenée à 1024, il
 ## reste 1,3 Mo — ce qui est expédiable sur le web.
 const MODELE := "res://assets/models/kael.glb"
+## Identifiant du héros porté par ce visuel. Vide = Kael.
+var _heros: StringName = &""
+
+## Chemin du modèle à monter. Un héros inconnu ou absent retombe sur Kael
+## plutôt que de ne rien afficher : mieux vaut le mauvais personnage qu'un
+## joueur invisible.
+func _chemin_modele() -> String:
+	if _heros != &"":
+		var c := "res://assets/models/hero_%s.glb" % _heros
+		if ResourceLoader.exists(c):
+			return c
+	return MODELE
 ## MESURÉ dans Godot sur le modèle riggé : boîte englobante de 0,000 à
 ## 1,900. Contrairement au maillage brut, dont l'origine était au CENTRE
 ## — ce qui enfonçait le personnage jusqu'à la taille — le modèle riggé a
@@ -93,6 +105,17 @@ const SEUIL_COURSE := 0.14
 const SEUIL_ARRET := 0.08
 
 var state: State = State.IDLE
+## Nœud INTERCALAIRE qui porte la démarche.
+##
+## POURQUOI UN NŒUD DE PLUS PLUTÔT QUE POSER SUR `_rig`. `_rig` porte
+## déjà l'orientation du corps, le support d'arme et le gabarit de repli,
+## et son `rotation.y` est écrit par le joueur. Y ajouter le tangage et le
+## roulis de la marche rendrait impossible de régler l'un sans casser
+## l'autre — et une remise à zéro faite ailleurs effacerait la démarche
+## sans qu'on comprenne pourquoi. Le nœud de démarche s'insère AU-DESSUS :
+## il ne touche qu'à ce qui lui appartient.
+var _demarche: Node3D
+var _loco: Locomotion
 var _rig: Node3D
 var _modele: Node3D
 var _anim: AnimationPlayer
@@ -131,13 +154,26 @@ var _hit_t: float = 0.0
 var _dead: bool = false
 
 
-func build(color: Color, accent: Color, height: float = 1.7) -> void:
+## `heros` choisit le modèle et le profil de démarche. Vide = Kael, le
+## comportement d'avant : aucun appelant existant n'a à changer.
+func build(color: Color, accent: Color, height: float = 1.7,
+		heros: StringName = &"") -> void:
+	_heros = heros
+	_demarche = Node3D.new()
+	_demarche.name = "Demarche"
+	add_child(_demarche)
+
+	_loco = Locomotion.new()
+	_loco.name = "Locomotion"
+	_loco.profil = ProfilDemarche.profil(heros)
+	add_child(_loco)
+
 	_rig = Node3D.new()
 	_rig.name = "Rig"
-	add_child(_rig)
+	_demarche.add_child(_rig)
 	# Repli si l'asset manque : le jeu doit rester lançable sur une
 	# branche où le modèle n'a pas encore été déposé.
-	if ResourceLoader.exists(MODELE):
+	if ResourceLoader.exists(_chemin_modele()):
 		_monter_modele(height)
 	else:
 		push_warning("Modèle %s absent — repli sur le gabarit primitif." % MODELE)
@@ -147,9 +183,12 @@ func build(color: Color, accent: Color, height: float = 1.7) -> void:
 # --- MONTAGE DU MODÈLE ANIMÉ --------------------------------------------
 
 func _monter_modele(height: float) -> void:
-	var scene: PackedScene = load(MODELE)
+	var scene: PackedScene = load(_chemin_modele())
 	_modele = scene.instantiate()
-	_facteur = height / MODELE_HAUTEUR
+	# LA HAUTEUR NATIVE SE MESURE, elle ne se suppose pas. Kael arrive à
+	# 1,9 ; les six héros sortent de Meshy à des tailles quelconques, et
+	# leur imposer le facteur de Kael les rendrait tous faux.
+	_facteur = height / maxf(_hauteur_native(), 0.0001)
 	_modele.scale = Vector3.ONE * _facteur
 	_modele.rotation.y = MODELE_DEMI_TOUR
 	_rig.add_child(_modele)
@@ -214,7 +253,26 @@ func _monter_modele(height: float) -> void:
 	# de l'arme vit dans le repère du PERSONNAGE, et se contente de
 	# recopier chaque trame la position et l'orientation de la main, sans
 	# son échelle.
-	if _squelette:
+	# UN MODÈLE SANS OS DOIT QUAND MÊME PORTER SON ARME.
+	#
+	# Les six héros sortent d'un image-to-3d : un seul nœud, aucun
+	# squelette. Sans repli, `_mount` restait nul et l'arme n'était
+	# jamais greffée — vérifié par la barrière des commandes, qui a
+	# signalé « un point d'accroche existe : faux » dès le branchement.
+	#
+	# Le support est alors posé À LA MAIN, en fraction de la taille du
+	# personnage : hauteur d'épaule, écarté du côté de la main droite,
+	# légèrement en avant. C'est approximatif et c'est assumé — un
+	# placement approximatif rend l'arme visible et le jeu jouable, un
+	# support absent ne rend rien du tout. Le jour où les squelettes
+	# arrivent, la branche du dessus reprend la main sans rien changer
+	# ici.
+	if _squelette == null:
+		_mount = Node3D.new()
+		_mount.name = "WeaponMount"
+		_mount.position = Vector3(0.26, height * 0.60, 0.20)
+		_rig.add_child(_mount)
+	elif _squelette:
 		_attache = BoneAttachment3D.new()
 		_attache.name = "SondeMain"
 		_attache.bone_name = OS_MAIN
@@ -470,6 +528,16 @@ func _suivre_main() -> void:
 
 
 ## Vitesse et accélération dans le repère du personnage, normalisées.
+## Vitesse RÉELLE en m/s, non normalisée. `set_motion` reçoit une valeur
+## locale et divisée par la vitesse de pointe — utile au penché, inutile à
+## la cadence, qui a besoin de mètres par seconde pour cadencer les appuis
+## sur la distance parcourue.
+var _vel_monde: Vector3 = Vector3.ZERO
+
+func set_world_velocity(v: Vector3) -> void:
+	_vel_monde = Vector3(v.x, 0.0, v.z)
+
+
 func set_motion(vel: Vector3, acc: Vector3) -> void:
 	_vel = vel
 	_acc = acc
@@ -551,11 +619,52 @@ func _play_death() -> void:
 
 
 ## `speed_ratio` : 0 à l'arrêt, 1 à pleine course.
+## Hauteur réelle du modèle monté, en unités du fichier.
+func _hauteur_native() -> float:
+	if _heros == &"":
+		return MODELE_HAUTEUR
+	var boites: Array[AABB] = []
+	_boites(_modele, Transform3D.IDENTITY, boites)
+	if boites.is_empty():
+		return MODELE_HAUTEUR
+	var t := boites[0]
+	for i in range(1, boites.size()):
+		t = t.merge(boites[i])
+	return t.size.y
+
+
+func _boites(n: Node, t: Transform3D, out: Array[AABB]) -> void:
+	var mi := n as MeshInstance3D
+	if mi != null and mi.mesh != null:
+		out.append(t * mi.get_aabb())
+	for e in n.get_children():
+		var s2 := t
+		var e3 := e as Node3D
+		if e3 != null:
+			s2 = t * e3.transform
+		_boites(e, s2, out)
+
+
+## APPLIQUE LA DÉMARCHE. Rien ici ne touche au corps physique : le
+## personnage reste exactement là où le gameplay l'a mis, seule son
+## apparence bouge. C'est ce qui rend la couche inoffensive pour la
+## collision, la visée et le réseau.
+func _appliquer_demarche(delta: float) -> void:
+	if _demarche == null or _loco == null or _dead:
+		return
+	_loco.set_velocity(_vel_monde)
+	_loco.avancer(delta)
+	var inc := _loco.inclinaison()
+	_demarche.position = Vector3(_loco.derive_laterale(), _loco.hauteur(), 0.0)
+	_demarche.rotation = Vector3(inc.x, 0.0, inc.z)
+
+
 func update_visual(delta: float, speed_ratio: float) -> void:
 	if _rig == null:
 		return
 	_time += delta
 
+	_appliquer_demarche(delta)
 	_suivre_main()
 
 	if _dead:
@@ -603,6 +712,21 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 					1.0 - exp(-delta / FONDU_BUSTE))
 			_anim.speed_scale = 1.0
 		_appliquer_melange(_melange)
+	elif _anim == null:
+		# ─── AUCUNE ANIMATION : LA POSTURE RESTE UNE INFORMATION ────────
+		#
+		# `_posture` est une valeur LOGIQUE — l'intention du personnage —
+		# et non le nom du clip en cours. Un modèle sans squelette ne peut
+		# rien jouer, mais il tire, il court et il vise exactement comme
+		# les autres : le reste du jeu, et les bancs, ont le droit de le
+		# savoir. La laisser bloquée sur « repos » revenait à mentir sur
+		# l'état du joueur parce qu'il manque un fichier.
+		if _court:
+			state = State.RUN
+			_posture = A_COURSE_TIR if tire else A_COURSE
+		else:
+			state = State.ATTACK if tire else State.IDLE
+			_posture = "tir_debout" if tire else A_REPOS
 	elif _court:
 		state = State.RUN
 		_jouer(A_COURSE_TIR if tire else A_COURSE)
