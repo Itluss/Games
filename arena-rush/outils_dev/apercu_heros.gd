@@ -9,11 +9,18 @@ const LARGEUR := 900
 const HAUTEUR := 900
 const CHAUFFE := 6
 
+## Les six héros de la planche MILO / POPPY / BRUNO / NOX / RUBY / GUS.
+##
+## LES HAUTEURS SONT CELLES DES BONS DE COMMANDE, et elles portent le
+## rôle : Bruno dépasse Gus de 57 cm. Vue de dix mètres de haut, la taille
+## est la première chose qu'on lit.
 const HEROS := [
-	{"nom": "hero_brute", "h": 2.15},
-	{"nom": "hero_zippy", "h": 1.72},
-	{"nom": "hero_spark", "h": 1.62},
-	{"nom": "hero_bolt", "h": 1.88},
+	{"nom": "hero_milo", "h": 1.85},
+	{"nom": "hero_poppy", "h": 1.58},
+	{"nom": "hero_bruno", "h": 2.05},
+	{"nom": "hero_nox", "h": 1.76},
+	{"nom": "hero_ruby", "h": 1.70},
+	{"nom": "hero_gus", "h": 1.48},
 ]
 
 var _cam: Camera3D
@@ -57,9 +64,13 @@ func _charger() -> void:
 		_courant = null
 	var d: Dictionary = HEROS[_i]
 	var chemin := "res://assets/models/%s.glb" % d["nom"]
-	var sc := load(chemin) as PackedScene
+	var sc := load(chemin) as PackedScene if ResourceLoader.exists(chemin) else null
 	if sc == null:
-		push_error("illisible : %s" % chemin)
+		# ON PASSE AU SUIVANT PLUTÔT QUE DE S'ARRÊTER. Un modèle absent est
+		# une information ; il ne doit pas empêcher de juger les cinq
+		# autres, ce qui obligerait à relancer l'aperçu pour chaque manque.
+		print("%-12s  ABSENT (%s)" % [d["nom"], chemin])
+		_suivant()
 		return
 	var n := sc.instantiate() as Node3D
 	add_child(n)
@@ -117,14 +128,18 @@ func _process(_dt: float) -> void:
 			"34" if _vue == 0 else "dessus"])
 	_vue += 1
 	if _vue > 1:
-		_vue = 0
-		_i += 1
-		if _i >= HEROS.size():
-			get_tree().quit()
-			return
-		_charger()
+		_suivant()
 	else:
 		_placer()
+
+
+func _suivant() -> void:
+	_vue = 0
+	_i += 1
+	if _i >= HEROS.size():
+		get_tree().quit()
+		return
+	_charger()
 
 func _col(n: Node, t: Transform3D, out: Array[AABB]) -> void:
 	var mi := n as MeshInstance3D

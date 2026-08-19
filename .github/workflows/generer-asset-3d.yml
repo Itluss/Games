@@ -103,11 +103,39 @@ jobs:
         run: |
           set -euo pipefail
           BASE="${{ github.event.before }}"
-          # Un premier push sur une branche neuve n'a pas de parent
-          # exploitable : on retombe alors sur le commit précédent.
-          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE=""
+          fi
+
+          # ─── LE CLONE EST SUPERFICIEL, ET C'EST CE QUI A CASSÉ ──────────
+          #
+          # `fetch-depth: 2` ne ramène que HEAD et son parent. Cela suffit
+          # tant qu'un push ne porte QU'UN commit — et c'est l'hypothèse
+          # implicite qui a tenu jusqu'ici. Un push de DEUX commits met le
+          # point de départ hors du clone : `git diff <before> <sha>`
+          # répond « bad object », `set -e` tue l'étape, et la génération
+          # est sautée. Vérifié : run 32289911098, six demandes déposées,
+          # aucune vue, étape 6 en échec.
+          #
+          # On approfondit donc l'historique au lieu de supposer. Cent
+          # commits couvrent n'importe quel push réaliste ; si cela ne
+          # suffit toujours pas, on déplie tout, et en dernier recours on
+          # se rabat sur le parent immédiat.
+          if [ -n "$BASE" ] && ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "Point de départ $BASE hors du clone — approfondissement."
+            git fetch --deepen=100 origin "$GITHUB_REF_NAME" 2>/dev/null || true
+          fi
+          if [ -n "$BASE" ] && ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            git fetch --unshallow origin 2>/dev/null || true
+          fi
+          if [ -n "$BASE" ] && ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "::warning::Point de départ toujours introuvable — repli sur HEAD~1."
+            BASE=""
+          fi
+          if [ -z "$BASE" ]; then
             BASE=$(git rev-parse HEAD~1 2>/dev/null || echo "")
           fi
+
           if [ -n "$BASE" ]; then
             # `--no-renames` est indispensable : sans lui, git voit le
             # remplacement d'une demande par une autre comme un RENOMMAGE,
