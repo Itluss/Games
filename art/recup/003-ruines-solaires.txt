@@ -1,0 +1,21 @@
+32242040750
+Lot « Ruines Solaires » : deco_tour, deco_pylone, deco_panneau,
+deco_lampadaire, deco_ventilation. Cinq pièces générées avec succès par le
+run ci-dessus (dix minutes de Meshy, crédits consommés), puis PERDUES par
+l'étape de dépôt.
+
+CE QUI A ÉCHOUÉ, ET POURQUOI C'EST NOUVEAU. L'étape faisait
+« git checkout -B assets-3d origin/assets-3d » sans -f. Jusqu'ici les
+générations créaient des fichiers aux noms INÉDITS : non suivis par git,
+ils ne gênaient aucun changement de branche. Ce lot-ci réutilise
+volontairement les noms existants, pour que PropKit reprenne les pièces
+sans qu'une ligne de code ne bouge. Les .glb produits sont donc des
+fichiers SUIVIS et MODIFIÉS, et git a refusé de changer de branche
+par-dessus :
+
+  error: Your local changes to the following files would be overwritten
+  by checkout: arena-rush/assets/models/deco_lampadaire.glb …
+
+Le run est resté VERT malgré tout, parce que l'étape portait
+« continue-on-error: true ». Les deux défauts sont corrigés dans le même
+commit que cette demande.

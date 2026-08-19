@@ -193,20 +193,36 @@ jobs:
       # fichiers de workflow n'y changent pas d'un commit à l'autre, et le
       # dépôt passe. L'artefact ci-dessus reste le vrai filet — mais un
       # filet ne doit pas servir à chaque saut.
+      # UN DÉPÔT QUI ÉCHOUE DOIT FAIRE ROUGIR LE RUN.
+      #
+      # `continue-on-error: true` a coûté un lot entier. Le 19 août, cinq
+      # pièces ont été générées — dix minutes de Meshy, crédits dépensés —
+      # puis perdues ici même, et le run s'est affiché VERT. Sans le
+      # journal, rien ne distinguait ce run d'un succès complet. Un filet
+      # (l'artefact) justifie qu'on ne PERDE pas le travail ; il ne
+      # justifie pas qu'on ne SACHE pas que le dépôt a raté.
       - name: Déposer l'asset sur la branche
         if: always()
-        continue-on-error: true
         run: |
           BRANCHE="${{ inputs.branche || 'assets-3d' }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdir -p /tmp/modeles
           cp -a arena-rush/assets/models/. /tmp/modeles/ || true
+          # `-f` N'EST PAS UNE PRÉCAUTION, C'EST LA CORRECTION.
+          #
+          # Sans lui, git refuse de changer de branche quand des fichiers
+          # SUIVIS ont été modifiés — et c'est exactement le cas dès qu'une
+          # génération réutilise le nom d'un modèle existant, ce qui est la
+          # bonne façon de remplacer une pièce sans toucher au code. Les
+          # modèles viennent d'être copiés dans /tmp/modeles juste au-dessus
+          # et sont recopiés juste en dessous : il n'y a rien à perdre en
+          # écrasant l'arbre de travail, et tout à perdre en abandonnant.
           if git fetch origin "$BRANCHE"; then
-            git checkout -B "$BRANCHE" "origin/$BRANCHE"
+            git checkout -f -B "$BRANCHE" "origin/$BRANCHE"
           else
             echo "::warning::Branche $BRANCHE absente — création depuis HEAD."
-            git checkout -B "$BRANCHE"
+            git checkout -f -B "$BRANCHE"
           fi
           mkdir -p arena-rush/assets/models
           cp -a /tmp/modeles/. arena-rush/assets/models/
