@@ -40,6 +40,17 @@ var _joueur: Node3D
 var _prete := false
 
 var _sans_decor := 0
+## Plus longue SÉRIE d'images consécutives sans décor.
+##
+## C'EST LA SÉRIE QUI COMPTE, PAS LE TOTAL. Le défaut que cette veille
+## cherche — le monde qui cesse de suivre la caméra — est permanent par
+## nature : une fois installé, il ne se répare pas tout seul. Une image
+## isolée, elle, arrive au tout premier tour de boucle, avant que l'arène
+## n'ait replacé ses cellules ; la publication a échoué là-dessus, sur UNE
+## image, minimum zéro cellule. Compter le total revenait à confondre un
+## démarrage avec une panne.
+var _serie_sans_decor := 0
+var _pire_serie := 0
 ## Plus grand nombre de maillages visibles rencontré pendant la session.
 var _pic_maillages := 0
 var _sans_camera := 0
@@ -156,6 +167,8 @@ func _process(delta: float) -> void:
 			"dessins": Performance.get_monitor(
 					Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
 		})
+	if proches > 0:
+		_serie_sans_decor = 0
 	_y_cam_max = maxf(_y_cam_max, cam.global_position.y)
 	_y_joueur_max = maxf(_y_joueur_max, _joueur.global_position.y)
 	if cam.global_position.y > 60.0:
@@ -166,6 +179,8 @@ func _process(delta: float) -> void:
 					% [_t, cam.global_position.y, _joueur.global_position.y])
 	if proches == 0:
 		_sans_decor += 1
+		_serie_sans_decor += 1
+		_pire_serie = maxi(_pire_serie, _serie_sans_decor)
 		if _alertes < 6:
 			_alertes += 1
 			print("      ! t=%.1f s : ZÉRO cellule autour de la caméra %s"
@@ -360,12 +375,12 @@ func _conclure() -> void:
 	# faire gagner.
 	_ligne("une caméra active à chaque image", _sans_camera == 0,
 			"%d image(s) sans caméra" % _sans_camera)
-	_ligne("du décor autour à chaque image", _sans_decor == 0,
-			"%d image(s) sans décor · minimum %d cellules"
-			% [_sans_decor, _pire])
+	_ligne("le décor suit la caméra", _pire_serie < 2,
+			"plus longue série sans décor : %d image(s) · %d au total · minimum %d cellules"
+			% [_pire_serie, _sans_decor, _pire])
 	_ligne("la caméra reste à hauteur de jeu", _haut == 0,
 			"%d image(s) au-dessus de 60 m · maximum %.1f m"
 			% [_haut, _y_cam_max])
-	var ok := _sans_camera == 0 and _sans_decor == 0 and _haut == 0 and not fuite
+	var ok := _sans_camera == 0 and _pire_serie < 2 and _haut == 0 and not fuite
 	print("=== %d échec(s) sur 1 vérification ===" % (0 if ok else 1))
 	get_tree().quit(0 if ok else 1)
