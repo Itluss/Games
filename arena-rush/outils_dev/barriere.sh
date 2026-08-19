@@ -17,12 +17,18 @@ RENDU=0
 if [ "${1:-}" = "--rendu" ]; then RENDU=1; shift; fi
 JOURNAL="$(mktemp)"
 
+# `-k 30` N'EST PAS UN DÉTAIL. Sans lui, `timeout` se contente d'un SIGTERM
+# et attend indéfiniment que le moteur veuille bien mourir. C'est arrivé :
+# une barrière est restée quinze minutes sur une étape qui en prend
+# quarante-cinq secondes, bloquant toute la publication derrière elle,
+# alors que le même banc passait en trois secondes en local. Après le délai
+# de grâce, on tue pour de bon.
 if [ "$RENDU" = "1" ]; then
-  timeout 320 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
+  timeout -k 30 320 xvfb-run -a -s "-screen 0 1280x720x24" ~/godot-bin/godot \
     --path arena-rush "$SCENE" --rendering-driver opengl3 -- --solo "$@" \
     2>&1 | tee "$JOURNAL" || true
 else
-  timeout 320 ~/godot-bin/godot --headless --path arena-rush "$SCENE" \
+  timeout -k 30 320 ~/godot-bin/godot --headless --path arena-rush "$SCENE" \
     -- --solo "$@" 2>&1 | tee "$JOURNAL" || true
 fi
 
