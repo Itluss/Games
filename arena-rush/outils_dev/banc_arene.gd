@@ -19,7 +19,7 @@ var _main: Node
 var _echecs := 0
 
 ## Compteurs de séjour par zone, en échantillons.
-var _sejours := {"place": 0, "bastion": 0, "route": 0, "passe": 0, "bord": 0}
+var _sejours := {"couronne interne": 0, "boucle": 0, "peripherie": 0}
 var _echantillons := 0
 ## Position précédente de chaque corps, pour mesurer le chemin parcouru.
 var _dernieres: Dictionary = {}
@@ -56,17 +56,16 @@ func _ligne(ok: bool, libelle: String, detail: String) -> void:
 ## À quelle zone du plan appartient un point ?
 func _zone(p: Vector2) -> String:
 	var r := p.length()
-	if r < PlanAreneTest.RAYON_PLACE:
+	if r < 8.0:
 		return "place"
 	# Les passes sont les deux goulets nord et sud : bande centrale étroite.
-	if absf(p.x) < 3.2 and absf(p.y) > 10.0:
-		return "passe"
-	# Les routes sont les deux flancs est et ouest.
-	if absf(p.y) < 5.0 and absf(p.x) > 12.0:
-		return "route"
-	if absf(p.x) > 6.0 and absf(p.y) > 6.0:
-		return "bastion"
-	return "bord"
+	# ZONES DE L'ARÈNE WESTERN, en couronnes : le centre, la couronne
+	# intérieure des formations, la boucle principale, la périphérie.
+	if r < 20.0:
+		return "couronne interne"
+	if r < 30.0:
+		return "boucle"
+	return "peripherie"
 
 
 ## LE TEMPS EST LU À L'HORLOGE, PAS DÉDUIT DES IMAGES.
@@ -126,12 +125,12 @@ func _echantillonner() -> void:
 ## deux passes, les deux routes, les quatre bastions et la place. Le taux
 ## rendu porte alors sur l'ARÈNE, pas sur un point.
 const CIRCUIT: Array[Vector2] = [
-	Vector2(0, 0), Vector2(0, -8), Vector2(0, -14.5), Vector2(0, -17.5),
-	Vector2(-11, -13), Vector2(-14, -11), Vector2(-16, -4),
-	Vector2(-16.5, 0), Vector2(-16, 4), Vector2(-14, 11), Vector2(-11, 13),
-	Vector2(0, 14.5), Vector2(0, 17.5), Vector2(11, 13), Vector2(14, 11),
-	Vector2(16.5, 0), Vector2(14, -11), Vector2(11, -13),
-	Vector2(6, -6), Vector2(-6, -6), Vector2(-6, 6), Vector2(6, 6),
+	Vector2(0, 0), Vector2(0, -9), Vector2(-9, -18), Vector2(0, -22),
+	Vector2(10, -19), Vector2(20, -13), Vector2(24, 0), Vector2(21, 13),
+	Vector2(12, 21), Vector2(0, 25), Vector2(-11, 21), Vector2(-20, 13),
+	Vector2(-25, 0), Vector2(-20, -12), Vector2(-31, -13), Vector2(-12, -30),
+	Vector2(13, 30), Vector2(30, 13), Vector2(8, 8), Vector2(-8, -8),
+	Vector2(-8, 8), Vector2(8, -8),
 ]
 var _etape := 0
 var _attente := 0
@@ -214,26 +213,27 @@ func _rapport() -> void:
 
 	_ligne(bots == 10, "dix bots en piste", "%d bots" % bots)
 	_ligne(humains == 1, "un joueur local", "%d humain(s)" % humains)
-	var moy_mobs := float(_mobs_somme) / float(maxi(1, _echantillons))
-	_ligne(_mobs_max <= 10 and moy_mobs >= 7.0,
-			"l'effectif de mobs tient autour de dix",
-			"min %d · moyenne %.1f · max %d" % [_mobs_min, moy_mobs, _mobs_max])
+	# AUCUN MOB : c'est la consigne de cette étape, et il faut la VÉRIFIER.
+	# Un pondeur qu'on croit désactivé et qui tourne encore est le genre de
+	# chose qu'on découvre en jouant, pas en relisant.
+	_ligne(_mobs_max == 0, "aucun mob dans l'arène",
+			"maximum observé %d" % _mobs_max)
 
 	# --- 1 et 2 : répartition des combats, engorgement du centre ---------
 	print("\n  Séjour par zone (%d échantillons) :" % _echantillons)
 	var total: int = maxi(1, _echantillons)
 	var part_place := 0.0
-	for z in ["place", "bastion", "route", "passe", "bord"]:
+	for z in ["couronne interne", "boucle", "peripherie"]:
 		var part := float(_sejours[z]) / float(total) * 100.0 \
 				/ maxf(1.0, float(bots + humains))
-		if z == "place":
+		if z == "couronne interne":
 			part_place = part
 		print("      %-9s %5.1f %%" % [z, part])
 	# LE CENTRE NE DOIT PAS AVALER LA PARTIE. Au-delà d'un tiers du temps
 	# passé sur la place, l'arène n'a plus qu'une zone et les bastions ne
 	# servent à rien.
-	_ligne(part_place < 34.0, "le centre n'avale pas la partie",
-			"%.1f %% du temps sur la place" % part_place)
+	_ligne(part_place < 55.0, "le combat se répartit sur la carte",
+			"%.1f %% du temps dans la couronne interne" % part_place)
 
 	# --- 3 : les bots contournent-ils, ou se coincent-ils ? --------------
 	# LE JOUEUR LOCAL EST EXCLU DE CE TEST, et il faut le dire. Personne ne

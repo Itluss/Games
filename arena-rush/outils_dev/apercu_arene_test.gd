@@ -21,16 +21,17 @@ var _vue := 0
 var _chauffe := 0
 
 var _vues := [
-	# PLAN COMPLET : la composition d'un seul coup d'œil.
-	{"nom": "plan", "pos": Vector3(0.0, 62.0, 0.1), "cible": Vector3(0, 0, 0),
-		"fov": 58.0},
-	# LES CINQ VUES « CAMÉRA RÉELLE ». Chacune place le joueur à un endroit
-	# de jeu et regarde ce qu'il voit vraiment.
-	{"joueur": Vector3(0.0, 0.0, 0.0), "nom": "reel_place"},
-	{"joueur": Vector3(-11.0, 0.0, -11.0), "nom": "reel_bastion_no"},
-	{"joueur": Vector3(0.0, 0.0, -14.5), "nom": "reel_passe_nord"},
-	{"joueur": Vector3(-16.0, 0.0, 0.0), "nom": "reel_route_ouest"},
-	{"joueur": Vector3(0.0, 0.0, -17.6), "nom": "reel_apparition_nord"},
+	# PLAN COMPLET, pour comparer à la maquette.
+	{"nom": "plan", "pos": Vector3(0.0, 108.0, 0.1), "cible": Vector3(0, 0, 0),
+		"fov": 55.0},
+	{"nom": "plan_oblique", "pos": Vector3(0.0, 62.0, 62.0),
+		"cible": Vector3(0, 0, 0), "fov": 48.0},
+	# LES VUES « CAMÉRA RÉELLE » — les seules qui valident.
+	{"joueur": Vector3(0.0, 0.0, 0.0), "nom": "reel_centre"},
+	{"joueur": Vector3(-13.5, 0.0, -8.0), "nom": "reel_formation"},
+	{"joueur": Vector3(0.0, 0.0, -33.0), "nom": "reel_spawn_nord"},
+	{"joueur": Vector3(24.0, 0.0, 0.0), "nom": "reel_boucle_est"},
+	{"joueur": Vector3(-30.0, 0.0, -6.0), "nom": "reel_chariot"},
 ]
 
 func _ready() -> void:

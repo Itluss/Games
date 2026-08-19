@@ -66,10 +66,14 @@ const CELLULE := 24.0
 
 ## Ramène une position dans le carré de référence [-DEMI, DEMI[.
 static func enrouler(p: Vector2) -> Vector2:
+	if not enroulement:
+		return p
 	return Vector2(wrapf(p.x, -DEMI, DEMI), wrapf(p.y, -DEMI, DEMI))
 
 
 static func enrouler3(p: Vector3) -> Vector3:
+	if not enroulement:
+		return p
 	return Vector3(wrapf(p.x, -DEMI, DEMI), p.y, wrapf(p.z, -DEMI, DEMI))
 
 
@@ -78,11 +82,40 @@ static func enrouler3(p: Vector3) -> Vector3:
 ## C'est LA fonction du fichier. Sur un tore, deux points ne sont jamais
 ## séparés de plus d'un demi-côté sur chaque axe : le trajet qui traverse
 ## le bord est souvent le plus court, et c'est celui-là qui compte.
+## L'ENROULEMENT EST-IL ACTIF ?
+##
+## ─── POURQUOI CE DRAPEAU EXISTE, ET CE QU'IL ÉVITE ─────────────────────
+##
+## `PlanMonde` porte DEUX choses qu'on a longtemps confondues : le plan du
+## monde ouvert, et les mathématiques de distance sur un tore. La seconde
+## est utilisée partout — bots, mobs, effets, réapparition — par
+## `distance3`, `ecart3` et `replier`.
+##
+## Tant que l'arène de test faisait 40 m, le repliement ne se déclenchait
+## jamais : l'écart maximal entre deux points y vaut 56 m, sous le
+## demi-côté de 72. L'arène Western fait 80 m, et sa diagonale 113 m —
+## bien AU-DELÀ. Deux joueurs aux extrémités seraient calculés comme
+## voisins, un bot croirait sa cible dans son dos, et un tir traverserait
+## une limite qui n'existe pas.
+##
+## Le défaut n'aurait rien cassé de visible : il aurait rendu l'IA
+## incohérente par endroits, sans message d'erreur. C'est exactement le
+## genre de panne qu'on met des jours à imputer au mauvais système.
+##
+## Une arène bornée n'a pas de couture : on désactive donc le repliement,
+## et les trois fonctions rendent la différence à plat.
+static var enroulement := true
+
+
 static func ecart(a: Vector2, b: Vector2) -> Vector2:
+	if not enroulement:
+		return b - a
 	return Vector2(wrapf(b.x - a.x, -DEMI, DEMI), wrapf(b.y - a.y, -DEMI, DEMI))
 
 
 static func ecart3(a: Vector3, b: Vector3) -> Vector3:
+	if not enroulement:
+		return b - a
 	return Vector3(wrapf(b.x - a.x, -DEMI, DEMI), b.y - a.y,
 			wrapf(b.z - a.z, -DEMI, DEMI))
 

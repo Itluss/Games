@@ -82,11 +82,28 @@ func _ready() -> void:
 	# par-dessus une composition manuelle en détruit la lecture, et l'on ne
 	# saurait plus si ce qu'on voit vient du plan ou du hasard.
 	if Cfg.arene_test:
-		_batir_arene_test()
-		print("Arène de combat : %.0f × %.0f m · %d pièces posées · %d apparitions · %d mobs · bâtie en %d ms."
-				% [PlanAreneTest.COTE, PlanAreneTest.COTE, _props,
+		# ─── L'ARÈNE WESTERN REMPLACE L'ANCIENNE, ELLE NE S'Y AJOUTE PAS ──
+		#
+		# L'arène de combat 40 × 40 en pierre solaire ne se construit plus.
+		# Son plan reste dans le dépôt — l'historique dira toujours ce
+		# qu'elle valait — mais plus rien ne l'appelle : mélanger deux
+		# cartes serait le contraire de ce qui est demandé.
+		#
+		# LE REPLIEMENT TORIQUE EST COUPÉ, et ce n'est pas un détail. Les
+		# bots, les mobs, les effets et la réapparition mesurent leurs
+		# distances avec `PlanMonde`, qui replie sur 144 m. L'ancienne
+		# arène faisait 40 m — écart maximal 56 m, sous le demi-côté de
+		# 72, le repliement ne se déclenchait jamais. Celle-ci fait 80 m,
+		# diagonale 113 m : deux joueurs opposés seraient calculés comme
+		# voisins, et l'IA deviendrait incohérente sans un seul message
+		# d'erreur.
+		PlanMonde.enroulement = false
+		_batir_arene_western()
+		print("Arène Western : %.0f × %.0f m · %d formations · %d apparitions · %d mobs · bâtie en %d ms."
+				% [PlanAreneWestern.COTE, PlanAreneWestern.COTE,
+					PlanAreneWestern.FORMATIONS.size(),
 					player_spawn_points.size(),
-					PlanAreneTest.positions_mobs().size(),
+					mob_spawn_points.size(),
 					Time.get_ticks_msec() - depart])
 		return
 
@@ -1744,7 +1761,20 @@ func _sol_arene_test() -> void:
 	# fond se remarque par son silence.
 	mi.material_override = VisualKit.mat(Color("ecd7a4"), 0.0, 0.95)
 	# Le dessus de la dalle affleure y = 0 : les pièces sont posées dessus.
-	mi.position = Vector3(0, -0.25, 0)
+	# LE DESSUS DU SOL EST HUIT MILLIMÈTRES SOUS ZÉRO, et c'est le
+	# correctif anti-scintillement de toute la carte, en un seul nombre.
+	#
+	# Caisses, tonneaux, bottes, murets et poteaux sont posés base à y = 0
+	# — c'est la façon naturelle de les écrire. Leur face inférieure était
+	# donc COPLANAIRE avec le sol : les deux surfaces se disputent le même
+	# pixel, et laquelle gagne dépend de l'angle de la caméra. Le prop
+	# clignote dès qu'on bouge, et jamais sur une capture fixe.
+	#
+	# Descendre le SOL plutôt que lever chaque pièce règle le cas une fois
+	# pour toutes, y compris pour les pièces qu'on ajoutera plus tard sans
+	# y penser. Huit millimètres sont sous le seuil du visible depuis dix
+	# mètres de haut.
+	mi.position = Vector3(0, -0.258, 0)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
@@ -1752,6 +1782,8 @@ func _sol_arene_test() -> void:
 	var box := BoxShape3D.new()
 	box.size = Vector3(cote, 0.5, cote)
 	col.shape = box
+	# La COLLISION, elle, reste à zéro : c'est le sol sur lequel on marche,
+	# et le décaler ferait flotter les personnages de huit millimètres.
 	col.position = Vector3(0, -0.25, 0)
 	_obstacles.add_child(col)
 
@@ -1826,3 +1858,348 @@ func _mur_arene_test() -> void:
 		shape.position = Vector3(n.x * d, h * 0.5, n.y * d)
 		shape.rotation.y = a
 		enceinte.add_child(shape)
+
+
+# --- ARENE WESTERN -------------------------------------------------------
+#
+# GREYBOX D'ABORD, ASSETS ENSUITE, et jamais l'inverse. Tout ce qui suit
+# batit la carte en primitives : c'est ce qui permet de valider la
+# CIRCULATION — contournements, boucles, absence d'impasse — avant qu'un
+# seul modele n'existe. L'habillage ne changera plus une seule position.
+
+## Teintes du greybox, prises sur la palette de la planche.
+const W_SABLE := Color("e8c58a")
+const W_ROCHE := Color("c0603c")
+const W_ROCHE_SOMMET := Color("d87a52")
+const W_PIERRE := Color("d8cdb6")
+const W_BOIS := Color("9c6334")
+const W_FOIN := Color("e0b352")
+const W_CACTUS := Color("5f9c4a")
+
+
+func _batir_arene_western() -> void:
+	_sol_western()
+	_ouvrir_fusion()
+	_formations_western()
+	_murets_western()
+	_barrieres_western()
+	_chariots_western()
+	_petits_western()
+	_vegetation_western()
+	_cloture_western()
+	_fermer_fusion()
+
+	player_spawn_points.clear()
+	for p: Vector2 in PlanAreneWestern.APPARITIONS:
+		player_spawn_points.append(Vector3(p.x, 0.2, p.y))
+	# AUCUN FOYER DE MOB. La consigne est explicite pour cette etape : la
+	# carte se valide sans PvE. Laisser des foyers « au cas ou » ferait
+	# apparaitre des mobs des que le pondeur tournerait.
+	mob_spawn_points.clear()
+
+
+## LE SOL — large, uni, silencieux.
+##
+## Il deborde tres largement l'arene : depuis la camera, on ne doit jamais
+## en voir la fin. Un sol qui s'arrete transforme un desert en plateau de
+## tournage. Une seule dalle, une seule teinte, aucun motif : le sol est un
+## FOND, et sa seule mission est qu'on lise les joueurs et les projectiles
+## par-dessus.
+func _sol_western() -> void:
+	var cote := 220.0
+	var mi := MeshInstance3D.new()
+	mi.name = "Sol"
+	var b := BoxMesh.new()
+	b.size = Vector3(cote, 0.5, cote)
+	mi.mesh = b
+	mi.material_override = VisualKit.mat(W_SABLE, 0.0, 0.95)
+	# LE DESSUS DU SOL EST HUIT MILLIMÈTRES SOUS ZÉRO, et c'est le
+	# correctif anti-scintillement de toute la carte, en un seul nombre.
+	#
+	# Caisses, tonneaux, bottes, murets et poteaux sont posés base à y = 0
+	# — c'est la façon naturelle de les écrire. Leur face inférieure était
+	# donc COPLANAIRE avec le sol : les deux surfaces se disputent le même
+	# pixel, et laquelle gagne dépend de l'angle de la caméra. Le prop
+	# clignote dès qu'on bouge, et jamais sur une capture fixe.
+	#
+	# Descendre le SOL plutôt que lever chaque pièce règle le cas une fois
+	# pour toutes, y compris pour les pièces qu'on ajoutera plus tard sans
+	# y penser. Huit millimètres sont sous le seuil du visible depuis dix
+	# mètres de haut.
+	mi.position = Vector3(0, -0.258, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(cote, 0.5, cote)
+	col.shape = box
+	# La COLLISION, elle, reste à zéro : c'est le sol sur lequel on marche,
+	# et le décaler ferait flotter les personnages de huit millimètres.
+	col.position = Vector3(0, -0.25, 0)
+	_obstacles.add_child(col)
+
+
+## FORMATIONS ROCHEUSES — l'ilot de gameplay.
+##
+## Chacune est batie en TROIS blocs empiles et decales, jamais en un seul
+## cylindre : la planche montre des volumes horizontaux empiles, et surtout
+## un decalage donne des angles morts differents selon le cote d'ou l'on
+## arrive. C'est ce qui rend le contournement interessant plutot que
+## symetrique.
+##
+## LA COLLISION EST UN SEUL CYLINDRE, au rayon declare. Suivre les trois
+## blocs donnerait des accrochages invisibles dans les creux — et une
+## poursuite qui s'arrete sur un angle qu'on ne voit pas est pire qu'une
+## poursuite trop facile.
+func _formations_western() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260820
+	for f: Dictionary in PlanAreneWestern.FORMATIONS:
+		var c: Vector2 = f["pos"]
+		var r: float = f["rayon"]
+		var h: float = f["hauteur"]
+		for etage in 3:
+			var t := float(etage) / 2.0
+			var re: float = r * lerpf(1.0, 0.52, t)
+			var he: float = h * lerpf(0.46, 0.30, t)
+			var d := Vector2(rng.randf_range(-0.5, 0.5),
+					rng.randf_range(-0.5, 0.5)) * r * 0.30
+			var b := BoxMesh.new()
+			b.size = Vector3(re * 2.0, he, re * 1.75)
+			_fondre(b, Transform3D(
+					Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)),
+					Vector3(c.x + d.x, h * (0.18 + t * 0.34), c.y + d.y)),
+					W_ROCHE if etage < 2 else W_ROCHE_SOMMET)
+		_collision_ronde(c, r, h)
+
+
+## MURETS DE PIERRE EN ARC. Un mur droit est un corridor ; un arc est un
+## abri qu'on contourne. On le batit en segments courts pour que la courbe
+## se lise, et chaque segment porte sa propre collision : une seule boite
+## sur la corde couperait l'interieur de l'arc, qui doit rester praticable.
+func _murets_western() -> void:
+	for m: Dictionary in PlanAreneWestern.MURETS:
+		var c: Vector2 = m["centre"]
+		var r: float = m["rayon"]
+		var a0: float = deg_to_rad(float(m["depart"]))
+		var arc: float = deg_to_rad(float(m["arc"]))
+		var n := maxi(3, int(arc * r / 1.6))
+		for i in n:
+			var a := a0 + arc * (float(i) + 0.5) / float(n)
+			var p := c + Vector2(cos(a), sin(a)) * r
+			var b := BoxMesh.new()
+			b.size = Vector3(arc * r / float(n) + 0.35,
+					PlanAreneWestern.H_MOYEN, 0.75)
+			_fondre(b, Transform3D(
+					Basis.from_euler(Vector3(0, -a + PI * 0.5, 0)),
+					Vector3(p.x, PlanAreneWestern.H_MOYEN * 0.5, p.y)),
+					W_PIERRE)
+			var sh := CollisionShape3D.new()
+			var cb := BoxShape3D.new()
+			cb.size = Vector3(arc * r / float(n) + 0.35,
+					PlanAreneWestern.H_MOYEN, 0.75)
+			sh.shape = cb
+			sh.position = Vector3(p.x, PlanAreneWestern.H_MOYEN * 0.5, p.y)
+			sh.rotation.y = -a + PI * 0.5
+			_obstacles.add_child(sh)
+
+
+## BARRIERES DE BOIS — deux lisses sur des poteaux. Elles arretent le corps
+## mais laissent VOIR au travers, ce qui en fait le seul couvert de la
+## carte qu'on peut tenir sans perdre l'adversaire de vue.
+func _barrieres_western() -> void:
+	for f: Dictionary in PlanAreneWestern.BARRIERES:
+		var p: Vector2 = f["pos"]
+		var a := deg_to_rad(float(f["angle"]))
+		var l: float = f["long"]
+		for lisse in 2:
+			var y := 0.55 + float(lisse) * 0.55
+			var b := BoxMesh.new()
+			b.size = Vector3(l, 0.16, 0.14)
+			_fondre(b, Transform3D(Basis.from_euler(Vector3(0, a, 0)),
+					Vector3(p.x, y, p.y)), W_BOIS)
+		for k in 3:
+			var t := (float(k) / 2.0 - 0.5) * l
+			var pp := p + Vector2(cos(a), -sin(a)) * t
+			var b2 := BoxMesh.new()
+			b2.size = Vector3(0.2, 1.25, 0.2)
+			_fondre(b2, Transform3D(Basis.IDENTITY,
+					Vector3(pp.x, 0.62, pp.y)), W_BOIS)
+		var sh := CollisionShape3D.new()
+		var cb := BoxShape3D.new()
+		cb.size = Vector3(l, 1.25, 0.3)
+		sh.shape = cb
+		sh.position = Vector3(p.x, 0.62, p.y)
+		sh.rotation.y = a
+		_obstacles.add_child(sh)
+
+
+## CHARIOTS BACHES — couvert complet, et surtout REPERE. Trois seulement :
+## c'est la silhouette la plus reconnaissable de la planche, et elle
+## perdrait ce role repetee dix fois.
+func _chariots_western() -> void:
+	for c: Dictionary in PlanAreneWestern.CHARIOTS:
+		var p: Vector2 = c["pos"]
+		var a := deg_to_rad(float(c["angle"]))
+		var base := Basis.from_euler(Vector3(0, a, 0))
+		# Caisse
+		var b := BoxMesh.new()
+		b.size = Vector3(4.2, 1.1, 2.0)
+		_fondre(b, Transform3D(base, Vector3(p.x, 1.0, p.y)), W_BOIS)
+		# Bache : un demi-cylindre suffit a la faire lire.
+		var t := CylinderMesh.new()
+		t.top_radius = 1.15
+		t.bottom_radius = 1.15
+		t.height = 4.0
+		t.radial_segments = 8
+		_fondre(t, Transform3D(
+				base * Basis.from_euler(Vector3(0, 0, PI * 0.5)),
+				Vector3(p.x, 2.15, p.y)), Color("efe6d2"))
+		# Roues
+		for cote in [-1.0, 1.0]:
+			for avant in [-1.0, 1.0]:
+				var d := base * Vector3(avant * 1.5, 0.0, cote * 1.1)
+				var r := CylinderMesh.new()
+				r.top_radius = 0.62
+				r.bottom_radius = 0.62
+				r.height = 0.18
+				r.radial_segments = 10
+				_fondre(r, Transform3D(
+						Basis.from_euler(Vector3(PI * 0.5, a, 0)),
+						Vector3(p.x + d.x, 0.62, p.y + d.z)), W_BOIS)
+		_collision_boite(p, Vector2(4.4, 2.4), a, 2.6)
+
+
+## PETIT COUVERT. Il ne bloque pas la course : il casse la ligne de tir et
+## donne ou se jeter.
+func _petits_western() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4407
+	for e: Dictionary in PlanAreneWestern.PETITS:
+		var p: Vector2 = e["pos"]
+		var a := rng.randf() * TAU
+		match e["type"]:
+			&"tonneau":
+				var t := CylinderMesh.new()
+				t.top_radius = 0.42
+				t.bottom_radius = 0.42
+				t.height = 0.95
+				t.radial_segments = 10
+				_fondre(t, Transform3D(Basis.IDENTITY,
+						Vector3(p.x, 0.48, p.y)), W_BOIS)
+				_collision_ronde(p, 0.46, 0.95)
+			&"botte":
+				var b := BoxMesh.new()
+				b.size = Vector3(1.5, 0.95, 1.05)
+				_fondre(b, Transform3D(Basis.from_euler(Vector3(0, a, 0)),
+						Vector3(p.x, 0.48, p.y)), W_FOIN)
+				_collision_boite(p, Vector2(1.5, 1.05), a, 0.95)
+			_:
+				var c := BoxMesh.new()
+				c.size = Vector3(1.1, 0.9, 1.1)
+				_fondre(c, Transform3D(Basis.from_euler(Vector3(0, a, 0)),
+						Vector3(p.x, 0.45, p.y)), W_BOIS.lightened(0.12))
+				_collision_boite(p, Vector2(1.1, 1.1), a, 0.9)
+
+
+## VEGETATION — AUCUNE COLLISION, et c'est la regle. Un cactus qui arrete
+## une poursuite est un defaut : on ne comprend pas pourquoi on s'est
+## arrete, et le decor devient un piege.
+func _vegetation_western() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 991
+	for v: Dictionary in PlanAreneWestern.VEGETATION:
+		var p: Vector2 = v["pos"]
+		if v["type"] == &"cactus":
+			var t := CylinderMesh.new()
+			t.top_radius = 0.26
+			t.bottom_radius = 0.30
+			t.height = 2.1
+			t.radial_segments = 8
+			_fondre(t, Transform3D(Basis.IDENTITY,
+					Vector3(p.x, 1.05, p.y)), W_CACTUS)
+			for bras in 2:
+				var cote := 1.0 if bras == 0 else -1.0
+				var b := CylinderMesh.new()
+				b.top_radius = 0.17
+				b.bottom_radius = 0.17
+				b.height = 0.85
+				b.radial_segments = 6
+				_fondre(b, Transform3D(Basis.IDENTITY,
+						Vector3(p.x + cote * 0.42, 1.35 + cote * 0.16, p.y)),
+						W_CACTUS)
+		else:
+			var s := SphereMesh.new()
+			s.radius = 0.62
+			s.height = 0.85
+			s.radial_segments = 8
+			s.rings = 4
+			_fondre(s, Transform3D(
+					Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)),
+					Vector3(p.x, 0.34, p.y)), W_CACTUS.darkened(0.15))
+
+
+## LA CLOTURE — une limite qu'on VOIT sans se sentir enferme.
+##
+## Elle est basse : 1,3 m, sous la ligne des yeux de la camera. Un mur
+## plein ceinturant l'arene remplirait l'ecran des qu'on longe le bord —
+## c'est le defaut qui a coute trois corrections au monde ouvert avant
+## qu'on ne supprime sa limite. Ici la limite est necessaire, mais elle n'a
+## aucune raison de boucher la vue : au-dela, le desert continue.
+##
+## LA COLLISION EST SUR SA PROPRE COUCHE. Sur celle du monde, la barriere
+## masquerait le joueur des qu'il longe le bord sud — la camera se pose
+## huit metres au sud, donc DEHORS. Mesure et corrige une fois deja sur
+## l'arene precedente.
+func _cloture_western() -> void:
+	var enceinte := StaticBody3D.new()
+	enceinte.name = "Bordure"
+	enceinte.collision_layer = Cfg.LAYER_BORDURE
+	enceinte.collision_mask = 0
+	add_child(enceinte)
+
+	var r := PlanAreneWestern.RAYON_CLOTURE
+	var n := 72
+	for i in n:
+		var a := TAU * float(i) / float(n)
+		var p := Vector2(cos(a), sin(a)) * r
+		for lisse in 2:
+			var b := BoxMesh.new()
+			b.size = Vector3(TAU * r / float(n) + 0.3, 0.18, 0.16)
+			_fondre(b, Transform3D(
+					Basis.from_euler(Vector3(0, -a + PI * 0.5, 0)),
+					Vector3(p.x, 0.6 + float(lisse) * 0.55, p.y)), W_BOIS)
+		if i % 3 == 0:
+			var po := BoxMesh.new()
+			po.size = Vector3(0.24, 1.35, 0.24)
+			_fondre(po, Transform3D(Basis.IDENTITY,
+					Vector3(p.x, 0.67, p.y)), W_BOIS.darkened(0.12))
+		var sh := CollisionShape3D.new()
+		var cb := BoxShape3D.new()
+		cb.size = Vector3(TAU * r / float(n) + 0.5, 5.0, 0.6)
+		sh.shape = cb
+		sh.position = Vector3(p.x, 2.5, p.y)
+		sh.rotation.y = -a + PI * 0.5
+		enceinte.add_child(sh)
+
+
+func _collision_ronde(p: Vector2, rayon: float, haut: float) -> void:
+	var sh := CollisionShape3D.new()
+	var cy := CylinderShape3D.new()
+	cy.radius = rayon
+	cy.height = haut
+	sh.shape = cy
+	sh.position = Vector3(p.x, haut * 0.5, p.y)
+	_obstacles.add_child(sh)
+
+
+func _collision_boite(p: Vector2, taille: Vector2, angle: float,
+		haut: float) -> void:
+	var sh := CollisionShape3D.new()
+	var cb := BoxShape3D.new()
+	cb.size = Vector3(taille.x, haut, taille.y)
+	sh.shape = cb
+	sh.position = Vector3(p.x, haut * 0.5, p.y)
+	sh.rotation.y = angle
+	_obstacles.add_child(sh)

@@ -161,6 +161,17 @@ func reset() -> void:
 ## un test de combat qui n'affronterait qu'un seul type de mob ne dirait
 ## rien de la lisibilité des autres.
 func _peupler_arene() -> void:
+	# PAS DE FOYER DÉCLARÉ, PAS DE MOB. C'est la règle, et elle vaut mieux
+	# qu'un drapeau de plus.
+	#
+	# L'arène Western ne déclare aucun foyer : la consigne est de valider
+	# la carte SANS PvE. Vider la liste ne suffisait pourtant pas — le
+	# pondeur continuait d'en demander, et `mob_spawn` rendait Vector3.ZERO
+	# faute de mieux. Résultat : dix mobs empilés à l'origine, au beau
+	# milieu de la carte. Le banc l'a vu ; en jouant, on aurait cru à un
+	# bug de la carte.
+	if arene_sans_foyers():
+		return
 	if MatchDirector.phase not in [MatchDirector.Phase.WARMUP,
 			MatchDirector.Phase.ESCALATION, MatchDirector.Phase.CLOSING]:
 		return
@@ -188,3 +199,17 @@ func _peupler_arene() -> void:
 	for i in mini(PAR_TOUR, MOBS_ARENE - vivants):
 		world.call(&"server_spawn_mob", familles[_prochain % familles.size()])
 		_prochain += 1
+
+
+## L'arène courante déclare-t-elle des foyers de mobs ?
+##
+## On interroge l'ARÈNE plutôt qu'un réglage : c'est elle qui sait ce
+## qu'elle contient, et une carte future qui voudra des mobs les obtiendra
+## en déclarant ses foyers, sans qu'une ligne ne bouge ici.
+func arene_sans_foyers() -> bool:
+	var arenes := get_tree().get_nodes_in_group(&"arene")
+	if arenes.is_empty():
+		return false
+	var a: Node = arenes[0]
+	var pts = a.get(&"mob_spawn_points")
+	return pts != null and (pts as Array).is_empty()
