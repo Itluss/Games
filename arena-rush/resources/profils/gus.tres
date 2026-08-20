@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1")
 heros = &"gus"
+couleur = Color(0.941, 0.627, 0.165, 1)
 mode = "alterne"
 rafale_coups = 2
 rafale_intervalle = 0.11
@@ -12,7 +13,7 @@ flash = "etoile"
 flash_taille = 0.72
 flash_branches = 6
 trainee = "fine"
-trainee_longueur = 4.0
+trainee_longueur = 5.5
 couleur_secondaire = Color(1, 0.85, 0.42, 1)
 impact = "etoile"
 impact_taille = 0.85

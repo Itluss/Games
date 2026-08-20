@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1")
 heros = &"milo"
+couleur = Color(0.949, 0.702, 0.173, 1)
 mode = "simple"
 rafale_coups = 1
 rafale_intervalle = 0.07
@@ -12,7 +13,7 @@ flash = "etoile"
 flash_taille = 1.15
 flash_branches = 4
 trainee = "fine"
-trainee_longueur = 4.0
+trainee_longueur = 6.0
 couleur_secondaire = Color(1, 1, 1, 1)
 impact = "etoile"
 impact_taille = 1.0

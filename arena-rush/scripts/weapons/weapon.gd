@@ -16,6 +16,40 @@ const PROJECTILE_SCENE := "res://scenes/projectiles/projectile.tscn"
 var data: WeaponData = null
 var ammo: int = 0
 
+## ─── L'IDENTITÉ SUIT LE PORTEUR, LA MÉCANIQUE SUIT L'ARME ──────────────
+##
+## Le retour était juste : « les mêmes personnages ont des effets de tir
+## différents ». C'était vrai — le profil vivait dans l'arme, donc Milo qui
+## ramassait un fusil à pompe se mettait à tirer comme un fusil à pompe.
+## Or la planche répond à la question « QUI me tire dessus », pas « avec
+## quoi ». Un joueur doit reconnaître Milo à son tir, toujours.
+##
+## Le partage est donc net :
+##
+##   L'ARME décide de la MÉCANIQUE — cadence, nombre de projectiles,
+##   dispersion, rafale. Y toucher changerait l'équilibrage.
+##
+##   LE HÉROS décide de l'IDENTITÉ — couleur, forme du départ, de la
+##   traînée, de l'impact, réaction du corps, son. Rien de tout cela ne
+##   touche à un seul chiffre de jeu.
+##
+## Un mob, ou une arme sans porteur identifié, n'a pas d'identité : il
+## retombe alors sur celle de son arme, puis sur l'ancien rendu générique.
+var identite: ProfilTir = null
+
+
+## Le profil qui décide de ce qu'on VOIT et de ce qu'on ENTEND.
+func profil_visuel() -> ProfilTir:
+	if identite != null:
+		return identite
+	return data.profil if data != null else null
+
+
+## Le profil qui décide du RYTHME. Il vient de l'arme, jamais du porteur :
+## donner la rafale de Poppy à un fusil ramassé tripleraient ses coups.
+func profil_mecanique() -> ProfilTir:
+	return data.profil if data != null else null
+
 ## Nombre de coups RÉELLEMENT partis depuis le début de la partie.
 ##
 ## POURQUOI UN COMPTEUR QUI NE REDESCEND JAMAIS : un tir est un évènement
@@ -100,7 +134,7 @@ func _physics_process(delta: float) -> void:
 			_coup(muzzle_position(), _rafale_dir, _rafale_team,
 					_rafale_owner, _rafale_autorite)
 			if _rafale_restante > 0:
-				_rafale_delai += maxf(data.profil.rafale_intervalle, 0.02)
+				_rafale_delai += maxf(profil_mecanique().rafale_intervalle, 0.02)
 
 ## Temps restant avant que l'arme ne puisse tirer. Publié pour que le
 ## joueur dimensionne exactement sa mémoire d'appui.
@@ -172,7 +206,7 @@ func fire(origin: Vector3, dir: Vector3, team: int, owner_id: int,
 	var coups := data.coups_par_declenchement()
 	if coups > 1:
 		_rafale_restante = coups - 1
-		_rafale_delai = maxf(data.profil.rafale_intervalle, 0.02)
+		_rafale_delai = maxf(profil_mecanique().rafale_intervalle, 0.02)
 		_rafale_dir = basis_dir
 		_rafale_team = team
 		_rafale_owner = owner_id
@@ -199,7 +233,8 @@ func _coup(origin: Vector3, basis_dir: Vector3, team: int, owner_id: int,
 	# qu'un seul octet de plus circule sur le réseau.
 	var canon := 0
 	var depart := origin
-	if data.profil != null and data.profil.mode == "alterne":
+	var meca := profil_mecanique()
+	if meca != null and meca.mode == "alterne":
 		canon = _canon
 		_canon = 1 - _canon
 		depart += global_transform.basis.x * (0.26 if canon == 0 else -0.26)
@@ -222,11 +257,12 @@ func _coup(origin: Vector3, basis_dir: Vector3, team: int, owner_id: int,
 		if p == null:
 			continue
 		(p as Projectile).setup(data, depart, spread_dir, team, owner_id,
-				authoritative)
+				authoritative, profil_visuel())
 
-	if data.profil != null:
-		Fx.depart(scene_root, depart, basis_dir, data.profil, data.color)
-		Sfx.tir(data.profil, depart)
+	var vis := profil_visuel()
+	if vis != null:
+		Fx.depart(scene_root, depart, basis_dir, vis, vis.couleur)
+		Sfx.tir(vis, depart)
 	else:
 		Fx.muzzle_flash(scene_root, depart, data.color,
 				clampf(data.damage * data.projectile_count / 20.0, 0.6, 2.0))
@@ -246,8 +282,9 @@ func shake_local() -> void:
 	# l'identité, et il permet une secousse minuscule là où `shake` était
 	# pensé pour les armes lourdes du butin.
 	var amplitude := data.shake
-	if data.profil != null:
-		amplitude = data.profil.secousse_locale
+	var vis := profil_visuel()
+	if vis != null:
+		amplitude = vis.secousse_locale
 	if amplitude > 0.0:
 		Fx.shake(amplitude)
 

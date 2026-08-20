@@ -489,15 +489,31 @@ func _build_environment() -> void:
 	# moitié de l'écran est en ombre portée — il faut qu'on y voie encore.
 	env.ambient_light_energy = 0.4
 
-	# LE HALO EST COUPÉ SUR TÉLÉPHONE. Il coûte plusieurs passes en plein
-	# écran, et le plein écran d'un téléphone compte trois fois plus de
-	# pixels qu'on ne le croit. C'est le second poste de dépense après les
-	# ombres, pour un effet que le soleil rasant rend déjà à moitié.
-	env.glow_enabled = not Cfg.est_mobile()
-	env.glow_intensity = 1.15
-	env.glow_bloom = 0.12
-	env.glow_hdr_threshold = 0.95
-	env.glow_strength = 1.15
+	# ─── LE HALO EST RALLUMÉ SUR TÉLÉPHONE, ET C'ÉTAIT LE DÉFAUT MAJEUR ──
+	#
+	# Il était coupé dès que `est_mobile()` — donc sur la SEULE plateforme
+	# visée. Conséquence : tous les effets de tir y étaient rendus à plat.
+	# Un départ de coup n'était plus de la lumière, seulement une forme
+	# colorée, et c'est exactement le reproche qu'on m'a fait : « pas
+	# spectaculaire ». Aucune quantité de particules n'aurait compensé ça.
+	#
+	# Le raisonnement d'origine — « plusieurs passes en plein écran » —
+	# datait d'avant Godot 4.3, qui rend le halo en Compatibility. Il est
+	# donc branché sur la QUALITÉ et non sur la plateforme : un téléphone
+	# qui peine passe en LOW et le perd, les autres le gardent.
+	#
+	# LE SEUIL RESTE À 1,0, et ce n'est pas un détail. Le sable ensoleillé
+	# frôle 0,94 de luminance : au-dessous de 1,0, c'est tout le sol qui se
+	# mettrait à luire et l'image deviendrait laiteuse. Les effets, eux,
+	# émettent au-delà de 1 par construction — ce sont donc EUX, et eux
+	# seuls, qui débordent.
+	env.glow_enabled = Cfg.quality != Cfg.Quality.LOW
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
+	env.glow_intensity = 1.5
+	env.glow_bloom = 0.28
+	env.glow_hdr_threshold = 1.0
+	env.glow_hdr_scale = 2.0
+	env.glow_strength = 1.25
 
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_white = 4.0

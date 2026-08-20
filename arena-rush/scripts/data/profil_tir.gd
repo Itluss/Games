@@ -23,6 +23,13 @@ class_name ProfilTir
 ## Le héros à qui appartient cette arme. Sert au banc et au mode d'essai.
 @export var heros: StringName = &""
 
+## COULEUR DOMINANTE DU HÉROS, telle que la planche la nomme.
+##
+## Elle vit ICI et pas dans `WeaponData` parce qu'elle suit le PERSONNAGE,
+## pas l'arme : c'est la première chose qu'on lit quand on se demande qui
+## nous tire dessus.
+@export var couleur: Color = Color.WHITE
+
 @export_group("Rythme")
 ## SIMPLE   un coup par déclenchement.
 ## RAFALE   plusieurs coups très rapprochés, comptés par `rafale_coups`.

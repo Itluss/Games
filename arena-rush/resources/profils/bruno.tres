@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1")
 heros = &"bruno"
+couleur = Color(0.878, 0.227, 0.125, 1)
 mode = "simple"
 rafale_coups = 1
 rafale_intervalle = 0.07

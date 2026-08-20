@@ -329,6 +329,199 @@ func _autofree(node: Node, delay: float) -> void:
 ## rythme serait une allocation permanente sur un téléphone.
 var _etoiles_libres: Array[MeshInstance3D] = []
 var _mesh_etoile: Dictionary = {}
+var _mesh_gerbe: Dictionary = {}
+var _mesh_tore: TorusMesh = null
+
+
+## GERBE DE DÉPART — des pointes projetées VERS L'AVANT, dans le plan du sol.
+##
+## C'EST LA FORME QUE MONTRE LA PLANCHE, et ce n'était pas ce que j'avais
+## fait. J'avais posé une étoile SYMÉTRIQUE en panneau face caméra : jolie
+## peut-être, mais elle ne dit pas d'où part le coup ni où il va. La
+## planche dessine autre chose — une gerbe qui jaillit du canon, une longue
+## pointe dans l'axe du tir, deux ou trois pointes obliques plus courtes, et
+## presque rien vers l'arrière.
+##
+## Elle est bâtie dans le PLAN DU SOL, +X vers l'avant du tir. Sur une vue
+## de dessus, c'est ce plan-là qui porte la direction : une gerbe couchée
+## dit « ça part par là », un panneau face caméra ne dit rien.
+##
+## `allongement` étire les pointes avant sans toucher aux latérales : c'est
+## lui qui sépare la langue de feu de Bruno du petit dard de Nox.
+func _gerbe(branches: int, allongement: float) -> ArrayMesh:
+	var cle := "%d|%.1f" % [branches, allongement]
+	if _mesh_gerbe.has(cle):
+		var connu: ArrayMesh = _mesh_gerbe[cle]
+		return connu
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in branches:
+		var a := TAU * (float(i) + 0.5) / float(branches)
+		# Le profil de longueur : plein devant, écrasé derrière. La
+		# puissance 1,6 resserre la gerbe dans l'axe au lieu de l'ouvrir en
+		# soleil — c'est ce qui la fait lire comme une direction.
+		var vers_avant: float = maxf(cos(a), 0.0)
+		var l: float = 0.22 + pow(vers_avant, 1.6) * allongement
+		var pointe := Vector3(cos(a) * l, 0, sin(a) * l)
+		var large := 0.13
+		var g := Vector3(cos(a - large), 0, sin(a - large)) * 0.20
+		var d := Vector3(cos(a + large), 0, sin(a + large)) * 0.20
+		for v in [Vector3.ZERO, d, pointe, Vector3.ZERO, pointe, g]:
+			st.set_normal(Vector3.UP)
+			st.add_vertex(v)
+		# Chaque pointe est doublée en miroir : la gerbe se voit d'en haut
+		# ET de dessous, sans dépendre du sens de rotation des triangles.
+		for v in [Vector3.ZERO, pointe, d, Vector3.ZERO, g, pointe]:
+			st.set_normal(Vector3.DOWN)
+			st.add_vertex(v)
+	var m := st.commit()
+	_mesh_gerbe[cle] = m
+	return m
+
+
+## Pose une gerbe de départ orientée dans l'axe du tir.
+func _poser_gerbe(parent: Node, pos: Vector3, dir: Vector3, color: Color,
+		branches: int, allongement: float, taille: float,
+		duree: float) -> void:
+	# ─── DEUX GERBES CROISÉES, ET C'EST CE QUI LA REND VISIBLE ─────────
+	#
+	# Une seule gerbe couchée dans le plan du sol était ÉCRASÉE par la
+	# caméra : elle plonge à 52°, et c'est justement l'axe du tir — donc la
+	# longue pointe avant — qui s'y raccourcit le plus. Le rendu ne montrait
+	# qu'un trait pâle en travers du canon.
+	#
+	# On en pose donc DEUX, la seconde roulée d'un quart de tour autour de
+	# l'axe du tir. Le volume obtenu se lit depuis n'importe quel angle, et
+	# la pointe avant garde sa longueur quoi qu'il arrive. Deux maillages au
+	# lieu d'un, sur un effet qui dure soixante millisecondes : le coût est
+	# nul, la lisibilité change du tout au tout.
+	var lacet := atan2(-dir.z, dir.x)
+	for roulis in 2:
+		var mi := _prendre_maille()
+		mi.mesh = _gerbe(branches, allongement)
+		var m := _teinter(mi, color, 5.0, false)
+		mi.position = pos
+		# Le maillage a son avant sur +X ; on l'aligne sur le tir, puis on
+		# roule la seconde autour de ce même axe.
+		mi.basis = Basis.from_euler(Vector3(0.0, lacet, 0.0)) \
+				* Basis(Vector3.RIGHT, PI * 0.5 * float(roulis))
+		mi.scale = Vector3.ONE * taille * 0.5
+		parent.add_child(mi)
+		var t := create_tween()
+		t.set_parallel(true)
+		t.tween_property(mi, "scale", Vector3.ONE * taille, duree) \
+				.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		t.tween_property(m, "albedo_color:a", 0.0, duree) \
+				.set_ease(Tween.EASE_IN)
+		t.chain().tween_callback(func():
+			m.albedo_color.a = 1.0
+			_rendre_maille(mi))
+
+
+## Prend une maille au réservoir, ou en fabrique une.
+func _prendre_maille() -> MeshInstance3D:
+	var mi: MeshInstance3D = null
+	while mi == null and not _etoiles_libres.is_empty():
+		var candidat: MeshInstance3D = _etoiles_libres.pop_back()
+		if is_instance_valid(candidat):
+			mi = candidat
+	if mi == null:
+		mi = MeshInstance3D.new()
+		# NOMMÉE, et pas seulement pour la lisibilité des rapports : c'est
+		# ce nom qui permet à un banc de faire le ménage entre deux essais
+		# sans emporter le décor avec les effets.
+		mi.name = "EtoileFx"
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# ─── UN MATÉRIAU PAR MAILLE, ET C'EST INDISPENSABLE ────────────
+		#
+		# Les matériaux du cache sont PARTAGÉS : y animer une transparence
+		# ferait disparaître d'un coup toutes les gerbes de la même
+		# couleur, y compris celles qui viennent de naître. Chaque maille
+		# du réservoir porte donc le sien, créé une fois pour toutes et
+		# reconfiguré à chaque emploi. Le réservoir supprime le coût ; le
+		# matériau privé rend le fondu possible.
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.emission_enabled = true
+		m.disable_receive_shadows = true
+		mi.material_override = m
+	else:
+		var ancien := mi.get_parent()
+		if ancien != null:
+			ancien.remove_child(mi)
+	return mi
+
+
+## Règle le matériau privé d'une maille. `energie` au-dessus de 1 est ce qui
+## la fait DÉBORDER dans le halo — c'est de là que vient l'éclat.
+func _teinter(mi: MeshInstance3D, color: Color, energie: float,
+		panneau: bool) -> StandardMaterial3D:
+	var m := mi.material_override as StandardMaterial3D
+	m.albedo_color = Color(color.r, color.g, color.b, 1.0)
+	m.emission = color
+	m.emission_energy_multiplier = energie
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED if panneau \
+			else BaseMaterial3D.BILLBOARD_DISABLED
+	m.billboard_keep_scale = panneau
+	return m
+
+
+## ANNEAU DE CHOC — l'élément qui manquait le plus.
+##
+## C'est lui qui donne à un tir sa DÉTONATION : un cercle qui jaillit du
+## canon, s'ouvre en quelques dizaines de millisecondes et s'efface. Sans
+## lui, un départ n'est qu'une lumière ; avec lui, c'est un événement. Et
+## comme il est fin et qu'il disparaît vite, il n'occulte jamais personne —
+## ce que la planche interdit explicitement.
+##
+## `normale` porte son axe : dans l'axe du tir pour un départ (l'anneau
+## part vers l'avant), vers le haut pour un impact (il s'étale au sol).
+func _anneau(parent: Node, pos: Vector3, normale: Vector3, color: Color,
+		rayon: float, duree: float, energie := 3.4) -> void:
+	var mi := _prendre_maille()
+	mi.mesh = _tore()
+	var m := _teinter(mi, color, energie, false)
+	mi.position = pos
+	# L'axe d'un tore Godot est +Y ; on l'aligne sur la normale demandée.
+	var axe := normale.normalized()
+	if absf(axe.dot(Vector3.UP)) < 0.999:
+		var droite := Vector3.UP.cross(axe).normalized()
+		mi.basis = Basis(droite, axe, droite.cross(axe))
+	else:
+		mi.basis = Basis.IDENTITY
+	mi.scale = Vector3.ONE * rayon * 0.12
+	parent.add_child(mi)
+	var t := create_tween()
+	t.set_parallel(true)
+	t.tween_property(mi, "scale", Vector3.ONE * rayon, duree) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUINT)
+	t.tween_property(m, "albedo_color:a", 0.0, duree) \
+			.set_ease(Tween.EASE_IN)
+	t.chain().tween_callback(func():
+		m.albedo_color.a = 1.0
+		_rendre_maille(mi))
+
+
+func _tore() -> TorusMesh:
+	if _mesh_tore == null:
+		_mesh_tore = TorusMesh.new()
+		_mesh_tore.inner_radius = 0.86
+		_mesh_tore.outer_radius = 1.0
+		_mesh_tore.rings = 24
+		_mesh_tore.ring_segments = 6
+	return _mesh_tore
+
+
+func _rendre_maille(mi: MeshInstance3D) -> void:
+	if not is_instance_valid(mi):
+		return
+	var p := mi.get_parent()
+	if p != null:
+		p.remove_child(mi)
+	_etoiles_libres.append(mi)
 
 
 ## Maillage d'étoile à `branches` branches, dans le plan XY, rayon 1.
@@ -350,10 +543,17 @@ func _etoile(branches: int) -> ArrayMesh:
 		var a := TAU * float(i) / float(branches)
 		# Une branche est un triangle très effilé : large au centre, pointu
 		# au bout. C'est ce qui donne l'arête franche du dessin.
-		var pointe := Vector3(cos(a), sin(a), 0)
-		var large := 0.16
-		var g := Vector3(cos(a - large), sin(a - large), 0) * 0.22
-		var d := Vector3(cos(a + large), sin(a + large), 0) * 0.22
+		# UN RAYON SUR DEUX EST LONG. La planche dessine des étoiles à
+		# quatre grands rayons croisés, avec de plus courts entre eux —
+		# pas une roue de branches identiques. C'est ce contraste qui fait
+		# l'éclat ; des branches toutes pareilles font un soleil mou.
+		var l: float = 1.0 if i % 2 == 0 else 0.42
+		var pointe := Vector3(cos(a) * l, sin(a) * l, 0)
+		# ET ELLES SONT FINES. À 0,16 de large, une branche est un pétale ;
+		# à 0,05, c'est un éclat.
+		var large := 0.05
+		var g := Vector3(cos(a - large), sin(a - large), 0) * 0.14
+		var d := Vector3(cos(a + large), sin(a + large), 0) * 0.14
 		for v in [Vector3.ZERO, d, pointe, Vector3.ZERO, pointe, g]:
 			st.set_normal(Vector3.BACK)
 			st.add_vertex(v)
@@ -366,41 +566,24 @@ func _etoile(branches: int) -> ArrayMesh:
 ## un départ qui traîne masque le personnage, ce que la consigne interdit.
 func _poser_etoile(parent: Node, pos: Vector3, color: Color, branches: int,
 		rayon: float, duree: float) -> void:
-	var mi: MeshInstance3D = null
-	while mi == null and not _etoiles_libres.is_empty():
-		var candidat: MeshInstance3D = _etoiles_libres.pop_back()
-		if is_instance_valid(candidat):
-			mi = candidat
-	if mi == null:
-		mi = MeshInstance3D.new()
-		# NOMMÉE, et pas seulement pour la lisibilité des rapports : c'est
-		# ce nom qui permet à un banc de faire le ménage entre deux essais
-		# sans emporter le décor avec les effets.
-		mi.name = "EtoileFx"
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	else:
-		var ancien := mi.get_parent()
-		if ancien != null:
-			ancien.remove_child(mi)
+	var mi := _prendre_maille()
 	mi.mesh = _etoile(branches)
-	mi.material_override = _lueur_deux_faces(color)
+	var m := _teinter(mi, color, 5.0, true)
 	mi.position = pos
-	# Le panneau ignore la rotation du nœud : la variété vient donc du
-	# nombre de branches et de la taille, pas d'un angle.
+	# Le panneau ignore la rotation du nœud : la variété vient du nombre de
+	# branches et de la taille, pas d'un angle.
 	mi.rotation = Vector3.ZERO
-	mi.scale = Vector3.ONE * rayon * 0.45
+	mi.scale = Vector3.ONE * rayon * 0.35
 	parent.add_child(mi)
 	var t := create_tween()
 	t.set_parallel(true)
 	t.tween_property(mi, "scale", Vector3.ONE * rayon, duree) \
 			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	t.tween_property(m, "albedo_color:a", 0.0, duree) \
+			.set_ease(Tween.EASE_IN)
 	t.chain().tween_callback(func():
-		if not is_instance_valid(mi):
-			return
-		var p2 := mi.get_parent()
-		if p2 != null:
-			p2.remove_child(mi)
-		_etoiles_libres.append(mi))
+		m.albedo_color.a = 1.0
+		_rendre_maille(mi))
 
 
 ## DÉPART DE TIR, selon le profil de l'arme. C'est la première demi-seconde
@@ -408,54 +591,79 @@ func _poser_etoile(parent: Node, pos: Vector3, color: Color, branches: int,
 func depart(parent: Node, pos: Vector3, dir: Vector3, profil: ProfilTir,
 		color: Color) -> void:
 	var t: float = profil.flash_taille
+	# LE CŒUR EST PRESQUE BLANC CHEZ TOUS. La planche le montre sur les six :
+	# une gerbe colorée avec un noyau clair. C'est ce noyau qui fait
+	# « détonation » plutôt que « lumière colorée », et c'est lui qui
+	# déborde le plus dans le halo.
+	var coeur := color.lerp(Color(1, 0.97, 0.86), 0.66)
+	# L'anneau part LÉGÈREMENT DEVANT le canon : jaillissant du point exact
+	# du départ, il s'ouvre autour de la main et brouille la silhouette.
+	var devant := pos + dir * 0.22
+	# ─── LES RAYONS D'ANNEAU SONT EN MÈTRES, PAS EN MULTIPLES ──────────
+	#
+	# Premier essai : je les avais multipliés par la taille du flash. Celle
+	# de Bruno vaut 1,9, et son grand anneau atteignait QUATRE MÈTRES de
+	# rayon — huit mètres de diamètre, soit tout l'écran. La planche
+	# l'interdit noir sur blanc : « aucun effet ne cache les ennemis ».
+	# Un personnage fait soixante centimètres de large ; un anneau de
+	# départ doit se lire à cette échelle-là, pas à celle de l'arène.
 	match profil.flash:
 		"fin":
-			# Nox : minuscule, pointu, presque pas de fumée. On doit le
-			# deviner plus que le voir.
-			_poser_etoile(parent, pos, color, profil.flash_branches,
-					0.38 * t, 0.05)
-			_emit_burst(parent, pos, color, 3, 2.2, 0.03, 0.08, -1.0)
+			# NOX : un dard. Rien ne traîne, rien ne s'étale — sa puissance
+			# est dans la VITESSE : l'anneau s'ouvre en trente-cinq
+			# millisecondes, moitié moins que celui des autres.
+			_poser_gerbe(parent, pos, dir, color, profil.flash_branches,
+					3.0, 0.60 * t, 0.05)
+			_poser_gerbe(parent, pos, dir, coeur, 3, 2.0, 0.28 * t, 0.04)
+			_anneau(parent, devant, dir, color, 0.30, 0.035, 4.2)
+			_flash_light(parent, pos, color, 1.6, 2.4, 0.045)
 		"large":
-			# Poppy : large, irrégulier, plein d'étincelles projetées vers
-			# l'avant. C'est la ferraille qui part.
-			_poser_etoile(parent, pos, color, profil.flash_branches,
-					0.70 * t, 0.08)
-			_emit_burst(parent, pos + dir * 0.25, color, 14, 7.5, 0.10,
+			# POPPY : la gerbe s'ouvre et crache. DEUX anneaux décalés dans
+			# le temps donnent le « bra-ta-ta » à l'œil, avant même que
+			# l'oreille ne l'entende.
+			_poser_gerbe(parent, pos, dir, color, profil.flash_branches,
+					1.6, 1.05 * t, 0.075)
+			_poser_gerbe(parent, pos, dir, coeur, 5, 1.3, 0.50 * t, 0.06)
+			_anneau(parent, devant, dir, color, 0.62, 0.09, 4.0)
+			_anneau(parent, devant + dir * 0.35, dir,
+					color.lerp(coeur, 0.5), 0.42, 0.07, 3.4)
+			_emit_burst(parent, pos + dir * 0.35, color, 18, 8.5, 0.10,
 					0.20, -2.0)
-			_flash_light(parent, pos, color, 1.2, 2.8, 0.06)
+			_flash_light(parent, pos, color, 2.4, 3.4, 0.065)
 		"massif":
-			# Bruno : le plus imposant des six, et le plus bref. Un cœur
-			# clair, une couronne large, une bouffée courte — puis plus
-			# rien, pour ne pas manger l'écran.
-			_poser_etoile(parent, pos, color, profil.flash_branches,
-					0.72 * t, 0.10)
-			_poser_etoile(parent, pos, Color(1, 0.93, 0.72), 4, 0.42 * t, 0.07)
-			_emit_burst(parent, pos + dir * 0.3, color, 18, 9.0, 0.14,
-					0.26, -3.0)
-			# ─── LA LUMIÈRE RESTE MODESTE, MÊME POUR BRUNO ─────────────
-			#
-			# Réglée proportionnellement à la taille du flash, elle montait
-			# à onze d'énergie sur treize mètres de portée : l'image entière
-			# virait à l'orange et on ne voyait plus ni le personnage ni la
-			# forme du départ. Or c'est la FORME qui identifie l'arme, pas
-			# la quantité de lumière. Une lampe de départ doit souligner le
-			# canon, pas repeindre la scène.
-			_flash_light(parent, pos, color, 1.9, 3.8, 0.07)
+			# BRUNO : le seul dont le départ est un ÉVÉNEMENT. La plus
+			# longue langue de feu, un anneau de choc large, une seconde
+			# onde plus lente derrière, de la fumée, et une lumière qui
+			# frappe. Tout est éteint en cent millisecondes : la planche
+			# interdit qu'un effet persiste, et un souffle qui reste
+			# cacherait l'adversaire au moment où on doit le suivre.
+			_poser_gerbe(parent, pos, dir, color, profil.flash_branches,
+					4.0, 0.95 * t, 0.10)
+			_poser_gerbe(parent, pos, dir, coeur, 5, 2.2, 0.66 * t, 0.08)
+			_anneau(parent, devant, dir, coeur, 0.82, 0.09, 5.0)
+			_anneau(parent, devant, dir, color, 1.30, 0.16, 3.0)
+			_emit_burst(parent, pos + dir * 0.5, color, 20, 9.5, 0.16,
+					0.26, -2.5)
+			_emit_burst(parent, pos + dir * 0.8, Color(0.44, 0.36, 0.32),
+					10, 2.2, 0.30, 0.42, -0.6)
+			_flash_light(parent, pos, color, 4.2, 5.2, 0.085)
 		_:
-			# Étoile nette — Milo, Ruby, Gus. Ils se séparent par le nombre
-			# de branches, la taille et le rythme, pas par la forme.
-			# ─── LA FORME PRIME SUR LE HALO ────────────────────────────
-			#
-			# Réglée à 0,44 avec une lampe généreuse, l'étoile disparaissait
-			# derrière son propre halo : on voyait une tache lumineuse, donc
-			# une COULEUR, et la consigne dit que la couleur ne doit jamais
-			# suffire. On grossit l'étoile et on baisse la lampe : ce qui
-			# reste à l'écran est un nombre de branches, qui survit au
-			# passage en niveaux de gris.
-			_poser_etoile(parent, pos, color, profil.flash_branches,
-					0.62 * t, 0.06)
-			_emit_burst(parent, pos, color, 6, 4.0, 0.05, 0.14, -1.5)
-			_flash_light(parent, pos, color, 0.9, 2.2, 0.05)
+			# MILO, RUBY, GUS : la gerbe nette de la planche, un anneau
+			# franc, une lumière vive. Elles se séparent par le nombre de
+			# pointes, l'allongement et le rythme — jamais par la couleur.
+			_poser_gerbe(parent, pos, dir, color, profil.flash_branches,
+					2.4, 0.78 * t, 0.06)
+			_poser_gerbe(parent, pos, dir, coeur, 4, 1.6, 0.36 * t, 0.05)
+			_anneau(parent, devant, dir, color, 0.46, 0.06, 4.0)
+			_flash_light(parent, pos, color, 1.9, 2.8, 0.05)
+			if profil.trainee == "ruban":
+				# RUBY : un second anneau CYAN dans la teinte secondaire.
+				# Deux couleurs dans un même départ, c'est sa signature —
+				# et elle reste lisible en gris grâce au double anneau.
+				_anneau(parent, devant + dir * 0.2, dir,
+						profil.couleur_secondaire, 0.68, 0.09, 3.6)
+				_emit_burst(parent, pos + dir * 0.3,
+						profil.couleur_secondaire, 9, 6.5, 0.08, 0.20, -1.0)
 
 
 ## IMPACT DE PROJECTILE, selon le profil. C'est la seconde moitié de la
@@ -463,35 +671,53 @@ func depart(parent: Node, pos: Vector3, dir: Vector3, profil: ProfilTir,
 func impact_profil(pos: Vector3, profil: ProfilTir, color: Color) -> void:
 	var parent := _parent_for(self)
 	var t: float = profil.impact_taille
+	var coeur := color.lerp(Color(1, 0.97, 0.86), 0.55)
 	match profil.impact:
 		"point":
-			_poser_etoile(parent, pos, color, 3, 0.22 * t, 0.06)
-			_emit_burst(parent, pos, color, 4, 3.0, 0.05, 0.14)
+			# NOX : minuscule et net. Un pissenlit de rayons très fins, un
+			# anneau qui claque en trois centièmes. La précision se lit à
+			# la VITESSE, pas à la taille.
+			_poser_etoile(parent, pos, coeur, 8, 0.34 * t, 0.07)
+			_anneau(parent, pos, Vector3.UP, color, 0.34, 0.05, 4.0)
+			_emit_burst(parent, pos, color, 6, 4.0, 0.05, 0.16)
 		"eclats":
-			# Plusieurs petits éclats dispersés : le mitraillage se lit au
-			# NOMBRE de marques, pas à la taille d'une seule.
+			# POPPY : le mitraillage se lit au NOMBRE de marques. Trois
+			# étoiles dispersées, chacune son petit anneau.
 			for k in 3:
-				var d := Vector3(randf_range(-0.35, 0.35), randf_range(-0.2, 0.2),
-						randf_range(-0.35, 0.35))
-				_poser_etoile(parent, pos + d, color, 4, 0.20 * t, 0.07)
-			_emit_burst(parent, pos, color, 12, 6.5, 0.16, 0.26)
+				var d := Vector3(randf_range(-0.4, 0.4), randf_range(-0.25, 0.25),
+						randf_range(-0.4, 0.4))
+				_poser_etoile(parent, pos + d, color, 4, 0.26 * t, 0.08)
+				_anneau(parent, pos + d, Vector3.UP, color, 0.34, 0.07, 3.0)
+			_emit_burst(parent, pos, color, 16, 7.5, 0.16, 0.26)
 		"explosion":
-			# Court, large, et qui disparaît vite. Une explosion qui dure
-			# cache l'action — c'est le contraire du but.
-			_poser_etoile(parent, pos, color, 6, 0.75 * t, 0.10)
-			_shockwave(parent, pos, 1.5 * t, color)
-			_emit_burst(parent, pos, color, 22, 9.0, 0.22, 0.34)
-			_emit_burst(parent, pos, Color(0.62, 0.55, 0.46), 10, 3.4, 0.3,
-					0.5, -2.0)
-			_flash_light(parent, pos, color, 2.2, 4.0, 0.10)
+			# BRUNO : deux ondes, un cœur blanc, des débris sombres qui
+			# retombent, et de la poussière. C'est le seul impact des six
+			# qui a le droit d'être gros — et il dure moins de deux
+			# dixièmes.
+			_poser_etoile(parent, pos, coeur, 8, 0.95 * t, 0.10)
+			_anneau(parent, pos, Vector3.UP, coeur, 0.90, 0.10, 5.0)
+			_anneau(parent, pos, Vector3.UP, color, 1.55, 0.20, 3.0)
+			_emit_burst(parent, pos, color, 26, 10.0, 0.22, 0.32)
+			_emit_burst(parent, pos, Color(0.30, 0.24, 0.20), 14, 5.0, 0.26,
+					0.55, -9.0)
+			_emit_burst(parent, pos, Color(0.62, 0.55, 0.46), 10, 2.6, 0.34,
+					0.55, -1.2)
+			_flash_light(parent, pos, color, 3.4, 4.6, 0.11)
 		"scintille":
-			_poser_etoile(parent, pos, color, 5, 0.34 * t, 0.09)
-			_emit_burst(parent, pos, color, 8, 5.0, 0.1, 0.24)
-			_emit_burst(parent, pos, profil.couleur_secondaire, 8, 7.0, 0.12,
-					0.30, -1.0)
+			# RUBY : rose au centre, cyan tout autour. Le double anneau la
+			# rend reconnaissable même en niveaux de gris.
+			_poser_etoile(parent, pos, color, 6, 0.42 * t, 0.09)
+			_anneau(parent, pos, Vector3.UP, color, 0.50, 0.07, 4.0)
+			_anneau(parent, pos, Vector3.UP, profil.couleur_secondaire,
+					0.82, 0.13, 3.2)
+			_emit_burst(parent, pos, profil.couleur_secondaire, 12, 7.5,
+					0.12, 0.32, -1.0)
 		_:
-			_poser_etoile(parent, pos, color, 4, 0.30 * t, 0.07)
-			_emit_burst(parent, pos, color, 8, 5.5, 0.09, 0.22)
+			# MILO et GUS : l'étoile franche de la planche, quatre grands
+			# rayons, un anneau net, quelques étincelles qui retombent.
+			_poser_etoile(parent, pos, coeur, 8, 0.44 * t, 0.08)
+			_anneau(parent, pos, Vector3.UP, color, 0.48, 0.07, 4.0)
+			_emit_burst(parent, pos, color, 10, 6.0, 0.09, 0.26, -7.0)
 
 
 func muzzle_flash(parent: Node, pos: Vector3, color: Color, power: float = 1.0) -> void:

@@ -38,16 +38,28 @@ var _halo: MeshInstance3D
 var _allonge: float = 1.0
 var _trail: GPUParticles3D
 var _shape: CollisionShape3D
+## Identité visuelle du TIREUR — voir `setup`.
+var _identite: ProfilTir = null
+## Couleur effectivement rendue : celle du tireur, ou celle de l'arme.
+var _teinte: Color = Color.WHITE
 var _sphere: SphereShape3D
 
 func _ready() -> void:
 	# Construction unique : l'objet étant recyclé, on ne rebâtit jamais sa
 	# géométrie — c'est tout l'intérêt du réservoir.
+	# ─── LE NOYAU EST UNE BALLE, PAS UNE BILLE ─────────────────────────
+	#
+	# La planche dessine six projectiles ALLONGÉS — nez rond, corps droit,
+	# culot net. Une sphère, si nette soit-elle, ne dit pas dans quel sens
+	# elle va, et c'est précisément ce qu'on veut lire d'un coup d'œil.
+	# L'axe d'une capsule Godot est +Y ; un quart de tour l'envoie sur
+	# l'axe du projectile, dont l'avant est -Z.
 	_mesh = MeshInstance3D.new()
-	var m := SphereMesh.new()
+	var m := CapsuleMesh.new()
 	m.radial_segments = 10
-	m.rings = 5
+	m.rings = 4
 	_mesh.mesh = m
+	_mesh.rotation.x = PI * 0.5
 	add_child(_mesh)
 
 	# TRAÎNÉE — un cône effilé PLACÉ DERRIÈRE le noyau, pas une enveloppe
@@ -100,9 +112,15 @@ static func remettre_compteur() -> void:
 
 
 func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
-		team: int, owner_id: int, authoritative: bool) -> void:
+		team: int, owner_id: int, authoritative: bool,
+		identite: ProfilTir = null) -> void:
 	emis += 1
 	data = weapon_data
+	# L'IDENTITÉ EST CELLE DU TIREUR, pas de l'arme. Un projectile doit dire
+	# QUI l'a tiré : c'est toute la demande de la planche. Faute d'identité
+	# — un mob, une tourelle — il retombe sur celle de son arme.
+	_identite = identite if identite != null else weapon_data.profil
+	_teinte = _identite.couleur if _identite != null else weapon_data.color
 	direction = dir.normalized()
 	shooter_team = team
 	shooter_id = owner_id
@@ -136,29 +154,63 @@ func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
 	# invisible sur un téléphone. On grossit donc ce qu'on voit d'un tiers
 	# sans toucher d'un millimètre à ce qui touche — la précision de tir
 	# reste exactement celle d'avant.
-	# LE NOYAU RESTE ROND. Il n'est plus étiré : c'est lui qui porte la
-	# netteté, et une sphère déformée n'a plus de contour franc.
 	var rv := r * 1.3
-	(_mesh.mesh as SphereMesh).radius = rv
-	(_mesh.mesh as SphereMesh).height = rv * 2.0
-	(_mesh.mesh as SphereMesh).radial_segments = 12
-	(_mesh.mesh as SphereMesh).rings = 6
-	_mesh.material_override = VisualKit.noyau_mat(data.color)
+	var cap := _mesh.mesh as CapsuleMesh
+	cap.radius = rv
+	# UN CALIBRE ET DEMI DE CORPS, pas deux et demi. Le premier réglage
+	# donnait à Bruno une balle de un mètre quatre-vingts — plus longue que
+	# lui. La proportion de la planche est celle d'une balle de revolver :
+	# une tête ronde et un corps court.
+	cap.height = rv * 2.0 + rv * 1.5
+	cap.radial_segments = 10
+	cap.rings = 4
+	_mesh.material_override = VisualKit.noyau_mat(_teinte)
 	_mesh.scale = Vector3.ONE
 
-	# La queue : longue de six calibres, effilée, franchement transparente.
+	# ─── LA QUEUE EST UN TRAIT, PAS UN PANACHE ─────────────────────────
+	#
+	# La planche montre derrière chaque balle une LIGNE fine et droite qui
+	# s'efface — pas un nuage. J'avais mis un panache de particules : de
+	# loin, une traînée sale, et rien de commun avec le dessin. Le cône
+	# était déjà là et faisait presque le travail ; il lui manquait d'être
+	# trois fois plus long et deux fois plus fin.
+	#
 	# Les grenades n'en ont pas — elles décrivent une cloche et
 	# rebondissent, une queue rectiligne mentirait sur leur trajectoire.
-	_allonge = 0.0 if data.bounces > 0 or data.gravity > 0.0 else rv * 6.0
+	# ─── LA LONGUEUR DE QUEUE DÉPEND DE SON TYPE ───────────────────────
+	#
+	# Un seul multiplicateur pour tous donnait à Bruno une queue de SIX
+	# MÈTRES : sa balle et sa traînée fusionnaient en un bloc rouge de deux
+	# mètres à l'écran, quand la planche lui dessine une fumée COURTE et
+	# épaisse. Le trait long et fin, c'est la signature de Milo, de Nox et
+	# de Gus — pas la sienne.
+	var longueur := 6.0
+	if _identite != null:
+		var facteur := 5.0
+		match _identite.trainee:
+			"epaisse":
+				facteur = 1.6
+			"multiple":
+				facteur = 2.2
+			"ruban":
+				facteur = 3.4
+		longueur = maxf(_identite.trainee_longueur, 3.0) * facteur
+	# Et elle est BORNÉE en mètres : une queue plus longue que trois mètres
+	# ne se lit plus comme une balle mais comme un rayon continu.
+	_allonge = 0.0 if data.bounces > 0 or data.gravity > 0.0 \
+			else minf(rv * longueur, 3.0)
 	_halo.visible = _allonge > 0.0
 	if _halo.visible:
 		var cone := _halo.mesh as CylinderMesh
-		cone.bottom_radius = rv * 0.85
+		cone.bottom_radius = rv * 0.5
 		cone.height = _allonge
 		# Le cône est centré sur son axe : on le décale d'une demi-longueur
 		# pour que sa base touche le noyau au lieu de le traverser.
 		_halo.position = Vector3(0.0, 0.0, _allonge * 0.5)
-		_halo.material_override = VisualKit.glow_mat(data.color, 1.8, 0.42)
+		var teinte_queue := _teinte
+		if _identite != null and _identite.trainee == "ruban":
+			teinte_queue = _teinte.lerp(_identite.couleur_secondaire, 0.55)
+		_halo.material_override = VisualKit.glow_mat(teinte_queue, 2.2, 0.55)
 	_orienter()
 
 	_setup_trail()
@@ -192,7 +244,7 @@ func _orienter() -> void:
 ##           consigne, et c'est aussi la seule façon de ne pas compliquer
 ##           les collisions pour un effet.
 func _setup_trail() -> void:
-	if data.profil != null and Cfg.quality != Cfg.Quality.LOW:
+	if _identite != null and Cfg.quality != Cfg.Quality.LOW:
 		_trainee_profil()
 		return
 	if data.trail_length <= 0.0 or Cfg.quality == Cfg.Quality.LOW:
@@ -207,7 +259,7 @@ func _setup_trail() -> void:
 	pm.gravity = Vector3.ZERO
 	pm.scale_min = 0.4
 	pm.scale_max = 0.9
-	pm.color = data.color
+	pm.color = _teinte
 	_trail.process_material = pm
 	_trail.amount = int(clampf(data.trail_length * 8.0, 6.0, 28.0) * Cfg.fx_scale())
 	_trail.lifetime = clampf(data.trail_length * 0.09, 0.08, 0.35)
@@ -223,53 +275,63 @@ func _setup_trail() -> void:
 
 
 func _trainee_profil() -> void:
-	var profil: ProfilTir = data.profil
+	var profil: ProfilTir = _identite
+	# ─── LES PARTICULES N'AJOUTENT QUE CE QUE LA PLANCHE DESSINE ───────
+	#
+	# Le trait derrière la balle est désormais porté par la QUEUE, pas par
+	# des particules. Il reste trois cas où la planche montre autre chose
+	# que le trait, et trois seulement :
+	#
+	#   BRUNO  une fumée épaisse qui traîne derrière la grosse balle ;
+	#   RUBY   des étincelles roses et cyan qui accompagnent le ruban ;
+	#   POPPY  quelques éclats, parce que ce sont des bouts de ferraille.
+	#
+	# MILO, NOX et GUS n'ont RIEN d'autre que leur trait. C'est ce vide
+	# autour du trait qui fait leur netteté, et en mettre plus les
+	# rapprocherait de Poppy au lieu de les en éloigner.
+	if profil.trainee == "fine":
+		_trail.emitting = false
+		return
 	var pm := ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_POINT
 	pm.gravity = Vector3.ZERO
 	pm.color = data.color
-	var grain := data.projectile_radius
-	var duree := 0.10
-	var quantite := 10
+	var grain := data.projectile_radius * 0.7
+	var duree := 0.12
+	var quantite := 8
 	match profil.trainee:
 		"multiple":
-			pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-			pm.emission_sphere_radius = data.projectile_radius * 1.4
-			pm.initial_velocity_min = 0.4
-			pm.initial_velocity_max = 1.6
-			pm.spread = 40.0
-			grain = data.projectile_radius * 0.8
-			duree = 0.09
-			quantite = 12
+			pm.initial_velocity_min = 0.3
+			pm.initial_velocity_max = 1.2
+			pm.spread = 35.0
+			grain = data.projectile_radius * 0.55
+			duree = 0.08
+			quantite = 7
 		"epaisse":
+			# La fumée de Bruno : lente, large, et vite éteinte.
 			pm.initial_velocity_min = 0.0
-			pm.initial_velocity_max = 0.5
-			grain = data.projectile_radius * 1.15
-			duree = 0.20
-			quantite = 20
+			pm.initial_velocity_max = 0.4
+			pm.color = _teinte.lerp(Color(0.45, 0.36, 0.30), 0.45)
+			grain = data.projectile_radius * 0.55
+			duree = 0.26
+			quantite = 16
 		"ruban":
 			# L'ondulation vient d'ici, et de nulle part ailleurs : les
-			# grains sont éjectés sur les côtés avec une vitesse orbitale,
-			# ce qui dessine une vrille derrière une balle droite.
+			# grains sont éjectés sur les côtés, ce qui dessine une vrille
+			# derrière une balle qui, elle, reste parfaitement DROITE.
 			pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-			pm.emission_sphere_radius = data.projectile_radius * 0.6
-			pm.initial_velocity_min = 1.6
-			pm.initial_velocity_max = 2.6
+			pm.emission_sphere_radius = data.projectile_radius * 0.5
+			pm.initial_velocity_min = 1.4
+			pm.initial_velocity_max = 2.4
 			pm.spread = 90.0
 			pm.damping_min = 4.0
 			pm.damping_max = 7.0
-			grain = data.projectile_radius * 0.7
-			duree = 0.16
-			quantite = 18
-		_:
-			pm.initial_velocity_min = 0.0
-			pm.initial_velocity_max = 0.2
-			grain = data.projectile_radius * 0.72
-			duree = clampf(profil.trainee_longueur * 0.022, 0.06, 0.16)
-			quantite = 9
-	pm.scale_min = 0.35
-	pm.scale_max = 0.95
-	pm.scale_curve = null
+			pm.color = profil.couleur_secondaire
+			grain = data.projectile_radius * 0.55
+			duree = 0.18
+			quantite = 16
+	pm.scale_min = 0.3
+	pm.scale_max = 0.9
 	_trail.process_material = pm
 	_trail.amount = maxi(4, int(float(quantite) * Cfg.fx_scale()))
 	_trail.lifetime = duree
@@ -280,13 +342,9 @@ func _trainee_profil() -> void:
 	tm.radial_segments = 6
 	tm.rings = 3
 	_trail.draw_pass_1 = tm
-	# Ruby seule a deux teintes : sa queue passe du rose au cyan, et c'est
-	# ce dégradé qui la rend reconnaissable même de très loin.
-	var teinte := data.color
-	if profil.trainee == "ruban":
-		teinte = data.color.lerp(profil.couleur_secondaire, 0.5)
-	_trail.material_override = VisualKit.glow_mat(teinte, 1.9, 0.8)
+	_trail.material_override = VisualKit.glow_mat(pm.color, 1.9, 0.7)
 	_trail.emitting = true
+
 
 func _physics_process(delta: float) -> void:
 	if _done or data == null:
@@ -375,16 +433,16 @@ func _detonate(at: Vector3, direct_target: Node = null) -> void:
 	_trail.emitting = false
 
 	if data.splash_radius > 0.0:
-		Fx.explosion(at, data.splash_radius, data.color)
+		Fx.explosion(at, data.splash_radius, _teinte)
 		if _authoritative:
 			_apply_splash(at)
 	else:
 		# L'IMPACT PORTE LA MOITIÉ DE LA SIGNATURE. Un joueur qui ne voit
 		# que le mur derrière lui doit déjà savoir qui tire : trois éclats
 		# dispersés, c'est Poppy ; un point vert minuscule, c'est Nox.
-		if data.profil != null:
-			Fx.impact_profil(at, data.profil, data.color)
-			Sfx.impact(data.profil, at)
+		if _identite != null:
+			Fx.impact_profil(at, _identite, _teinte)
+			Sfx.impact(_identite, at)
 		else:
 			Fx.impact(at, data.color, 0.8)
 		if _authoritative and direct_target != null:

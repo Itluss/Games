@@ -144,6 +144,8 @@ func _charger(i: int) -> void:
 	_visuel.position = Vector3(0, 0, 0)
 	_visuel.rotation.y = PI
 	var data := Registry.arme_de_heros(h)
+	# Comme le joueur : l'identité vient du HÉROS, la mécanique de l'arme.
+	_arme.identite = data.profil if data else null
 	_arme.equip(data)
 	_visuel.attach_weapon(_arme.take_model())
 	if not _arme.coup_parti.is_connected(_sur_coup):

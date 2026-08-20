@@ -236,7 +236,14 @@ func _ready() -> void:
 	_target_pos = global_position
 	# CHAQUE HÉROS COMMENCE AVEC SON ARME. C'est ce qui donne à chacun sa
 	# signature de tir dès la première seconde de la partie.
+	# L'IDENTITÉ DE TIR EST POSÉE UNE FOIS, ET NE CHANGE PLUS.
+	#
+	# Elle appartient au personnage, pas à l'arme qu'il porte : Milo tire
+	# comme Milo même avec un fusil ramassé au sol. Le retour de test était
+	# clair là-dessus — voir aussi le commentaire de `Weapon.identite`.
 	var depart := Registry.arme_de_heros(heros())
+	if depart != null:
+		weapon.identite = depart.profil
 	equip_weapon_id(depart.id if depart else &"basic_blaster", 0)
 	# LE CORPS RÉAGIT À CHAQUE COUP, PAS À CHAQUE DEMANDE DE TIR. Les deux
 	# diffèrent dès qu'il y a rafale : Poppy tire une fois et encaisse
@@ -444,8 +451,8 @@ func net_fire(origin: Vector3, dir: Vector3) -> void:
 	weapon.fire(origin, dir, Cfg.Team.PLAYER, peer_id, Net.is_server())
 
 func _sur_coup_parti(canon: int) -> void:
-	if visual and weapon.data:
-		visual.recul_de_tir(weapon.data.profil, canon)
+	if visual:
+		visual.recul_de_tir(weapon.profil_visuel(), canon)
 
 
 # --- ZONE ----------------------------------------------------------------

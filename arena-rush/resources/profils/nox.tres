@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1")
 heros = &"nox"
+couleur = Color(0.341, 0.831, 0.318, 1)
 mode = "simple"
 rafale_coups = 1
 rafale_intervalle = 0.07
@@ -12,7 +13,7 @@ flash = "fin"
 flash_taille = 0.5
 flash_branches = 3
 trainee = "fine"
-trainee_longueur = 3.0
+trainee_longueur = 5.5
 couleur_secondaire = Color(0.68, 1, 0.62, 1)
 impact = "point"
 impact_taille = 0.5
