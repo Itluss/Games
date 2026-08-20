@@ -66,6 +66,13 @@ func _ready() -> void:
 			print("      [ÉCHEC] %s" % p)
 
 	print("")
+	# MARQUE DE FIN LUE PAR `barriere.sh`.
+	#
+	# Le lanceur refuse de croire un banc qui n'imprime pas cette ligne :
+	# c'est ainsi qu'il distingue « tout est passé » de « le banc s'est
+	# arrêté en route ». Sans elle, un banc pourtant conforme était
+	# compté comme non exécuté.
+	print("=== %d échec(s) ===" % _echecs)
 	if _echecs == 0:
 		print("Démarches : conforme.")
 	else:

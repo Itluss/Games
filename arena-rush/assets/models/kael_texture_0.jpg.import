@@ -18,9 +18,9 @@ dest_files=["res://.godot/imported/kael_texture_0.jpg-208a2e2b2e9e02e1c9546dddd0
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.75
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0

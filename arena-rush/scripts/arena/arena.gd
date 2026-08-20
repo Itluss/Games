@@ -1868,13 +1868,30 @@ func _mur_arene_test() -> void:
 # seul modele n'existe. L'habillage ne changera plus une seule position.
 
 ## Teintes du greybox, prises sur la palette de la planche.
-const W_SABLE := Color("e8c58a")
+## SABLE DU SOL, ACCORDÉ AUX SOCLES DES ASSETS.
+##
+## Prélevé en image plutôt que choisi : les modèles Meshy arrivent posés
+## sur un petit disque de sable qui rend #eca256, quand le sol du greybox
+## rendait #f6dd9d. L'écart faisait un HALO ORANGE autour de chaque rocher,
+## de chaque caisse et de chaque cactus — soixante-dix taches qui disaient
+## « asset collé sur un fond » au lieu de « objet posé sur du sable ».
+##
+## La teinte écrite ici est plus sombre que celle qu'on veut à l'écran :
+## le sol est un plan sans relief qui prend la lumière de plein fouet,
+## alors que les socles sont bombés et s'auto-ombrent. Réglé à l'oeil sur
+## la capture, pas au nuancier.
+const W_SABLE := Color("d9a765")
 const W_ROCHE := Color("c0603c")
 const W_ROCHE_SOMMET := Color("d87a52")
-const W_PIERRE := Color("d8cdb6")
+const W_PIERRE := Color("7a6a58")
+## Assise supérieure du muret : plus claire, pour que l'arête se voie.
+const W_PIERRE_HAUT := Color("94826c")
 const W_BOIS := Color("9c6334")
 const W_FOIN := Color("e0b352")
 const W_CACTUS := Color("5f9c4a")
+
+## Compteur d'alternance des deux formations rocheuses.
+var _n_form: int = 0
 
 
 func _batir_arene_western() -> void:
@@ -1955,22 +1972,41 @@ func _sol_western() -> void:
 func _formations_western() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 20260820
+	_n_form = 0
 	for f: Dictionary in PlanAreneWestern.FORMATIONS:
 		var c: Vector2 = f["pos"]
 		var r: float = f["rayon"]
 		var h: float = f["hauteur"]
-		for etage in 3:
-			var t := float(etage) / 2.0
-			var re: float = r * lerpf(1.0, 0.52, t)
-			var he: float = h * lerpf(0.46, 0.30, t)
-			var d := Vector2(rng.randf_range(-0.5, 0.5),
-					rng.randf_range(-0.5, 0.5)) * r * 0.30
-			var b := BoxMesh.new()
-			b.size = Vector3(re * 2.0, he, re * 1.75)
-			_fondre(b, Transform3D(
-					Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)),
-					Vector3(c.x + d.x, h * (0.18 + t * 0.34), c.y + d.y)),
-					W_ROCHE if etage < 2 else W_ROCHE_SOMMET)
+		# DEUX MODÈLES EN ALTERNANCE, tournés au hasard. C'est la règle du
+		# kit : la variété vient de la RÉUTILISATION — rotation, échelle,
+		# alternance — et non de cinquante modèles uniques.
+		var modele: StringName = &"west_rock_formation_a" if _n_form % 2 == 0 \
+				else &"west_rock_formation_b"
+		_n_form += 1
+		var noeud := KitWestern.instancier(modele,
+				Vector3(r * 2.0, h, r * 1.9))
+		if noeud != null:
+			noeud.position = Vector3(c.x, 0.0, c.y)
+			noeud.rotation.y = rng.randf() * TAU
+			add_child(noeud)
+			_props += 1
+		else:
+			# REPLI EN PRIMITIVES si le modèle manque. La carte doit rester
+			# jouable et testable même sans un seul asset livré.
+			for etage in 3:
+				var t := float(etage) / 2.0
+				var re: float = r * lerpf(1.0, 0.52, t)
+				var he: float = h * lerpf(0.46, 0.30, t)
+				var b := BoxMesh.new()
+				b.size = Vector3(re * 2.0, he, re * 1.75)
+				_fondre(b, Transform3D(
+						Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)),
+						Vector3(c.x, h * (0.18 + t * 0.34), c.y)),
+						W_ROCHE if etage < 2 else W_ROCHE_SOMMET)
+		# LA COLLISION NE CHANGE PAS. Elle a été validée au greybox : un
+		# cylindre au rayon déclaré, franc et sans accroche. La faire
+		# suivre la forme du modèle rouvrirait la question des impasses,
+		# que le banc a déjà tranchée.
 		_collision_ronde(c, r, h)
 
 
@@ -1979,6 +2015,10 @@ func _formations_western() -> void:
 ## se lise, et chaque segment porte sa propre collision : une seule boite
 ## sur la corde couperait l'interieur de l'arc, qui doit rester praticable.
 func _murets_western() -> void:
+	# Graine FIXE : la décoration doit être la même à chaque partie, sinon
+	# deux joueurs ne voient pas la même arène.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 90210
 	for m: Dictionary in PlanAreneWestern.MURETS:
 		var c: Vector2 = m["centre"]
 		var r: float = m["rayon"]
@@ -1988,13 +2028,56 @@ func _murets_western() -> void:
 		for i in n:
 			var a := a0 + arc * (float(i) + 0.5) / float(n)
 			var p := c + Vector2(cos(a), sin(a)) * r
+			# ─── L'ASSET DE MURET NE TIENT PAS CE RÔLE, ET ON NE FORCE PAS ──
+			#
+			# `west_stonewall_straight` est un ÉBOULIS BAS : 1,81 m de long
+			# pour 0,31 de haut. Ramené dans le volume d'un muret, l'ajuste-
+			# ment par le plus petit rapport lui donnait 40 cm de haut —
+			# alors que sa collision, elle, restait à 1,50 m. Un mur
+			# invisible : le joueur se cogne dans du vide et ne comprend
+			# pas. C'est le pire des deux mondes.
+			#
+			# Deux issues : baisser le couvert à la hauteur du modèle, ou
+			# garder la primitive. La première change le LEVEL DESIGN
+			# VALIDÉ — la hauteur des couverts décide des lignes de tir, que
+			# le banc a déjà mesurées — et la règle de l'art pass est de ne
+			# rien y toucher. On garde donc la primitive, teintée à la
+			# palette de la planche. Un vrai muret à hauteur de poitrine se
+			# commandera à part.
+			# ─── DEUX ASSISES, PAS UN BLOC ────────────────────────────
+			#
+			# Le muret d'un seul bloc beige clair ressortait BLANC à
+			# l'écran : aucune arête pour accrocher la lumière, aucune
+			# ombre propre, et une teinte trop proche du blanc pur. Au
+			# milieu du sable il ne se lisait plus comme de la pierre mais
+			# comme un trou dans l'image. On l'empile donc en deux assises
+			# légèrement décalées, la seconde plus étroite et plus claire :
+			# la ligne d'ombre entre les deux suffit à le rendre lisible,
+			# et le désaxement de chaque segment casse l'effet de ruban.
+			#
+			# LA COLLISION NE BOUGE PAS. Elle reste la boîte pleine posée
+			# plus bas : le level design validé décide des lignes de tir,
+			# la décoration n'a pas le droit d'y toucher.
+			var seg := arc * r / float(n) + 0.35
+			var biais := rng.randf_range(-0.06, 0.06)
+			var base := Transform3D(
+					Basis.from_euler(Vector3(0, -a + PI * 0.5 + biais, 0)),
+					Vector3(p.x, 0, p.y))
+			var h_bas: float = PlanAreneWestern.H_MOYEN * 0.62
+			var h_haut: float = PlanAreneWestern.H_MOYEN - h_bas
 			var b := BoxMesh.new()
-			b.size = Vector3(arc * r / float(n) + 0.35,
-					PlanAreneWestern.H_MOYEN, 0.75)
-			_fondre(b, Transform3D(
-					Basis.from_euler(Vector3(0, -a + PI * 0.5, 0)),
-					Vector3(p.x, PlanAreneWestern.H_MOYEN * 0.5, p.y)),
-					W_PIERRE)
+			b.size = Vector3(seg, h_bas, 0.78)
+			var t := base
+			t.origin.y = h_bas * 0.5
+			_fondre(b, t, W_PIERRE.darkened(rng.randi_range(0, 2) * 0.05))
+			var h := BoxMesh.new()
+			h.size = Vector3(seg * 0.92, h_haut, 0.62)
+			var th := base
+			th.origin.y = h_bas + h_haut * 0.5
+			th.origin += base.basis * Vector3(
+					rng.randf_range(-0.06, 0.06), 0.0,
+					rng.randf_range(-0.05, 0.05))
+			_fondre(h, th, W_PIERRE_HAUT.darkened(rng.randi_range(0, 2) * 0.04))
 			var sh := CollisionShape3D.new()
 			var cb := BoxShape3D.new()
 			cb.size = Vector3(arc * r / float(n) + 0.35,
@@ -2013,6 +2096,38 @@ func _barrieres_western() -> void:
 		var p: Vector2 = f["pos"]
 		var a := deg_to_rad(float(f["angle"]))
 		var l: float = f["long"]
+		# ─── ON RÉPÈTE LE MODULE, ON NE L'ÉTIRE PAS ────────────────────
+		#
+		# Le modèle de barrière fait 1,90 m de long. Lui demander de
+		# couvrir six mètres d'un coup, c'est le contraindre par sa
+		# LARGEUR : l'ajustement rendait une barrière de 1,5 m au milieu
+		# d'une collision de six. Une barrière est un élément MODULAIRE —
+		# on en pose trois bout à bout, ce qui est aussi la façon dont la
+		# planche la présente.
+		var pas_bar := 1.85
+		var combien := maxi(1, int(round(l / pas_bar)))
+		var pose := false
+		for k in combien:
+			var t := (float(k) - float(combien - 1) * 0.5) * (l / float(combien))
+			var pp := p + Vector2(cos(a), -sin(a)) * t
+			var bar := KitWestern.instancier(&"west_fence_straight",
+					Vector3(l / float(combien) * 1.02, 1.3, 0.6))
+			if bar == null:
+				break
+			bar.position = Vector3(pp.x, 0.0, pp.y)
+			bar.rotation.y = a
+			add_child(bar)
+			_props += 1
+			pose = true
+		if pose:
+			var sh0 := CollisionShape3D.new()
+			var cb0 := BoxShape3D.new()
+			cb0.size = Vector3(l, 1.25, 0.3)
+			sh0.shape = cb0
+			sh0.position = Vector3(p.x, 0.62, p.y)
+			sh0.rotation.y = a
+			_obstacles.add_child(sh0)
+			continue
 		for lisse in 2:
 			var y := 0.55 + float(lisse) * 0.55
 			var b := BoxMesh.new()
@@ -2042,6 +2157,14 @@ func _chariots_western() -> void:
 	for c: Dictionary in PlanAreneWestern.CHARIOTS:
 		var p: Vector2 = c["pos"]
 		var a := deg_to_rad(float(c["angle"]))
+		var n := KitWestern.instancier(&"west_wagon", Vector3(4.6, 2.8, 2.6))
+		if n != null:
+			n.position = Vector3(p.x, 0.0, p.y)
+			n.rotation.y = a
+			add_child(n)
+			_props += 1
+			_collision_boite(p, Vector2(4.4, 2.4), a, 2.6)
+			continue
 		var base := Basis.from_euler(Vector3(0, a, 0))
 		# Caisse
 		var b := BoxMesh.new()
@@ -2079,6 +2202,23 @@ func _petits_western() -> void:
 	for e: Dictionary in PlanAreneWestern.PETITS:
 		var p: Vector2 = e["pos"]
 		var a := rng.randf() * TAU
+		var modele := StringName("west_%s" % ({
+			&"tonneau": "barrel", &"botte": "haybale"}.get(e["type"], "crate")))
+		var volume := {
+			&"tonneau": Vector3(0.92, 0.95, 0.92),
+			&"botte": Vector3(1.5, 0.95, 1.05)}.get(e["type"],
+			Vector3(1.1, 0.9, 1.1)) as Vector3
+		var n := KitWestern.instancier(modele, volume)
+		if n != null:
+			n.position = Vector3(p.x, 0.0, p.y)
+			n.rotation.y = a
+			add_child(n)
+			_props += 1
+			if e["type"] == &"tonneau":
+				_collision_ronde(p, 0.46, 0.95)
+			else:
+				_collision_boite(p, Vector2(volume.x, volume.z), a, volume.y)
+			continue
 		match e["type"]:
 			&"tonneau":
 				var t := CylinderMesh.new()
@@ -2112,6 +2252,14 @@ func _vegetation_western() -> void:
 	for v: Dictionary in PlanAreneWestern.VEGETATION:
 		var p: Vector2 = v["pos"]
 		if v["type"] == &"cactus":
+			var n := KitWestern.instancier(&"west_cactus_a",
+					Vector3(1.3, 2.1, 1.3))
+			if n != null:
+				n.position = Vector3(p.x, 0.0, p.y)
+				n.rotation.y = rng.randf() * TAU
+				add_child(n)
+				_props += 1
+				continue
 			var t := CylinderMesh.new()
 			t.top_radius = 0.26
 			t.bottom_radius = 0.30
