@@ -158,6 +158,11 @@ jobs:
           mkdir -p web
           ~/godot-bin/godot --headless --path arena-rush --export-release "Web"
           test -f web/index.wasm || { echo "::error::Export web absent."; exit 1; }
+          # LE NOM DES FICHIERS PORTE LA VERSION — voir `empreinte_web.sh`.
+          # Sans cela, une publication réussie n'est pas une publication
+          # VUE : `index.pck` gardant son nom, le navigateur sert l'ancien
+          # et le joueur ne voit aucun changement. C'est arrivé.
+          arena-rush/outils_dev/empreinte_web.sh web "${GITHUB_SHA:0:10}"
           touch web/.nojekyll
           ls -lh web/
       - uses: actions/upload-pages-artifact@v3
