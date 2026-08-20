@@ -36,6 +36,15 @@ var _echecs := 0
 var _total := 0
 var _croisements := 0
 
+## Images minimales avant de commencer à interroger : sous ce seuil, ni la
+## caméra ni les groupes de l'arène ne sont encore à leur place, et l'on
+## mesurerait un état de transition.
+const ATTENTE_MIN := 3
+## Images maximales avant de déclarer le toit non effacé. Vingt images,
+## soit un tiers de seconde : au-delà, le joueur a le temps de se perdre
+## sous un toit opaque, et c'est un vrai défaut.
+const ATTENTE_MAX := 20
+
 
 func _ready() -> void:
 	_main = load("res://scenes/main.tscn").instantiate()
@@ -102,34 +111,57 @@ func _verifier_un_repère(j: Node3D, arene: Node, poi: Dictionary) -> void:
 			d = Vector3(cos(a), 0.0, sin(a)) * COURONNE
 		j.global_position = Vector3(p.x, 0.6, p.y) + d
 		PlanMonde.ancre = j.global_position
-		# CINQ IMAGES, ET C'EST MESURÉ. Le recalage de la caméra consomme la
-		# première ; l'arène ne replace ses groupes qu'APRÈS la caméra
-		# (priorité 100), donc le volume du repère ne se trouve à sa place
-		# qu'à l'image suivante. Deux images donnaient des résultats
-		# différents d'un repère à l'autre — un banc instable accuse au
-		# hasard, ce qui est pire que pas de banc.
-		for _f in 5:
+		# ─── ON ATTEND UN ÉTAT, PLUS UN NOMBRE D'IMAGES ────────────────
+		#
+		# CE BANC COMPTAIT CINQ IMAGES, et la valeur avait été mesurée sur
+		# CETTE machine-ci. Il a échoué en intégration continue, sur un
+		# repère et un seul azimut, alors qu'il passait six fois de suite en
+		# local : cinq images sur un coureur plus lent ne laissent pas le
+		# même temps réel, et l'on mesurait la cadence du coureur autant que
+		# la fonctionnalité.
+		#
+		# Le recalage de la caméra consomme une image ; l'arène ne replace
+		# ses groupes qu'APRÈS la caméra (priorité 100), donc le volume du
+		# repère n'est à sa place qu'à l'image suivante. Ce qui compte pour
+		# le joueur, ce n'est pas « en cinq images » mais « assez vite pour
+		# qu'il ne se perde pas » : on laisse donc jusqu'à un tiers de
+		# seconde, et l'on échoue si le toit n'est TOUJOURS pas effacé.
+		#
+		# La différence est essentielle : l'attente est bornée, donc un toit
+		# qui ne s'efface jamais est toujours détecté.
+		var cam: Camera3D = null
+		var touche := {}
+		var voile := false
+		for essai in ATTENTE_MAX:
 			await get_tree().process_frame
-
-		var cam := get_viewport().get_camera_3d()
-		if cam == null:
-			continue
-		var oeil := j.global_position + Vector3(0.0, 1.4, 0.0)
-		var espace := j.get_world_3d().direct_space_state
-		var q := PhysicsRayQueryParameters3D.create(oeil, cam.global_position)
-		q.collision_mask = Cfg.LAYER_TOIT
-		# ON COMPTE AUSSI LES DÉPARTS DE L'INTÉRIEUR. Sans cela, un rayon qui
-		# NAÎT dans le volume — c'est-à-dire le cas où l'on est déjà sous le
-		# toit, donc le seul qui nous intéresse — ne rend aucune touche.
-		q.hit_from_inside = true
-		var touche := espace.intersect_ray(q)
-		if touche.is_empty():
+			if essai < ATTENTE_MIN:
+				continue
+			cam = get_viewport().get_camera_3d()
+			if cam == null:
+				continue
+			var oeil := j.global_position + Vector3(0.0, 1.4, 0.0)
+			var espace := j.get_world_3d().direct_space_state
+			var q := PhysicsRayQueryParameters3D.create(oeil,
+					cam.global_position)
+			q.collision_mask = Cfg.LAYER_TOIT
+			# ON COMPTE AUSSI LES DÉPARTS DE L'INTÉRIEUR. Sans cela, un
+			# rayon qui NAÎT dans le volume — c'est-à-dire le cas où l'on
+			# est déjà sous le toit, donc le seul qui nous intéresse — ne
+			# rend aucune touche.
+			q.hit_from_inside = true
+			touche = espace.intersect_ray(q)
+			if touche.is_empty():
+				continue
+			voile = _est_voile(arene, touche["collider"])
+			if voile:
+				break
+		if cam == null or touche.is_empty():
 			continue
 		croise_ici += 1
 		_croisements += 1
 		# LA RÈGLE : traversé, donc effacé. On lit l'état réel de l'arène,
 		# pas l'intention du code.
-		if not _est_voile(arene, touche["collider"]):
+		if not voile:
 			manques += 1
 			if manques <= 2:
 				var toits: Array = arene.get(&"_toits")
