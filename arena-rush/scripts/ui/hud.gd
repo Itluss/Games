@@ -19,6 +19,8 @@ const MARGIN := 26
 const STICK_SIZE := 210
 const FIRE_SIZE := 168
 const ESQUIVE_SIZE := 104
+## Diamètre du loader d'étoile, en pixels.
+const LOADER_SIZE := 96
 
 var player: Player = null
 
@@ -57,7 +59,7 @@ var _slot_panels: Array[UiKit.CarteArme] = []
 var _minicarte: Minicarte
 var _fps_label: Label
 var _classement: Classement
-var _wanted: BarreWanted
+var _loader_etoile: LoaderEtoile
 var _kill_fx: KillFeedback
 var _replay_center: CenterContainer
 var _tueur_affiche: String = ""
@@ -124,6 +126,12 @@ func _ready() -> void:
 	Profil.niveau_gagne.connect(_on_niveau_gagne)
 	Respawn.joueur_elimine.connect(_on_joueur_elimine)
 	Respawn.joueur_revenu.connect(_on_joueur_revenu)
+	# L'ÉTOILE PARLE PAR LA PLAQUE D'ANNONCE, plus par un bandeau à
+	# demeure. Trois messages, et seulement quand ils me concernent : le
+	# loader se charge du reste, en silence.
+	EtoileDirector.ramassee.connect(_sur_etoile_prise)
+	EtoileDirector.lachee.connect(_sur_etoile_lachee)
+	EtoileDirector.gagnee.connect(_sur_etoile_gagnee)
 	_rafraichir_progression()
 
 func bind_player(p: Player) -> void:
@@ -180,8 +188,8 @@ func _build() -> void:
 	# deux éléments surgissent précisément AU MÊME INSTANT : on tue, on
 	# gagne l'XP, on passe un niveau. Les superposer aurait rendu illisible
 	# le seul moment que le joueur avait envie de regarder.
-	_kill_fx.offset_top = 232
-	_kill_fx.offset_bottom = 366
+	_kill_fx.offset_top = 205
+	_kill_fx.offset_bottom = 340
 
 ## Tout le texte de l'interface passe par ici, et donc par UiKit : grasse,
 ## penchée, cerclée de sombre. Un seul label réglé à la main suffirait à
@@ -222,7 +230,6 @@ func _label(text: String, size_px: int, color: Color = UiKit.BLANC) -> Label:
 ##     loin du centre.
 func _build_top() -> void:
 	_build_carte()
-	_build_wanted()
 	_build_classement()
 
 
@@ -319,20 +326,16 @@ func _build_carte() -> void:
 	m.add_child(_fps_label)
 
 
-## ─── HAUT CENTRE : LA BARRE WANTED ───────────────────────────────────
+## ─── LE HAUT CENTRE EST RENDU AU JEU ─────────────────────────────────
 ##
-## Le texte du brief la demande en bas, la maquette la dessine en haut ;
-## arbitré en faveur de la maquette. Le bas d'un écran de 390 pixels de
-## haut porte déjà le portrait, les munitions et la vie — y ajouter un
-## bandeau de deux lignes aurait mangé la zone de jeu par le bas, du côté
-## où sont les pouces.
-func _build_wanted() -> void:
-	_wanted = BarreWanted.new()
-	_wanted.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_wanted.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_wanted.offset_top = MARGIN
-	_wanted.custom_minimum_size = Vector2(470, 0)
-	_root.add_child(_wanted)
+## La barre WANTED occupait ici deux lignes : nom du porteur, jauge,
+## compteur « 18 / 30 ». Elle était lisible, et elle était posée là où l'on
+## regarde en combat — sur 390 pixels de haut, elle mangeait le tiers
+## supérieur du champ de vision.
+##
+## Tout ce qu'elle disait tient désormais dans `LoaderEtoile`, un disque de
+## la taille d'un bouton posé près du pouce droit. Voir ce fichier pour le
+## détail de ce qui a été gardé et de ce qui a été jeté.
 
 
 ## ─── HAUT DROITE : LE CLASSEMENT ─────────────────────────────────────
@@ -356,10 +359,10 @@ func _build_center() -> void:
 	# décor ; une plaque dorée s'impose et s'oublie aussitôt après.
 	_announce = UiKit.Banniere.new()
 	_announce.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	# 122 ET NON 92 : la barre WANTED occupe désormais la bande 26-104 au
-	# centre haut, et l'annonce venait se poser dessus.
-	_announce.offset_top = 122
-	_announce.offset_bottom = 122 + 84
+	# RETOUR À 92. La barre WANTED occupait la bande 26-104 et forçait
+	# l'annonce à descendre ; elle n'est plus là.
+	_announce.offset_top = 92
+	_announce.offset_bottom = 92 + 84
 	_announce.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_announce.modulate.a = 0.0
 	_root.add_child(_announce)
@@ -492,6 +495,20 @@ func _build_controls() -> void:
 	# est pressé cent fois par partie ; l'échange d'arme est le plus petit
 	# parce qu'il l'est trois fois. Une taille égale pour les trois ferait
 	# manquer le seul qui compte.
+	# ─── LE LOADER D'ÉTOILE, À PORTÉE DE POUCE ────────────────────────
+	#
+	# Il occupe la place laissée libre par le bouton « ARME », à gauche du
+	# bouton de tir. Ce n'est pas un rangement par défaut : c'est là que le
+	# regard passe déjà, entre la visée et le décor, et un objectif se
+	# surveille du coin de l'œil sans quitter l'action.
+	_loader_etoile = LoaderEtoile.new()
+	_loader_etoile.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_loader_etoile.offset_left = -(FIRE_SIZE + MARGIN + LOADER_SIZE + 20)
+	_loader_etoile.offset_top = -(MARGIN + LOADER_SIZE + 26)
+	_loader_etoile.offset_right = -(FIRE_SIZE + MARGIN + 20)
+	_loader_etoile.offset_bottom = -(MARGIN + 26)
+	_root.add_child(_loader_etoile)
+
 	# ─── PLUS DE BOUTON « ARME » ──────────────────────────────────────
 	#
 	# Il servait à basculer entre deux emplacements ; il n'y en a plus
@@ -614,6 +631,16 @@ func _process(_delta: float) -> void:
 		_fps_label.add_theme_color_override(&"font_color",
 				Color("8ef0a8") if f >= 50 else
 				(UiKit.OR_CLAIR if f >= 30 else UiKit.ROUGE))
+	# LES CINQ DERNIÈRES SECONDES SE DISENT. Le loader chauffe vers le
+	# blanc sur la fin, mais un joueur en pleine fusillade ne regarde pas
+	# son coin d'écran : c'est l'instant où l'on veut savoir qu'il faut
+	# tenir encore un peu.
+	if _je_portais and not _alerte_dite \
+			and EtoileDirector.porteur_id == Net.local_id() \
+			and EtoileDirector.DUREE - EtoileDirector.temps <= ALERTE_FIN:
+		_alerte_dite = true
+		_on_announce("TIENS BON", UiKit.OR_CLAIR)
+
 	if player and _dash_button:
 		var pret := player.dash_ready_ratio()
 		_dash_button.modulate.a = lerpf(0.55, 1.0, pret)
@@ -668,6 +695,44 @@ func _rafraichir_progression() -> void:
 	# continue de tout enregistrer — la progression n'est pas supprimée,
 	# elle n'est plus AFFICHÉE en combat.
 	pass
+
+
+# --- ÉTOILE ---------------------------------------------------------------
+#
+# ON N'ANNONCE QUE CE QUI ME CONCERNE. Une plaque à chaque fois qu'un bot
+# ramasse ou perd l'étoile ferait clignoter le haut de l'écran en
+# permanence — dix joueurs, quelques secondes chacun. Le loader, lui,
+# montre l'état de tout le monde sans dire un mot.
+
+## Le porteur au moment où j'ai perdu l'étoile : sert à savoir si la chute
+## me concerne.
+var _je_portais := false
+## Le seuil d'alerte a-t-il déjà été annoncé pour cette possession ?
+var _alerte_dite := false
+
+## Secondes restantes en dessous desquelles on prévient le porteur.
+const ALERTE_FIN := 5.0
+
+
+func _sur_etoile_prise(peer_id: int) -> void:
+	_je_portais = peer_id == Net.local_id()
+	_alerte_dite = false
+	if _je_portais:
+		_on_announce("ÉTOILE CAPTURÉE", UiKit.OR_CLAIR)
+
+
+func _sur_etoile_lachee(_position: Vector3) -> void:
+	if _je_portais:
+		_on_announce("ÉTOILE PERDUE", UiKit.ROUGE)
+	_je_portais = false
+	_alerte_dite = false
+
+
+func _sur_etoile_gagnee(peer_id: int, victoires: int) -> void:
+	_je_portais = false
+	_alerte_dite = false
+	if peer_id == Net.local_id():
+		_on_announce("+1 ÉTOILE  ·  %d" % victoires, UiKit.OR_CLAIR)
 
 
 func _on_niveau_gagne(niveau: int) -> void:
@@ -856,7 +921,7 @@ func _build_help() -> void:
 	goal.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	# 196 et non 150 : la plaque d'annonce occupe la bande 92-176, et les
 	# deux se superposaient dès qu'une élimination tombait.
-	goal.offset_top = 224
+	goal.offset_top = 196
 	goal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	goal.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_help.add_child(goal)

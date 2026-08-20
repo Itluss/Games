@@ -181,7 +181,12 @@ func _mettre_en_scene_etoile() -> void:
 		var devant: Vector3 = moi.global_position + Vector3(3.4, 0.0, -2.2)
 		EtoileDirector.net_poser(Vector3(devant.x, 0.0, devant.z))
 		await get_tree().process_frame
-	EtoileDirector.net_ramasser(cible.get(&"peer_id"))
+	# LE PORTEUR EST LE JOUEUR LOCAL POUR L'APERÇU. La maquette distingue
+	# « un adversaire la détient » (point rose) de « c'est toi » (point
+	# vert, anneau qui pulse) : c'est le second qui a le plus à rater, donc
+	# le second qu'on photographie.
+	EtoileDirector.net_ramasser(moi.get(&"peer_id") if moi != null
+			else cible.get(&"peer_id"))
 	# Le corps posé juste avant est consommé par le ramassage ; on en
 	# repose un pour la photo, sans toucher à l'état logique.
 	if moi != null:
