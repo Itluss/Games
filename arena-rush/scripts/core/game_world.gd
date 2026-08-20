@@ -64,6 +64,10 @@ func _start() -> void:
 			index += 1
 	_prechauffer()
 	MatchDirector.begin(arena)
+	# L'ÉTOILE DÉMARRE APRÈS LE MATCH, ET C'EST UN ORDRE, PAS UN HASARD :
+	# elle dérive ses points d'apparition de ceux de l'arène, qui ne sont
+	# calculés qu'une fois le monde bâti.
+	EtoileDirector.demarrer(arena)
 
 
 ## Position de préchauffe : loin sous l'arène, hors de tout champ de

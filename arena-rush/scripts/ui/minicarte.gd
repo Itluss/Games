@@ -25,6 +25,14 @@ const PORTEE := 96.0
 
 var joueur: Node3D = null
 
+## Découpe circulaire plutôt que rectangulaire.
+##
+## POURQUOI C'EST PLUS QU'UN HABILLAGE. La carte est CENTRÉE SUR LE
+## JOUEUR : elle montre donc la même distance dans toutes les directions.
+## Un cadre rond dit exactement cela ; un rectangle promet plus
+## d'information sur les côtés qu'en haut, ce qui est faux.
+var ronde: bool = false
+
 static var _fond: ImageTexture = null
 
 func _init() -> void:
@@ -85,8 +93,16 @@ static func _cuire() -> void:
 
 func _draw() -> void:
 	var boite := Rect2(Vector2.ZERO, size)
-	draw_style_box(UiKit.panneau(14, UiKit.CREUX, Color(1, 1, 1, 0.0), 0), boite)
+	var milieu_boite := size * 0.5
+	var rayon: float = minf(size.x, size.y) * 0.5
+	if ronde:
+		draw_circle(milieu_boite, rayon, UiKit.CREUX)
+	else:
+		draw_style_box(UiKit.panneau(14, UiKit.CREUX,
+				Color(1, 1, 1, 0.0), 0), boite)
 	if joueur == null or not is_instance_valid(joueur):
+		if ronde:
+			_cercle_cadre(milieu_boite, rayon)
 		return
 
 	var centre := Vector2(joueur.global_position.x, joueur.global_position.z)
@@ -117,11 +133,22 @@ func _draw() -> void:
 						vu.size / ech * (float(CUISSON) / PlanMonde.COTE))
 				draw_texture_rect_region(_fond, vu, src)
 
+	# ─── APPARTENANCE AU CADRE ────────────────────────────────────────
+	#
+	# Sans découpe matérielle — voir `_init`, `CLIP_CHILDREN_ONLY` rend la
+	# carte invisible — c'est ce test qui borne tout ce qu'on dessine. En
+	# rond, un point du coin passait le test rectangulaire et débordait
+	# visiblement du disque.
+	var dedans := func(p: Vector2) -> bool:
+		if ronde:
+			return p.distance_to(milieu_boite) <= rayon - 3.0
+		return boite.has_point(p)
+
 	# Les repères : ce sont eux qu'on cherche quand on ouvre une carte.
 	for poi: Dictionary in PlanMonde.POINTS_INTERET:
 		var d := PlanMonde.ecart(centre, PlanMonde.position_poi(poi))
 		var p := milieu + d * ech
-		if not boite.has_point(p):
+		if not dedans.call(p):
 			continue
 		draw_circle(p, 5.0, Color(0.05, 0.08, 0.17, 0.85))
 		draw_arc(p, 5.0, 0.0, TAU, 14, UiKit.OR_CLAIR, 2.0, true)
@@ -134,18 +161,30 @@ func _draw() -> void:
 			continue
 		var p := milieu + PlanMonde.ecart(centre,
 				Vector2(m.global_position.x, m.global_position.z)) * ech
-		if boite.has_point(p):
+		if dedans.call(p):
 			draw_circle(p, 2.6, Color(1.0, 0.78, 0.35, 0.9))
 
 	for n in get_tree().get_nodes_in_group(&"players"):
 		var j := n as Node3D
-		if j == null or j == joueur or j.get(&"is_eliminated") == true:
+		# Un joueur déconnecté reste dans le groupe jusqu'à la fin de
+		# l'image : sans `is_instance_valid`, la carte le dessine et lève
+		# une erreur d'accès à un objet libéré.
+		if j == null or not is_instance_valid(j) or j == joueur \
+				or j.get(&"is_eliminated") == true:
 			continue
 		var p := milieu + PlanMonde.ecart(centre,
 				Vector2(j.global_position.x, j.global_position.z)) * ech
-		if boite.has_point(p):
-			draw_circle(p, 4.2, Color(0.05, 0.08, 0.17, 0.9))
-			draw_circle(p, 3.2, UiKit.ROUGE)
+		if not dedans.call(p):
+			continue
+		draw_circle(p, 4.2, Color(0.05, 0.08, 0.17, 0.9))
+		# LE POINT PORTE LA COULEUR DU HÉROS, plus un rouge uniforme. Sur
+		# la maquette, les points de la carte reprennent les teintes des
+		# combattants : c'est ce qui permet de dire « Ruby arrive par le
+		# nord » plutôt que « quelqu'un arrive ».
+		var teinte := UiKit.ROUGE
+		if j.has_method(&"heros"):
+			teinte = Cfg.couleur_identite(j.call(&"heros"))
+		draw_circle(p, 3.2, teinte)
 
 	# SOI : une FLÈCHE, pas un point. Sur une carte qui tourne autour de
 	# soi, savoir où l'on est ne sert à rien si l'on ignore où l'on regarde.
@@ -161,3 +200,63 @@ func _draw() -> void:
 	draw_colored_polygon(fleche, UiKit.CYAN)
 	draw_polyline(fleche + PackedVector2Array([milieu + av * 9.0]),
 			Color(0.04, 0.07, 0.16, 0.9), 1.6, true)
+
+	# ─── L'ÉTOILE WANTED, EN DERNIER ──────────────────────────────────
+	#
+	# Dessinée après tout le reste, donc jamais recouverte : c'est
+	# l'objectif du mode, et une carte où il faudrait le chercher sous un
+	# point de mob ne servirait à rien.
+	#
+	# UN SEUL REPÈRE, DEUX SITUATIONS. Au sol, il marque l'endroit où elle
+	# attend ; portée, il suit le porteur. Aucune trace, aucune trajectoire
+	# — la consigne l'interdit, et elle a raison : une traînée persistante
+	# transformerait la carte en radar illisible en trois secondes.
+	_etoile_wanted(milieu, ech, dedans)
+	if ronde:
+		_cercle_cadre(milieu_boite, rayon)
+
+
+func _etoile_wanted(milieu: Vector2, ech: float, dedans: Callable) -> void:
+	if not EtoileDirector.est_active():
+		return
+	var pos := Vector2.INF
+	if EtoileDirector.porteur_id != 0:
+		var porteur := EtoileDirector.porteur()
+		if porteur != null:
+			pos = Vector2(porteur.global_position.x, porteur.global_position.z)
+	elif EtoileDirector.au_sol:
+		pos = Vector2(EtoileDirector.position_sol.x,
+				EtoileDirector.position_sol.z)
+	if pos == Vector2.INF:
+		return
+	var centre := Vector2(joueur.global_position.x, joueur.global_position.z)
+	var p := milieu + PlanMonde.ecart(centre, pos) * ech
+	# HORS CADRE, ON LA RABAT SUR LE BORD. Une étoile qui disparaît dès
+	# qu'elle sort du disque laisse le joueur sans direction au moment
+	# précis où il en a le plus besoin. Rabattue, elle continue de dire
+	# « par là ».
+	if not dedans.call(p):
+		var r: float = minf(size.x, size.y) * 0.5 - 9.0
+		var d := p - milieu
+		if d.length() < 0.01:
+			return
+		p = milieu + d.normalized() * r
+	_poser_etoile(p, 7.0)
+
+
+## Une étoile à cinq branches, même contour que la maille 3D et que
+## l'icône de la barre WANTED. Trois dessins, une seule silhouette.
+func _poser_etoile(c: Vector2, r: float) -> void:
+	var pts := PackedVector2Array()
+	for i in 10:
+		var a := TAU * float(i) / 10.0 - PI * 0.5
+		var rayon: float = r if i % 2 == 0 else r * 0.44
+		pts.append(c + Vector2(cos(a), sin(a)) * rayon)
+	draw_circle(c, r * 1.25, Color(0.05, 0.04, 0.0, 0.75))
+	draw_colored_polygon(pts, UiKit.OR_CLAIR)
+
+
+## Le liseré du disque. Cyan comme le reste du point de vue du joueur.
+func _cercle_cadre(c: Vector2, r: float) -> void:
+	draw_arc(c, r - 1.0, 0.0, TAU, 48,
+			UiKit.CYAN.lerp(UiKit.BLANC, 0.15), 3.0, true)

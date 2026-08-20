@@ -85,6 +85,13 @@ jobs:
           - nom: Progression
             scene: res://outils_dev/test_progression.tscn
             rendu: false
+          # LES SIX SITUATIONS DE L'ÉTOILE WANTED. Aucune d'elles ne lève
+          # d'erreur quand elle est fausse : un compteur qui hériterait des
+          # secondes du porteur précédent donnerait un jeu parfaitement
+          # fonctionnel et parfaitement injuste.
+          - nom: Étoile Wanted
+            scene: res://outils_dev/banc_etoile.tscn
+            rendu: true
           # EN PROFIL TÉLÉPHONE. C'est la seule plateforme où le rendu
           # lâche au-delà d'un certain nombre d'instances visibles, et donc
           # la seule où le plafond de maillages a un sens.

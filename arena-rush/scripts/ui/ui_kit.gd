@@ -961,3 +961,55 @@ class CarteArme extends Control:
 		draw_string_outline(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, taille,
 				5, Color(0.04, 0.07, 0.16, 0.95))
 		draw_string(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, taille, c)
+
+## DISQUE PLEIN — sert de MASQUE de découpe, pas de décoration.
+##
+## Un parent en `CLIP_CHILDREN_ONLY` n'affiche pas son propre dessin : il
+## s'en sert comme pochoir. Ce contrôle n'existe donc que pour donner cette
+## forme-là à ce qu'il contient — aujourd'hui la minicarte, qui doit
+## s'arrêter net sur un bord rond au lieu de remplir un carré.
+class Disque extends Control:
+	func _draw() -> void:
+		var r: float = minf(size.x, size.y) * 0.5
+		draw_circle(size * 0.5, r, Color.WHITE)
+
+
+## ANNEAU — le liseré posé PAR-DESSUS un contenu découpé.
+##
+## Il vit à part du masque parce qu'un trait dessiné à l'intérieur du
+## pochoir serait rogné par lui : on n'en verrait que la moitié intérieure,
+## c'est-à-dire un bord flou au lieu d'un cadre net.
+class Anneau extends Control:
+	var teinte: Color = CYAN.lerp(BLANC, 0.15)
+	var epaisseur: float = 3.0
+
+	func _draw() -> void:
+		var r: float = minf(size.x, size.y) * 0.5 - epaisseur * 0.5
+		draw_arc(size * 0.5, r, 0.0, TAU, 56, teinte, epaisseur, true)
+
+## ÉTOILE DESSINÉE — parce que « ★ » n'existe pas dans la police du jeu.
+##
+## Écrit en caractère Unicode, il se rendait en RECTANGLE VIDE — le carré
+## que les polices affichent quand elles n'ont pas le glyphe. Vérifié en
+## capture dans le navigateur : l'en-tête de la colonne des victoires
+## montrait une case blanche. Un symbole qu'on ne peut pas garantir ne se
+## met pas dans une chaîne ; on le dessine.
+##
+## Même contour à cinq branches que la maille 3D et que l'icône de la barre
+## WANTED : trois dessins, une seule silhouette.
+class EtoileGlyphe extends Control:
+	var teinte: Color = OR_CLAIR
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var c := size * 0.5
+		var r: float = minf(size.x, size.y) * 0.5
+		var pts := PackedVector2Array()
+		for i in 10:
+			var a := TAU * float(i) / 10.0 - PI * 0.5
+			var rayon: float = r if i % 2 == 0 else r * 0.44
+			pts.append(c + Vector2(cos(a), sin(a)) * rayon)
+		draw_colored_polygon(pts, teinte)
+

@@ -1600,6 +1600,24 @@ func _compute_spawns() -> void:
 ## trouve le vide le plus proche sans jamais s'éloigner beaucoup. Rendre le
 ## point d'origine en cas d'échec est délibéré — mieux vaut une apparition
 ## imparfaite qu'une apparition absente.
+## POSITION DÉGAGÉE — porte d'entrée PUBLIQUE de la recherche d'espace
+## libre. `_degager` fait le travail depuis toujours, mais il était privé et
+## les nouveaux venus (l'étoile WANTED et ses points d'apparition) auraient
+## dû aller le chercher dans le dos de l'arène.
+##
+## Rendre la fonction publique plutôt que la recopier : le monde sait seul
+## où se trouvent ses obstacles, et deux versions de cette réponse
+## finiraient par diverger.
+func position_degagee(p: Vector3, rayon: float) -> Vector3:
+	return _degager(p, rayon)
+
+
+## La position est-elle libre de tout obstacle solide ? Réponse franche,
+## sans déplacement — pour VÉRIFIER un point plutôt que le corriger.
+func position_libre(p: Vector3, rayon: float) -> bool:
+	return _libre_monde(Vector2(p.x, p.z), rayon)
+
+
 func _degager(p: Vector3, rayon: float) -> Vector3:
 	if _libre_monde(Vector2(p.x, p.z), rayon):
 		return p

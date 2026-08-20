@@ -119,6 +119,30 @@ var active_slot: int = 0
 
 var is_eliminated: bool = false
 
+# ─── COMPTEURS DE TABLEAU — TENUS PAR LE SERVEUR, LUS PAR TOUT LE MONDE ──
+#
+# POURQUOI ILS VIVENT SUR LE JOUEUR ET NON DANS `Profil`. La progression
+# (`Profil`) est PERSONNELLE et PERSISTANTE : elle ne connaît que le joueur
+# local, elle survit à la partie, et un bot n'en a pas. Le classement, lui,
+# doit citer TOUS les combattants présents — bots compris — et repart de
+# zéro à chaque session. Deux durées de vie différentes, deux endroits.
+#
+# L'AUTORITÉ EST CELLE DU SERVEUR, sans exception. Un client qui pourrait
+# s'incrémenter `star_wins` n'aurait qu'à le faire en boucle ; c'est
+# exactement le genre de compteur qu'on ne laisse jamais au client, même
+# dans un prototype, parce que la triche s'écrit une fois et se retire
+# beaucoup plus tard.
+
+## Éliminations de cette session, tous joueurs confondus.
+var kills: int = 0
+## Nombre de fois où ce joueur a gardé l'étoile trente secondes.
+var star_wins: int = 0
+## Détient-il l'étoile en ce moment ?
+var is_star_holder: bool = false
+## Secondes écoulées depuis qu'il l'a ramassée. Voir `EtoileDirector` : la
+## valeur n'est JAMAIS transmise d'un porteur au suivant.
+var star_hold_time: float = 0.0
+
 ## Cible actuellement accrochée par la visée assistée, publiée par le
 ## contrôleur. Sert uniquement à l'affichage de l'indicateur.
 var locked_target: Node3D = null
@@ -223,10 +247,15 @@ func _ready() -> void:
 	health_bar = HealthBar3D.new()
 	health_bar.position = Vector3(0, 2.9, 0)
 	add_child(health_bar)
-	health_bar.build(1.1)
-	# La barre du joueur local est superflue (le HUD la porte déjà) et
-	# encombrerait le centre de l'écran.
-	health_bar.visible = not is_me
+	# LA PLAQUE PORTE LE NOM ET LA COULEUR DU HÉROS. C'est la réponse la
+	# plus rapide à « qui je vise ? » sur une arène vue de dessus, où six
+	# silhouettes se ressemblent beaucoup.
+	health_bar.build(1.1, Cfg.couleur_identite(heros()),
+			display_name.to_upper())
+	# La plaque du joueur local passe en mode DISCRET plutôt que d'être
+	# éteinte : son nom et sa vie sont déjà dans le HUD du bas, mais
+	# l'étoile, elle, doit se voir sur lui aussi.
+	health_bar.mode_discret(is_me)
 
 	# INDICATEURS DE VISÉE — joueur local seulement. Une visée assistée
 	# qu'on ne voit pas donne l'impression que le personnage décide seul.
@@ -502,6 +531,15 @@ func server_take_damage(amount: float, from: Vector3, killer_id: int,
 		# de la victime : la réapparition remet l'équipement à zéro, et
 		# l'arme employée pour le kill ne serait plus lisible après.
 		_crediter_elimination(killer_id, from_team)
+		# LE COMPTEUR DE CLASSEMENT EST À PART, et ce n'est pas un doublon.
+		# `_crediter_elimination` n'alimente que la progression du joueur
+		# LOCAL et HUMAIN ; le tableau, lui, doit citer les bots, qui font
+		# l'essentiel des éliminations en solo.
+		_crediter_tableau(killer_id, from_team)
+		# L'ÉTOILE TOMBE AVANT LA PERTE D'ÉQUIPEMENT ET AVANT LE RETOUR.
+		# Le directeur a besoin de la position de MORT ; une fois la
+		# réapparition programmée, cette position n'existe déjà plus.
+		EtoileDirector.signaler_mort_porteur(peer_id, global_position)
 		Respawn.appliquer_perte_equipement(self)
 		Respawn.signaler_mort(peer_id, killer_id)
 
@@ -528,6 +566,38 @@ func _teinte_du_tireur(id: int) -> Color:
 				return vis.couleur
 			break
 	return Cfg.COL_DANGER
+
+
+## SERVEUR — incrémente le compteur d'éliminations du tableau.
+##
+## Mêmes règles d'attribution que la progression : seule une élimination
+## PAR UN AUTRE JOUEUR compte. Mourir dans la zone ou sur sa propre grenade
+## ne crédite personne, sinon le classement récompenserait les accidents.
+func _crediter_tableau(killer_id: int, from_team: int) -> void:
+	if from_team != Cfg.Team.PLAYER or killer_id == 0 or killer_id == peer_id:
+		return
+	var tueur := MatchDirector.players.get(killer_id) as Player
+	if tueur == null or not is_instance_valid(tueur):
+		return
+	tueur.kills += 1
+	Net.broadcast(tueur, &"net_compteurs", [tueur.kills, tueur.star_wins])
+
+
+## Réplique les compteurs de tableau. Ils ne changent qu'à des instants
+## rares — une élimination, une victoire d'étoile — donc en fiable et sans
+## cadence : les répliquer en continu serait du trafic pour rien.
+@rpc("authority", "call_local", "reliable")
+func net_compteurs(k: int, victoires: int) -> void:
+	kills = k
+	star_wins = victoires
+
+
+## Montre ou cache l'étoile au-dessus de la tête. Appelé par
+## `EtoileDirector` sur TOUS les pairs — c'est ce qui fait que le porteur
+## est reconnaissable de loin par tout le monde, et pas seulement chez lui.
+func montrer_etoile(actif: bool) -> void:
+	if health_bar != null and is_instance_valid(health_bar):
+		health_bar.afficher_etoile(actif)
 
 
 func _crediter_elimination(killer_id: int, from_team: int) -> void:

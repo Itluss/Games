@@ -20,9 +20,27 @@ const LARGEUR := 1280
 const HAUTEUR := 720
 
 var _main: Node
+var _large := LARGEUR
+var _haut := HAUTEUR
+var _suffixe := ""
+var _propre := false
 
 func _ready() -> void:
-	get_window().size = Vector2i(LARGEUR, HAUTEUR)
+	# FORMAT RÉGLABLE, PARCE QUE LA CIBLE N'EST PAS UN ÉCRAN DE BUREAU.
+	# La consigne demande de vérifier en 844×390 ET sur tablette. Juger
+	# une composition en 16/9 de bureau donne une image plus haute et plus
+	# large que celle du joueur : tout y tient, et rien ne prouve que ça
+	# tienne ailleurs.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--large="):
+			_large = int(a.substr(8))
+		elif a.begins_with("--haut="):
+			_haut = int(a.substr(7))
+		elif a.begins_with("--nom="):
+			_suffixe = a.substr(6)
+		elif a == "--propre":
+			_propre = true
+	get_window().size = Vector2i(_large, _haut)
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
 	await get_tree().create_timer(3.0).timeout
@@ -87,11 +105,23 @@ func _mettre_en_scene() -> void:
 			"palier": ConfigProgression.PALIERS_SERIE[0]}
 	if hud.has_method(&"_rafraichir_progression"):
 		hud.call(&"_rafraichir_progression")
-	if hud.has_method(&"_on_elimination_reussie"):
+	# LA CÉLÉBRATION EST OPTIONNELLE. Elle occupe le centre de l'écran et
+	# masque exactement la zone où l'on veut juger l'étoile et les plaques
+	# de nom. `--propre` la coupe.
+	if hud.has_method(&"_on_elimination_reussie") and not _propre:
 		hud.call(&"_on_elimination_reussie", "BOT 3", bilan)
 	# On laisse la plaque finir son arrivée : capturée en cours
 	# d'animation, elle paraîtrait mal centrée ou trop petite.
 	await get_tree().create_timer(0.45).timeout
+
+	# ─── L'ÉTOILE EST DANS LES MAINS D'UN ADVERSAIRE ──────────────────
+	#
+	# C'est l'état B de la barre WANTED, et c'est celui qui a le plus de
+	# choses à rater : nom du porteur dans sa couleur, jauge à mi-course,
+	# chiffre, étoile au-dessus de sa tête, repère sur la carte. L'état A
+	# — « ÉTOILE DISPONIBLE » — n'a rien à afficher, donc rien à vérifier.
+	_mettre_en_scene_etoile()
+	await get_tree().process_frame
 
 	# Bouton de tir MAINTENU : l'état enfoncé est celui que le joueur voit
 	# la moitié du temps, et c'est celui qu'on oublie de vérifier.
@@ -106,6 +136,58 @@ func _capturer() -> void:
 	DirAccess.make_dir_recursive_absolute(dossier)
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
-	var nom := dossier + "/interface.png"
+	var nom := dossier + "/interface%s.png" % _suffixe
 	img.save_png(nom)
 	print("→ ", nom)
+
+
+## Donne l'étoile à un adversaire proche et garnit le classement.
+##
+## ON PASSE PAR LE DIRECTEUR, pas par les champs des joueurs : c'est le
+## chemin réel du jeu, et l'aperçu doit photographier ce que le jeu produit,
+## pas une mise en scène qui lui ressemble.
+func _mettre_en_scene_etoile() -> void:
+	await get_tree().process_frame
+	var moi := _joueur()
+	var cible: Node = null
+	for p in get_tree().get_nodes_in_group(&"players"):
+		if p != moi:
+			cible = p
+			break
+	if cible == null:
+		return
+	# LE PORTEUR EST AMENÉ DANS LE CADRE. Un bot parti à trente mètres ne
+	# montre ni son étoile ni sa plaque de nom, et c'est précisément ce
+	# qu'on veut juger.
+	if moi != null:
+		cible.global_position = moi.global_position + Vector3(-3.8, 0.0, 0.6)
+	# Des scores plausibles, pour que le classement ait quatre lignes
+	# remplies et des chiffres de largeurs différentes.
+	var scores := [12, 7, 4, 2]
+	var etoiles := [2, 1, 0, 0]
+	var i := 0
+	for p in get_tree().get_nodes_in_group(&"players"):
+		if i >= scores.size():
+			break
+		p.set(&"kills", scores[i])
+		p.set(&"star_wins", etoiles[i])
+		i += 1
+	# L'ÉTOILE AU SOL EST POSÉE DEVANT LE JOUEUR, en plus de celle que
+	# porte l'adversaire. Deux objets différents à juger sur la même
+	# image : le socle et la maille dorée dans le décor, et l'étoile
+	# billboard au-dessus d'une tête. On ne peut pas régler la taille de
+	# l'un sans voir l'autre.
+	if moi != null:
+		var devant: Vector3 = moi.global_position + Vector3(3.4, 0.0, -2.2)
+		EtoileDirector.net_poser(Vector3(devant.x, 0.0, devant.z))
+		await get_tree().process_frame
+	EtoileDirector.net_ramasser(cible.get(&"peer_id"))
+	# Le corps posé juste avant est consommé par le ramassage ; on en
+	# repose un pour la photo, sans toucher à l'état logique.
+	if moi != null:
+		var devant2: Vector3 = moi.global_position + Vector3(3.4, 0.0, -2.2)
+		EtoileDirector._creer_corps(Vector3(devant2.x, 0.0, devant2.z))
+		await get_tree().process_frame
+	# Dix-huit secondes sur trente : la jauge est à mi-course, ce qui est
+	# le seul endroit où l'on voit à la fois le remplissage et le vide.
+	EtoileDirector.temps = 18.0

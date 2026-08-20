@@ -102,6 +102,34 @@ const COL_SOLEIL_JOUR := Color("fff3dc")
 ## les faces éclairées — c'est ce qui donne le relief. Mais le rebond
 ## domine, et les ombres restent DANS le monde au lieu de le contredire.
 const COL_AMBIANTE_JOUR := Color("d2c4a6")
+
+# ─── COULEURS D'IDENTITÉ DES HÉROS (INTERFACE) ──────────────────────────
+#
+# ELLES NE SONT PAS LES COULEURS DE TIR, ET C'EST VOULU.
+#
+# Deux planches de référence coexistent et ne disent pas la même chose :
+#   • la planche des ARMES fixe la teinte du projectile — Milo en or ;
+#   • la maquette d'INTERFACE fixe la teinte du nom et de la barre de vie —
+#     Milo en bleu.
+#
+# Les confondre obligerait à trahir l'une des deux. On les sépare donc :
+# le tir garde la couleur de son arme, le nom garde celle du personnage.
+# C'est d'ailleurs la pratique du genre — la couleur d'équipe et la
+# couleur d'effet répondent à deux questions différentes : « qui est-ce ? »
+# et « qu'est-ce qui vient de me toucher ? ».
+const COL_IDENTITE := {
+	&"milo": Color("3fa9f5"),
+	&"ruby": Color("ff3fa4"),
+	&"bruno": Color("f58022"),
+	&"gus": Color("a463f2"),
+	&"nox": Color("57d451"),
+	&"poppy": Color("f2612a"),
+}
+
+## Couleur d'identité d'un héros, avec un repli neutre pour l'inconnu.
+static func couleur_identite(heros: StringName) -> Color:
+	return COL_IDENTITE.get(heros, Color("9fb4c8"))
+
 # --- MATIÈRES DU MONDE OUVERT -------------------------------------------
 #
 # UNE COULEUR PAR MATIÈRE, PAS PAR OBJET. Un rocher du canyon et une mesa
