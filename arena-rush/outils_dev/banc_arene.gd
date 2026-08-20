@@ -280,6 +280,13 @@ func _rapport() -> void:
 			% moyen)
 
 	print("")
+	# MARQUE DE FIN LUE PAR `barriere.sh`.
+	#
+	# Le lanceur refuse de croire un banc qui n'imprime pas cette ligne :
+	# c'est ainsi qu'il distingue « tout est passé » de « le banc s'est
+	# arrêté en route ». Sans elle, un banc pourtant conforme est compté
+	# comme non exécuté — et c'est arrivé trois fois dans ce dépôt.
+	print("=== %d échec(s) ===" % _echecs)
 	if _echecs == 0:
 		print("Arène de combat : conforme.")
 	else:

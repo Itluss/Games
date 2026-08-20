@@ -95,5 +95,9 @@ func _conclure() -> void:
 			% [_episodes, _duree_perdue])
 	print("  angle max entre le regard et le joueur : %.0f°" % _pire_angle)
 	var ok := _sous_le_sol == 0 and _hors_monde == 0 and _duree_perdue < 0.5
-	print("=== %s ===" % ("AUCUNE ANOMALIE" if ok else "ANOMALIE TROUVÉE"))
+	# La ligne de verdict est aussi la MARQUE DE FIN lue par `barriere.sh`,
+	# d'où sa forme : le lanceur cherche « échec(s) === » pour distinguer
+	# un banc conforme d'un banc qui s'est arrêté en route.
+	print("=== %d échec(s) ===" % (0 if ok else 1))
+	print("Session : %s." % ("conforme" if ok else "anomalie trouvée"))
 	get_tree().quit(0 if ok else 1)

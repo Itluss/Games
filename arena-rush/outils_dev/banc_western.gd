@@ -67,12 +67,33 @@ func _contournabilite() -> void:
 	var pire_nom := "—"
 	for m: Dictionary in PlanAreneWestern.masses():
 		var c: Vector2 = m["pos"]
-		var r: float = float(m["rayon"]) + PlanAreneWestern.DEGAGEMENT * 0.5
+		# L'ANNEAU ÉPOUSE LA CRÊTE, il n'est plus un cercle.
+		#
+		# Les masses sont devenues des rectangles orientés. Un anneau
+		# circulaire au plus grand rayon passait très loin des flancs de
+		# la crête et tout près de ses bouts : il déclarait libre ce qui
+		# ne l'était pas, et bloqué ce qui l'était. On échantillonne donc
+		# le contour à distance CONSTANTE du bord réel.
+		var demi: Vector2 = m["demi"]
+		var ang: float = m["angle"]
+		var marge := PlanAreneWestern.DEGAGEMENT * 0.5
 		var libres := 0
-		var n := 36
+		var n := 48
 		for i in n:
 			var a := TAU * float(i) / float(n)
-			var p := c + Vector2(cos(a), sin(a)) * r
+			var dir := Vector2(cos(a), sin(a))
+			# On part loin sur ce rayon et on revient jusqu'à toucher la
+			# distance voulue au bord — la forme est convexe, donc une
+			# dichotomie suffit.
+			var bas := 0.0
+			var haut := demi.length() + marge * 3.0 + 2.0
+			for pas in 20:
+				var mm := (bas + haut) * 0.5
+				if PlanAreneWestern.ecart_masse(c + dir * mm, m) < marge:
+					bas = mm
+				else:
+					haut = mm
+			var p := c + dir * haut
 			if _tenable(espace, p):
 				libres += 1
 		var taux := float(libres) / float(n)
@@ -141,11 +162,14 @@ func _lignes_de_vue() -> void:
 	rng.seed = 77
 	var longues := 0
 	var total := 0
-	var d := PlanAreneWestern.DEMI - 4.0
+	var d := PlanAreneWestern.BORD
 	while total < 500:
 		var a := Vector2(rng.randf_range(-d, d), rng.randf_range(-d, d))
 		var b := Vector2(rng.randf_range(-d, d), rng.randf_range(-d, d))
 		if a.distance_to(b) < 28.0:
+			continue
+		if not PlanAreneWestern.dans_enceinte(a, PlanAreneWestern.MARGE_BORD) \
+				or not PlanAreneWestern.dans_enceinte(b, PlanAreneWestern.MARGE_BORD):
 			continue
 		if not _tenable(espace, a) or not _tenable(espace, b):
 			continue
@@ -168,13 +192,13 @@ func _lignes_de_vue() -> void:
 ## qu'on n'atteint pas est une zone morte, ou pire, une impasse fermée.
 func _connexite() -> void:
 	var espace := get_viewport().world_3d.direct_space_state
-	var d := PlanAreneWestern.RAYON_CLOTURE - 1.0
+	var d := PlanAreneWestern.BORD
 	var n := int(d * 2.0 / PAS)
 	var libre := {}
 	for iz in n:
 		for ix in n:
 			var p := Vector2(-d + float(ix) * PAS, -d + float(iz) * PAS)
-			if p.length() > d:
+			if not PlanAreneWestern.dans_enceinte(p, PlanAreneWestern.MARGE_BORD):
 				continue
 			if _tenable(espace, p):
 				libre[Vector2i(ix, iz)] = true

@@ -69,6 +69,13 @@ func _ready() -> void:
 	_sols_multiples(arene)
 
 	print("")
+	# MARQUE DE FIN LUE PAR `barriere.sh`.
+	#
+	# Le lanceur refuse de croire un banc qui n'imprime pas cette ligne :
+	# c'est ainsi qu'il distingue « tout est passé » de « le banc s'est
+	# arrêté en route ». Sans elle, un banc pourtant conforme est compté
+	# comme non exécuté — et c'est arrivé trois fois dans ce dépôt.
+	print("=== %d échec(s) ===" % _echecs)
 	if _echecs == 0:
 		print("Scintillement : conforme.")
 	else:
@@ -124,6 +131,19 @@ func _est_du_sol_ou_fondu(mi: MeshInstance3D) -> bool:
 			or String(mi.name).begins_with("Fusion_")
 
 
+## Deux noms appartiennent-ils à la même pièce composée ?
+##
+## L'arène nomme les blocs d'une crête « Crete07_… » et les étages d'un
+## empilement « Pile03_… ». Le préfixe avant le premier tiret bas est donc
+## l'identité de la pièce entière.
+func _meme_piece(a: String, b: String) -> bool:
+	var pa := a.split("_")[0]
+	var pb := b.split("_")[0]
+	if not (pa.begins_with("Crete") or pa.begins_with("Pile")):
+		return false
+	return pa == pb
+
+
 ## Remonte au pivot posé par l'arène : c'est LUI la pièce, pas la maille.
 func _piece_parente(n: Node) -> String:
 	var p := n
@@ -166,6 +186,17 @@ func _chevauchements(pieces: Array[Dictionary]) -> void:
 		for j in range(i + 1, pieces.size()):
 			var b: AABB = pieces[j]["aabb"]
 			if b.get_volume() < VOLUME_SIGNIFICATIF:
+				continue
+			# DEUX BLOCS D'UNE MÊME PIÈCE COMPOSÉE NE SE DISPUTENT RIEN.
+			#
+			# Une crête est bâtie en trois blocs qui se chevauchent
+			# EXPRÈS : c'est ce qui la fait lire comme une crête et non
+			# comme une file de cailloux. Un empilement de caisses,
+			# pareil. Sans cette exception, la sonde criait à
+			# l'interpénétration pathologique sur la composition
+			# elle-même — et une sonde qui accuse le travail sain finit
+			# par être ignorée, y compris le jour où elle a raison.
+			if _meme_piece(pieces[i]["nom"], pieces[j]["nom"]):
 				continue
 			var inter := a.intersection(b)
 			if inter.size == Vector3.ZERO:

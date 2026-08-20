@@ -102,7 +102,19 @@ static func instancier(nom: StringName, taille: Vector3) -> Node3D:
 	# chaque pièce de quelques dizaines de centimètres par rapport à sa
 	# collision — et un joueur se cognerait à côté de la caisse.
 	var centre := utile.get_center() * f
-	m.position = Vector3(-centre.x, -(boite.position.y + socle) * f, -centre.z)
+	# ─── ON N'ENTERRE PAS À MOITIÉ ─────────────────────────────────────
+	#
+	# Le socle mesuré, ramené à l'échelle, peut valoir deux ou trois
+	# centimètres. Enterrer de deux centimètres ne plante rien du tout et
+	# pose la base de la pièce PILE dans la zone où elle risque de se
+	# disputer le plan du sol — c'est arrivé aux tonneaux, à un dixième de
+	# millimètre près. On enterre donc franchement ou pas du tout : sous
+	# cinq centimètres, on remonte à cinq.
+	var enfoui := socle * f
+	if enfoui > 0.0:
+		enfoui = maxf(enfoui, 0.05)
+	m.position = Vector3(-centre.x,
+			-boite.position.y * f - enfoui, -centre.z)
 
 	var pivot := Node3D.new()
 	var orienteur := Node3D.new()
