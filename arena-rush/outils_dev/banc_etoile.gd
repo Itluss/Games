@@ -30,12 +30,30 @@ var _main: Node
 
 
 func _ready() -> void:
+	# ─── LE BANC JOUE L'ARÈNE WESTERN, PAS LE MONDE OUVERT ─────────────
+	#
+	# C'EST LA CORRECTION LA PLUS IMPORTANTE DE CE FICHIER, et elle vient
+	# d'un bug signalé en jouant : l'étoile apparaissait DEHORS, derrière
+	# la clôture. Le banc, lui, était vert.
+	#
+	# Il l'était pour une raison bête : `barriere.sh` lance `--solo`, ce
+	# qui démarre le MONDE OUVERT. Or le monde ouvert est torique — il n'a
+	# pas de dehors — donc « le point est-il dans le terrain ? » y répond
+	# toujours oui. Toutes les vérifications de bord étaient vraies sans
+	# rien mesurer. L'arène Western, elle, est BORNÉE à 36 m, et c'est
+	# elle qu'on joue depuis le menu.
+	#
+	# Un banc doit tourner sur la carte du joueur, pas sur celle qui
+	# l'arrange. Le drapeau est posé AVANT le montage : `Arena._ready` ne
+	# le lit qu'une fois.
+	Cfg.arene_test = true
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
 	# Le monde met un peu plus d'une seconde à se bâtir ; l'étoile est
 	# semée une seconde après. On laisse la première apparition se faire.
 	await get_tree().create_timer(3.5).timeout
 	print("\n=== BANC DE L'ÉTOILE WANTED ===\n")
+	_test0_points_dans_larene()
 	await _test1_ramassage()
 	await _test2_mort_a_mi_course()
 	await _test3_victoire()
@@ -80,6 +98,48 @@ func _titre(t: String) -> void:
 
 
 # --- LES SIX TESTS -------------------------------------------------------
+
+## TEST 0 — TOUS LES POINTS D'APPARITION SONT DANS L'ARÈNE.
+##
+## CE TEST EXISTE PARCE QU'IL MANQUAIT. La première version du banc
+## vérifiait qu'une étoile lâchée tombait sur un « sol praticable », et
+## c'était vrai : il n'y a aucun obstacle derrière la clôture. Mais il n'y
+## a pas de jeu non plus, et l'étoile est apparue DEHORS, hors de portée —
+## signalé en jouant, pas ici.
+##
+## « Libre d'obstacle » et « dans le terrain » sont deux questions
+## différentes. Le banc pose désormais les deux.
+func _test0_points_dans_larene() -> void:
+	_titre("Test 0 : les points d'apparition sont dans l'arène")
+	var arene := MatchDirector.arena
+	if arene == null or not arene.has_method(&"dans_terrain"):
+		_ligne(false, "l'arène expose sa notion de terrain", "non")
+		return
+	# GARDE-FOU CONTRE UN BANC QUI SE MENT À LUI-MÊME. Si le drapeau n'a
+	# pas pris, tout ce qui suit teste un monde sans bords et passe sans
+	# rien prouver.
+	_ligne(Cfg.arene_test, "le banc tourne bien dans l'arène bornée",
+			"arene_test = %s" % Cfg.arene_test)
+	var pts: Array = EtoileDirector._points
+	_ligne(pts.size() >= 6, "assez de points pour varier les apparitions",
+			"%d point(s)" % pts.size())
+	var dehors := 0
+	var pire := 0.0
+	for p: Vector3 in pts:
+		if not arene.call(&"dans_terrain", p, 0.0):
+			dehors += 1
+			pire = maxf(pire, Vector2(p.x, p.z).length())
+	_ligne(dehors == 0, "aucun point hors de l'enceinte",
+			"%d dehors%s" % [dehors,
+					(", le pire à %.1f m" % pire) if dehors > 0 else ""])
+	var colles := 0
+	for p: Vector3 in pts:
+		if not arene.call(&"dans_terrain", p, EtoileDirector.MARGE_TERRAIN):
+			colles += 1
+	_ligne(colles == 0, "aucun point collé au bord",
+			"%d à moins de %.0f m du bord" % [colles,
+					EtoileDirector.MARGE_TERRAIN])
+
 
 ## TEST 1 — un joueur ramasse : il devient porteur, le compteur part de 0.
 func _test1_ramassage() -> void:
@@ -321,3 +381,22 @@ func _test6_drop_contre_obstacle() -> void:
 			"elle est tombée sur un sol praticable",
 			"%.1f, %.1f" % [EtoileDirector.position_sol.x,
 					EtoileDirector.position_sol.z])
+	# ET DANS L'ARÈNE. C'est la vérification qui manquait : un point peut
+	# être parfaitement dégagé ET parfaitement hors-jeu.
+	_ligne(arene.call(&"dans_terrain", EtoileDirector.position_sol, 0.0),
+			"elle est tombée DANS l'arène",
+			"à %.1f m du centre"
+					% Vector2(EtoileDirector.position_sol.x,
+							EtoileDirector.position_sol.z).length())
+
+	# ─── ET LE CAS EXTRÊME : UNE MORT HORS DE L'ENCEINTE ───────────────
+	#
+	# On ne devrait jamais y être, mais une projection, un rebond ou un
+	# futur pouvoir de déplacement peuvent y mener. L'étoile ne doit pas
+	# suivre.
+	var loin := Vector3(90.0, 0.0, 70.0)
+	var ramene: Vector3 = EtoileDirector._corriger(loin)
+	_ligne(ramene != Vector3.INF and arene.call(&"dans_terrain", ramene, 0.0),
+			"un point très hors-jeu est ramené dans l'arène",
+			"%.1f, %.1f" % [ramene.x, ramene.z] if ramene != Vector3.INF
+					else "aucune position")

@@ -48,6 +48,8 @@ const DEGAGEMENT := 1.4
 ## celui qui vient de mourir la ramassait en revenant, ce qui récompense
 ## exactement le mauvais geste.
 const ECART_SPAWN := 9.0
+## Marge minimale entre l'étoile et le bord du terrain, en mètres.
+const MARGE_TERRAIN := 4.0
 
 signal etat_change()
 signal ramassee(peer_id: int)
@@ -120,48 +122,66 @@ func porteur() -> Player:
 
 # --- POINTS D'APPARITION -------------------------------------------------
 
-## LES POINTS SONT DÉRIVÉS DU MONDE, PAS ÉCRITS À LA MAIN.
+## ─── LES POINTS SONT SEMÉS DANS LE TERRAIN, PAS DÉDUITS DES SPAWNS ───
 ##
-## Le brief propose des marqueurs `StarSpawn_01`, `StarSpawn_02`… posés dans
-## la scène. Ici l'arène est BÂTIE PAR CODE et son plan change à chaque
-## itération de level design : des marqueurs figés se retrouveraient dans un
-## rocher à la première retouche de la carte, et personne ne le verrait
-## avant de jouer.
+## PREMIÈRE VERSION, ET SON DÉFAUT. Je partais des apparitions de joueurs —
+## déjà validées praticables par l'arène — et je m'en écartais de neuf
+## mètres dans huit directions. L'idée se défendait : le résultat suivait
+## le plan de la carte quel qu'il devienne, sans marqueurs à replacer.
 ##
-## On part donc des apparitions de joueurs — déjà validées comme praticables
-## par l'arène — et on s'en écarte : le résultat suit automatiquement le
-## plan, quel qu'il devienne.
+## Sauf que les dix apparitions de l'arène Western sont TOUTES sur la
+## périphérie, à 32,5 m du centre, et que l'enceinte s'arrête à 36. Neuf
+## mètres plus loin, la moitié des candidats tombaient DEHORS, derrière la
+## clôture. `position_libre` les acceptait sans mentir — il n'y a
+## effectivement aucun obstacle au-delà — et l'étoile apparaissait hors de
+## portée. Signalé en jouant, pas par un test : mon banc vérifiait qu'elle
+## tombait sur un sol praticable, jamais qu'elle tombait DANS l'arène.
+##
+## On sème donc une grille dans le terrain, et l'on garde ce qui passe
+## trois filtres : dans l'enceinte avec une bonne marge, libre d'obstacle,
+## et loin des points de réapparition — sinon celui qui vient de mourir la
+## ramasse en revenant, ce qui récompense exactement le mauvais geste.
 func _calculer_points() -> void:
 	_points = []
-	if arene == null:
+	if arene == null or not arene.has_method(&"demi_terrain"):
 		return
 	var spawns: Array = arene.get(&"player_spawn_points")
-	if spawns == null or spawns.is_empty():
-		return
-	# Huit directions autour de chaque apparition, à bonne distance : on
-	# obtient une grille grossière qui couvre la carte sans la quadriller.
-	for base: Vector3 in spawns:
-		for k in 8:
-			var a := TAU * float(k) / 8.0
-			var essai := Vector3(base.x + cos(a) * ECART_SPAWN, base.y,
-					base.z + sin(a) * ECART_SPAWN)
-			essai = _corriger(essai)
-			if essai == Vector3.INF:
+	if spawns == null:
+		spawns = []
+	var demi: float = arene.call(&"demi_terrain")
+	# Pas de grille : assez fin pour couvrir la carte, assez large pour
+	# que deux points voisins ne soient pas le même endroit.
+	var pas := 7.0
+	var n := int(demi * 2.0 / pas)
+	for iz in n + 1:
+		for ix in n + 1:
+			var p := Vector3(-demi + float(ix) * pas, 0.0,
+					-demi + float(iz) * pas)
+			# LA MARGE DE BORD EST GÉNÉREUSE. Une étoile collée à la
+			# clôture se ramasse mal — on tourne autour sans l'attraper —
+			# et se défend trop bien : le porteur n'a qu'un côté à
+			# surveiller.
+			if not arene.call(&"dans_terrain", p, MARGE_TERRAIN):
 				continue
-			if _trop_pres_dun_spawn(essai, spawns):
+			var pose: Vector3 = arene.call(&"position_degagee", p, DEGAGEMENT)
+			if not arene.call(&"dans_terrain", pose, MARGE_TERRAIN):
 				continue
-			if _trop_pres_dun_point(essai):
+			if not arene.call(&"position_libre", pose, DEGAGEMENT):
 				continue
-			_points.append(essai)
+			if _trop_pres_dun_spawn(pose, spawns):
+				continue
+			if _trop_pres_dun_point(pose):
+				continue
+			_points.append(Vector3(pose.x, 0.0, pose.z))
 	if _points.is_empty():
 		# Filet de sécurité : mieux vaut une étoile au centre qu'un mode
 		# qui ne démarre jamais.
-		_points.append(_corriger(Vector3.ZERO))
+		_points.append(Vector3.ZERO)
 
 
 func _trop_pres_dun_spawn(p: Vector3, spawns: Array) -> bool:
 	for s: Vector3 in spawns:
-		if PlanMonde.distance3(p, s) < ECART_SPAWN * 0.72:
+		if PlanMonde.distance3(p, s) < ECART_SPAWN:
 			return true
 	return false
 
@@ -179,11 +199,20 @@ func _trop_pres_dun_point(p: Vector3) -> bool:
 func _corriger(p: Vector3) -> Vector3:
 	if arene == null or not arene.has_method(&"position_degagee"):
 		return p
-	var enroule := PlanMonde.enrouler(Vector2(p.x, p.z))
-	var degage: Vector3 = arene.call(&"position_degagee",
-			Vector3(enroule.x, 0.0, enroule.y), DEGAGEMENT)
-	if arene.has_method(&"position_libre") \
-			and not arene.call(&"position_libre", degage, DEGAGEMENT):
+	# ON RAMÈNE DANS LE TERRAIN AVANT DE DÉGAGER, et pas l'inverse. Un
+	# porteur peut mourir contre la clôture, ou être projeté au-delà : la
+	# recherche d'espace libre, elle, se moque des bords et rendrait un
+	# point parfaitement dégagé... et parfaitement hors-jeu.
+	var dedans: Vector3 = arene.call(&"ramener_dans_terrain",
+			Vector3(p.x, 0.0, p.z), MARGE_TERRAIN)
+	if dedans == Vector3.INF:
+		return Vector3.INF
+	var degage: Vector3 = arene.call(&"position_degagee", dedans, DEGAGEMENT)
+	# Le dégagement peut à son tour repousser dehors s'il s'échappe d'un
+	# rocher collé au bord : on revérifie, et on ramène une seconde fois.
+	if not arene.call(&"dans_terrain", degage, MARGE_TERRAIN):
+		degage = arene.call(&"ramener_dans_terrain", degage, MARGE_TERRAIN)
+	if not arene.call(&"position_libre", degage, DEGAGEMENT):
 		return Vector3.INF
 	return Vector3(degage.x, 0.0, degage.z)
 

@@ -1600,6 +1600,57 @@ func _compute_spawns() -> void:
 ## trouve le vide le plus proche sans jamais s'éloigner beaucoup. Rendre le
 ## point d'origine en cas d'échec est délibéré — mieux vaut une apparition
 ## imparfaite qu'une apparition absente.
+## ─── LE POINT EST-IL SUR LE TERRAIN JOUABLE ? ───────────────────────
+##
+## « Libre d'obstacle » et « dans le terrain » sont DEUX questions
+## différentes, et les confondre a coûté un bug visible : l'étoile WANTED
+## apparaissait DEHORS, derrière la clôture, impossible à ramasser.
+##
+## Le calcul de ses points partait des apparitions de joueurs — toutes
+## posées sur la périphérie, à 32,5 m — et s'en écartait de neuf mètres.
+## Résultat : des candidats à 41,5 m alors que l'enceinte s'arrête à 36.
+## `position_libre` répondait « oui » en toute honnêteté : il n'y a
+## effectivement aucun obstacle au-delà de la clôture. Il n'y a pas de jeu
+## non plus.
+##
+## L'arène Western est BORNÉE, le monde ouvert est TORIQUE : la réponse
+## dépend donc de ce qui a été bâti, et c'est l'arène qui le sait.
+func dans_terrain(p: Vector3, marge := 0.0) -> bool:
+	if Cfg.arene_test:
+		return PlanAreneWestern.dans_enceinte(Vector2(p.x, p.z), marge)
+	# Le monde ouvert n'a pas de dehors : on y est toujours, par
+	# construction — c'est tout l'intérêt du repliement.
+	return true
+
+
+## Demi-étendue du terrain jouable, en mètres. Sert à semer des candidats
+## sans connaître la forme de l'enceinte.
+func demi_terrain() -> float:
+	return PlanAreneWestern.BORD if Cfg.arene_test else PlanMonde.DEMI
+
+
+## Ramène un point À L'INTÉRIEUR du terrain en le tirant vers le centre.
+## Rend `Vector3.INF` si même le centre n'y arrive pas — ce qui ne devrait
+## jamais se produire, mais un appelant qui reçoit INF le saura.
+func ramener_dans_terrain(p: Vector3, marge := 0.0) -> Vector3:
+	if dans_terrain(p, marge):
+		return p
+	var d := Vector2(p.x, p.z)
+	if d.length() < 0.01:
+		return Vector3.ZERO
+	# Recherche par dichotomie sur le segment centre → point : plus sûr
+	# qu'un pas fixe, qui dépendrait de la taille de la carte.
+	var bas := 0.0
+	var haut := 1.0
+	for _i in 18:
+		var m := (bas + haut) * 0.5
+		if dans_terrain(Vector3(d.x * m, p.y, d.y * m), marge):
+			bas = m
+		else:
+			haut = m
+	return Vector3(d.x * bas, p.y, d.y * bas)
+
+
 ## POSITION DÉGAGÉE — porte d'entrée PUBLIQUE de la recherche d'espace
 ## libre. `_degager` fait le travail depuis toujours, mais il était privé et
 ## les nouveaux venus (l'étoile WANTED et ses points d'apparition) auraient
