@@ -113,6 +113,22 @@ func nom_porteur() -> String:
 	return j.display_name if j != null else ""
 
 
+## ─── « VIVANT » VEUT DIRE DEUX CHOSES, ET IL FAUT LES DEUX ───────────
+##
+## `is_eliminated` est posé par le directeur de partie ; `health.is_dead`
+## par le composant de vie. Entre l'instant où les points tombent à zéro et
+## celui où l'élimination est enregistrée, il existe une fenêtre — courte,
+## mais réelle — où un joueur est MORT sans être encore ÉLIMINÉ.
+##
+## Le banc est tombé dedans : un joueur tué dans cette fenêtre a reçu
+## l'étoile, et son compteur a continué de tourner sur un cadavre. On teste
+## donc les deux, partout où l'on demande « peut-il porter l'étoile ? ».
+func _vivant(j: Player) -> bool:
+	if j == null or not is_instance_valid(j) or j.is_eliminated:
+		return false
+	return j.health == null or not j.health.is_dead
+
+
 func porteur() -> Player:
 	if porteur_id == 0:
 		return null
@@ -193,6 +209,36 @@ func _trop_pres_dun_point(p: Vector3) -> bool:
 	return false
 
 
+## ─── LE REPLI QUAND LA CORRECTION ÉCHOUE ─────────────────────────────
+##
+## `_corriger` peut légitimement rendre `INF` : il cherche un espace libre
+## en spirale, et si le porteur meurt au fond d'un recoin bouché, la
+## recherche peut ne rien trouver dans son rayon.
+##
+## LE REPLI ÉTAIT LE CENTRE DE L'ARÈNE, ET C'ÉTAIT UN TROU. Le centre de
+## l'arène Western porte une margelle : rien ne garantit qu'il soit libre.
+## Le repli pouvait donc rendre `INF` à son tour, et l'on diffusait une
+## position invalide — l'étoile serait partie nulle part, sans erreur ni
+## message. Trouvé par le banc, sur un point de mort tiré au hasard.
+##
+## On retombe donc sur le point d'apparition VALIDE le plus proche : ils
+## ont tous été vérifiés dans l'enceinte et libres au moment du semis, et
+## il y en a toujours au moins un.
+func _pose_de_repli(p: Vector3) -> Vector3:
+	if _points.is_empty():
+		_calculer_points()
+	if _points.is_empty():
+		return Vector3.ZERO
+	var meilleur: Vector3 = _points[0]
+	var ecart := INF
+	for q: Vector3 in _points:
+		var e := PlanMonde.distance3(p, q)
+		if e < ecart:
+			ecart = e
+			meilleur = q
+	return meilleur
+
+
 ## Ramène un point sur un sol praticable, ou `Vector3.INF` s'il n'y arrive
 ## pas. C'est l'arène qui sait où sont ses obstacles — on ne recopie pas sa
 ## carte ici.
@@ -241,7 +287,7 @@ func _process(delta: float) -> void:
 		return
 
 	var j := porteur()
-	if j == null or j.is_eliminated:
+	if not _vivant(j):
 		# LE PORTEUR A DISPARU SANS PASSER PAR LA MORT — déconnexion, ou
 		# retrait de la partie. L'étoile ne doit pas partir avec lui : on
 		# la rend au monde là où il se trouvait, ou à un point neuf si on
@@ -295,7 +341,7 @@ func tenter_ramassage(peer_id: int) -> void:
 	if not au_sol or porteur_id != 0:
 		return
 	var j := MatchDirector.players.get(peer_id) as Player
-	if j == null or not is_instance_valid(j) or j.is_eliminated:
+	if not _vivant(j):
 		return
 	Net.broadcast(self, &"net_ramasser", [peer_id])
 
@@ -312,16 +358,15 @@ func signaler_mort_porteur(peer_id: int, position: Vector3) -> void:
 	# espace praticable.
 	var pose := _corriger(position)
 	if pose == Vector3.INF:
-		pose = _corriger(Vector3.ZERO)
+		pose = _pose_de_repli(position)
 	Net.broadcast(self, &"net_lacher", [pose])
 
 
 ## SERVEUR — le porteur s'est volatilisé sans mourir.
 func _orpheline() -> void:
-	var pose := _corriger(position_sol if position_sol != Vector3.ZERO
-			else Vector3.ZERO)
+	var pose := _corriger(position_sol)
 	if pose == Vector3.INF:
-		pose = Vector3.ZERO
+		pose = _pose_de_repli(position_sol)
 	porteur_id = 0
 	temps = 0.0
 	au_sol = false

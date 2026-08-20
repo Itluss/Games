@@ -52,6 +52,7 @@ func _ready() -> void:
 	# Le monde met un peu plus d'une seconde à se bâtir ; l'étoile est
 	# semée une seconde après. On laisse la première apparition se faire.
 	await get_tree().create_timer(3.5).timeout
+	_figer_les_bots()
 	print("\n=== BANC DE L'ÉTOILE WANTED ===\n")
 	_test0_points_dans_larene()
 	await _test1_ramassage()
@@ -65,6 +66,42 @@ func _ready() -> void:
 	# compté comme non exécuté.
 	print("=== %d échec(s) ===" % _echecs)
 	get_tree().quit(1 if _echecs > 0 else 0)
+
+
+## ─── LES BOTS SONT FIGÉS PENDANT LA MESURE ───────────────────────────
+##
+## C'EST LA CORRECTION QUI REND CE BANC FIABLE, et elle vient de deux
+## échecs intermittents qui ne se ressemblaient pas :
+##
+##   • « le porteur est bien mort — vie = 100 » : un bot avait tué le
+##     joueur avant ma ligne, la réapparition l'avait rendu à cent points
+##     de vie, et mes dégâts tombaient sur quelqu'un qui venait de naître ;
+##   • « l'étoile est bien retombée — false » : un bot avait tout
+##     simplement RAMASSÉ l'étoile entre deux lignes du test.
+##
+## Aucun des deux n'est un défaut du mode. Ce sont des courses entre le
+## banc et une partie qui continue de tourner pendant qu'il mesure. Un
+## banc qui perd ces courses une fois sur deux ne dit plus rien : vert, il
+## ne prouve rien ; rouge, on ne sait pas quoi corriger.
+##
+## On coupe donc les cerveaux plutôt que de supprimer les bots : ils
+## restent en scène — le classement et le marquage des porteurs ont besoin
+## d'eux — mais ils ne bougent plus, ne tirent plus et ne ramassent plus.
+func _figer_les_bots() -> void:
+	var figes := 0
+	for n in get_tree().get_nodes_in_group(&"players"):
+		var j := n as Player
+		if j == null or not j.is_bot:
+			continue
+		var cerveau := j.get_node_or_null("Brain")
+		if cerveau != null:
+			cerveau.set_physics_process(false)
+			cerveau.set_process(false)
+			figes += 1
+		j.move_input = Vector2.ZERO
+		j.want_fire = false
+		j.want_tap = false
+	print("  (banc : %d cerveau(x) de bot figé(s) pour la mesure)" % figes)
 
 
 # --- OUTILLAGE -----------------------------------------------------------
@@ -191,11 +228,22 @@ func _test2_mort_a_mi_course() -> void:
 	a.star_hold_time = 18.0
 	await get_tree().process_frame
 
+	# ON REND SA VIE AVANT DE FRAPPER. Le banc joue une vraie partie : dix
+	# bots tirent pendant qu'il mesure, et le porteur pouvait être déjà
+	# mort quand la ligne suivante s'exécutait. Les dégâts étaient alors
+	# ignorés et le test accusait la règle d'un défaut qui n'était pas le
+	# sien — vu une fois sur trois passes.
+	a.health.current_health = a.health.max_health
+	a.health.is_dead = false
+	a.is_eliminated = false
+	await get_tree().process_frame
 	a.server_take_damage(9999.0, a.global_position, b.peer_id,
 			Cfg.Team.PLAYER)
 	await get_tree().process_frame
 	await get_tree().process_frame
 
+	_ligne(a.health.is_dead, "le porteur est bien mort",
+			"vie = %.0f" % a.health.current_health)
 	_ligne(EtoileDirector.porteur_id == 0,
 			"plus personne ne porte l'étoile",
 			"porteur = %d" % EtoileDirector.porteur_id)
@@ -344,22 +392,41 @@ func _test6_drop_contre_obstacle() -> void:
 	# rien du cas qu'il prétend couvrir.
 	var bouche := Vector3.INF
 	for essai in 400:
-		var p := Vector3(randf_range(-38.0, 38.0), 0.0,
-				randf_range(-38.0, 38.0))
+		# ±34 ET NON ±38 : l'enceinte s'arrête à 36 m, et tirer au-delà
+		# faisait échouer le test sur un point qui n'appartient tout
+		# simplement pas au terrain — un faux défaut, qui masquait le vrai.
+		var p := Vector3(randf_range(-34.0, 34.0), 0.0,
+				randf_range(-34.0, 34.0))
 		if not arene.call(&"position_libre", p, 1.4):
 			bouche = p
 			break
 	if bouche == Vector3.INF:
 		_ligne(false, "un point bouché trouvé dans l'arène", "aucun sur 400")
 		return
-	var corrige: Vector3 = EtoileDirector._corriger(bouche)
-	_ligne(corrige != Vector3.INF, "la correction rend une position",
-			str(corrige != Vector3.INF))
-	if corrige == Vector3.INF:
-		return
-	_ligne(arene.call(&"position_libre", corrige, 1.4),
-			"la position corrigée est praticable",
-			"écart %.2f m" % PlanMonde.distance3(bouche, corrige))
+	# ─── ON TESTE LA PAIRE, PAS L'ÉTAPE ────────────────────────────────
+	#
+	# La version précédente exigeait que `_corriger` rende toujours une
+	# position. Elle échouait une fois sur deux, et elle avait tort : la
+	# recherche d'espace libre explore en spirale sur dix-huit mètres, et
+	# elle a parfaitement le droit de ne rien trouver au fond d'un recoin
+	# dense. C'est précisément pour ce cas que `_pose_de_repli` existe.
+	#
+	# Ce qui doit être vrai, c'est que le SYSTÈME rende toujours une
+	# position jouable — par dégagement ou par repli, peu importe.
+	var resolu: Vector3 = EtoileDirector._corriger(bouche)
+	var par_repli := resolu == Vector3.INF
+	if par_repli:
+		resolu = EtoileDirector._pose_de_repli(bouche)
+	# TYPE EXPLICITE : `Node.call` rend un Variant, et l'inférence de type
+	# de GDScript refuse alors la déclaration. Le banc ne compilait plus, et
+	# comme `barriere.sh` signale ce cas par un message que mon filtre ne
+	# retenait pas, deux passes sont sorties parfaitement muettes.
+	var bonne: bool = resolu != Vector3.INF \
+			and bool(arene.call(&"dans_terrain", resolu, 0.0)) \
+			and bool(arene.call(&"position_libre", resolu, 1.4))
+	_ligne(bonne, "un point bouché se résout en position jouable",
+			"%s → %.1f, %.1f" % ["par repli" if par_repli else "par dégagement",
+					resolu.x, resolu.z])
 
 	# Et le chemin complet : on tue un porteur À CET ENDROIT-LÀ.
 	await _repartir()
