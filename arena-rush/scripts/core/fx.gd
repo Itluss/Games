@@ -443,7 +443,19 @@ func _prendre_maille() -> MeshInstance3D:
 		var m := StandardMaterial3D.new()
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		# ─── MÉLANGE NORMAL, PLUS ADDITIF ──────────────────────────────
+		#
+		# `glow_mat` avait déjà tiré cette leçon pour les projectiles ; les
+		# mailles du réservoir, elles, étaient restées en additif. Sur le
+		# sable en plein soleil, ajouter de l'or à du beige clair donne du
+		# blanc : l'éclair de bouche de Milo se rendait en rayures
+		# blanches, et celui de Ruby en anneau blanc. Aucune des deux
+		# identités ne survivait à ça.
+		#
+		# En mélange normal, la teinte REMPLACE le fond ; une étoile or sur
+		# du sable se lit, une étoile rose aussi. Le débordement lumineux
+		# reste assuré par la sur-exposition de l'albédo (`_teinter`).
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		m.emission_enabled = true
 		m.disable_receive_shadows = true
@@ -460,7 +472,12 @@ func _prendre_maille() -> MeshInstance3D:
 func _teinter(mi: MeshInstance3D, color: Color, energie: float,
 		panneau: bool) -> StandardMaterial3D:
 	var m := mi.material_override as StandardMaterial3D
-	m.albedo_color = Color(color.r, color.g, color.b, 1.0)
+	# L'ÉNERGIE PASSE PAR L'ALBÉDO. En mode non éclairé, Godot n'ajoute
+	# jamais l'émission : ce paramètre ne servait à rien depuis le premier
+	# jour (démonstration chiffrée au-dessus de `VisualKit.noyau_mat`).
+	# La sur-exposition plafonne le canal dominant pour que la teinte
+	# survive au lieu de virer au blanc.
+	m.albedo_color = VisualKit.sur_expose(color, energie, 1.0)
 	m.emission = color
 	m.emission_energy_multiplier = energie
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED if panneau \
@@ -539,22 +556,43 @@ func _etoile(branches: int) -> ArrayMesh:
 		return connu
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# ─── UNE ÉTOILE A UN CORPS, PAS SEULEMENT DES RAYONS ───────────────
+	#
+	# La version précédente n'était QUE des rayons, larges de 0,05 radian
+	# à un rayon de 0,14 — soit sept millimètres. À l'écran, ça ne faisait
+	# pas une étoile : ça faisait des cheveux. Ce qu'on voyait du départ de
+	# Milo, c'était en réalité la gerbe couchée derrière, et l'étoile
+	# passait pour un trait.
+	#
+	# On dessine donc un DISQUE central plein, d'où partent des rayons
+	# effilés mais assez larges à la base pour se lire. C'est la forme que
+	# la planche dessine : un cœur lumineux et des pointes franches.
+	var base := 0.30
+	var large := 0.34
+	var seg := maxi(branches * 3, 12)
+	for i in seg:
+		var a0 := TAU * float(i) / float(seg)
+		var a1 := TAU * float(i + 1) / float(seg)
+		st.set_normal(Vector3.BACK)
+		st.add_vertex(Vector3.ZERO)
+		st.set_normal(Vector3.BACK)
+		st.add_vertex(Vector3(cos(a0), sin(a0), 0) * base)
+		st.set_normal(Vector3.BACK)
+		st.add_vertex(Vector3(cos(a1), sin(a1), 0) * base)
 	for i in branches:
 		var a := TAU * float(i) / float(branches)
-		# Une branche est un triangle très effilé : large au centre, pointu
-		# au bout. C'est ce qui donne l'arête franche du dessin.
-		# UN RAYON SUR DEUX EST LONG. La planche dessine des étoiles à
-		# quatre grands rayons croisés, avec de plus courts entre eux —
-		# pas une roue de branches identiques. C'est ce contraste qui fait
-		# l'éclat ; des branches toutes pareilles font un soleil mou.
-		var l: float = 1.0 if i % 2 == 0 else 0.42
+		# L'ALTERNANCE N'A DE SENS QUE SUR UN NOMBRE PAIR. À cinq branches,
+		# elle laissait DEUX grands rayons côte à côte et une étoile
+		# bancale ; or cinq branches, c'est exactement ce que la planche
+		# dessine pour Milo et pour Ruby. Sur un nombre impair, on garde
+		# donc des rayons égaux.
+		var l: float = 1.0
+		if branches % 2 == 0 and i % 2 == 1:
+			l = 0.46
 		var pointe := Vector3(cos(a) * l, sin(a) * l, 0)
-		# ET ELLES SONT FINES. À 0,16 de large, une branche est un pétale ;
-		# à 0,05, c'est un éclat.
-		var large := 0.05
-		var g := Vector3(cos(a - large), sin(a - large), 0) * 0.14
-		var d := Vector3(cos(a + large), sin(a + large), 0) * 0.14
-		for v in [Vector3.ZERO, d, pointe, Vector3.ZERO, pointe, g]:
+		var g := Vector3(cos(a - large), sin(a - large), 0) * base
+		var d := Vector3(cos(a + large), sin(a + large), 0) * base
+		for v in [g, d, pointe]:
 			st.set_normal(Vector3.BACK)
 			st.add_vertex(v)
 	var m := st.commit()
@@ -648,22 +686,76 @@ func depart(parent: Node, pos: Vector3, dir: Vector3, profil: ProfilTir,
 					10, 2.2, 0.30, 0.42, -0.6)
 			_flash_light(parent, pos, color, 4.2, 5.2, 0.085)
 		_:
-			# MILO, RUBY, GUS : la gerbe nette de la planche, un anneau
-			# franc, une lumière vive. Elles se séparent par le nombre de
-			# pointes, l'allongement et le rythme — jamais par la couleur.
-			_poser_gerbe(parent, pos, dir, color, profil.flash_branches,
-					2.4, 0.78 * t, 0.06)
-			_poser_gerbe(parent, pos, dir, coeur, 4, 1.6, 0.36 * t, 0.05)
-			_anneau(parent, devant, dir, color, 0.46, 0.06, 4.0)
-			_flash_light(parent, pos, color, 1.9, 2.8, 0.05)
-			if profil.trainee == "ruban":
-				# RUBY : un second anneau CYAN dans la teinte secondaire.
-				# Deux couleurs dans un même départ, c'est sa signature —
-				# et elle reste lisible en gris grâce au double anneau.
-				_anneau(parent, devant + dir * 0.2, dir,
-						profil.couleur_secondaire, 0.68, 0.09, 3.6)
-				_emit_burst(parent, pos + dir * 0.3,
-						profil.couleur_secondaire, 9, 6.5, 0.08, 0.20, -1.0)
+			match profil.heros:
+				&"milo":
+					_depart_milo(parent, pos, devant, dir, color, coeur, t)
+				&"ruby":
+					_depart_ruby(parent, pos, devant, dir, profil, color,
+							coeur, t)
+				_:
+					# GUS et les armes de butin : le départ générique
+					# d'avant, inchangé. La consigne est de faire de Milo
+					# et Ruby l'étalon AVANT de reprendre les autres.
+					_poser_gerbe(parent, pos, dir, color,
+							profil.flash_branches, 2.4, 0.78 * t, 0.06)
+					_poser_gerbe(parent, pos, dir, coeur, 4, 1.6,
+							0.36 * t, 0.05)
+					_anneau(parent, devant, dir, color, 0.46, 0.06, 4.0)
+					_flash_light(parent, pos, color, 1.9, 2.8, 0.05)
+
+
+## ─── MILO : « ÉTOILE 5 BRANCHES, BREF, SANS FUMÉE » ──────────────────
+##
+## C'est mot pour mot la fiche de la planche, et la version précédente n'y
+## répondait pas : elle posait un ANNEAU de choc — un cerceau ouvert autour
+## de la taille du personnage — plus deux gerbes croisées dont les pointes
+## traversaient tout le cadre. Vu de côté, on lisait un cerceau et des
+## rayures, pas une étoile.
+##
+## Ici, une seule idée : une étoile plate à cinq rayons, tournée vers la
+## caméra, avec un cœur presque blanc plus petit et plus bref à l'intérieur.
+## La gerbe reste, mais COURTE, et seulement pour dire la direction du tir.
+## Aucun anneau : c'est lui qui faisait « effet de moteur de jeu » plutôt
+## que « coup de revolver ».
+##
+## Durées : 75 ms pour l'étoile, 55 pour le cœur — dans la fourchette
+## 0,05–0,10 s de la planche, et assez court pour ne masquer personne.
+func _depart_milo(parent: Node, pos: Vector3, devant: Vector3, dir: Vector3,
+		color: Color, coeur: Color, t: float) -> void:
+	_poser_etoile(parent, devant, color, 5, 0.40 * t, 0.075)
+	_poser_etoile(parent, devant, coeur, 5, 0.20 * t, 0.055)
+	# La gerbe ne sert plus qu'à ORIENTER, et elle a été réduite de moitié :
+	# à 0,30 elle était plus longue que l'étoile et c'est elle qu'on lisait,
+	# comme une lame jaune couchée sur le personnage.
+	_poser_gerbe(parent, pos, dir, color, 4, 1.8, 0.16 * t, 0.06)
+	_emit_burst(parent, pos + dir * 0.25, color, 9, 7.0, 0.09, 0.16, -1.5)
+	# LA LUMIÈRE ÉCLAIRE LE CANON, PAS TOUT LE SOL. À trois mètres de
+	# portée, elle posait sous le tireur une flaque jaune de six mètres,
+	# plus grande et plus voyante que le tir lui-même : le regard partait
+	# au sol au lieu de suivre la balle.
+	_flash_light(parent, pos, color, 1.8, 1.25, 0.055)
+
+
+## ─── RUBY : « ÉTOILE ROSE AVEC ACCENT CYAN » ─────────────────────────
+##
+## Deux étoiles décalées, pas deux anneaux : la rose au canon, la cyan un
+## peu devant et à quatre branches. Le décalage dans l'espace ET le nombre
+## de branches différent font que les deux se distinguent même en niveaux
+## de gris — c'est la règle « jamais par la couleur seule ».
+##
+## Tout est plus petit et plus court que chez Milo : sa fiche dit « rapide,
+## flashy, légère », et sa cadence est double. Un départ aussi gros que
+## celui de Milo, répété cinq fois par seconde, remplirait l'écran.
+func _depart_ruby(parent: Node, pos: Vector3, devant: Vector3, dir: Vector3,
+		profil: ProfilTir, color: Color, coeur: Color, t: float) -> void:
+	_poser_etoile(parent, devant, color, 5, 0.36 * t, 0.065)
+	_poser_etoile(parent, devant + dir * 0.12, profil.couleur_secondaire,
+			4, 0.26 * t, 0.055)
+	_poser_etoile(parent, devant, coeur, 4, 0.15 * t, 0.045)
+	_poser_gerbe(parent, pos, dir, color, 5, 1.6, 0.13 * t, 0.05)
+	_emit_burst(parent, pos + dir * 0.22, profil.couleur_secondaire, 12,
+			7.5, 0.07, 0.15, -1.2)
+	_flash_light(parent, pos, color, 1.6, 1.15, 0.05)
 
 
 ## IMPACT DE PROJECTILE, selon le profil. C'est la seconde moitié de la
@@ -704,19 +796,33 @@ func impact_profil(pos: Vector3, profil: ProfilTir, color: Color) -> void:
 					0.55, -1.2)
 			_flash_light(parent, pos, color, 3.4, 4.6, 0.11)
 		"scintille":
-			# RUBY : rose au centre, cyan tout autour. Le double anneau la
-			# rend reconnaissable même en niveaux de gris.
-			_poser_etoile(parent, pos, color, 6, 0.42 * t, 0.09)
-			_anneau(parent, pos, Vector3.UP, color, 0.50, 0.07, 4.0)
+			# RUBY : « étoile rose + éclats cyan ». Rose au centre, cyan
+			# tout autour ; le double anneau la rend reconnaissable même en
+			# niveaux de gris.
+			#
+			# DURÉES RELEVÉES DANS LA FOURCHETTE DE LA PLANCHE (0,10–0,25 s
+			# pour un impact). Elles étaient à 0,07–0,09 s, donc plus
+			# brèves que le minimum demandé : l'impact passait inaperçu là
+			# où il doit confirmer le coup au but.
+			_poser_etoile(parent, pos, color, 6, 0.46 * t, 0.12)
+			_poser_etoile(parent, pos, coeur, 4, 0.18 * t, 0.07)
+			_anneau(parent, pos, Vector3.UP, color, 0.50, 0.10, 4.0)
 			_anneau(parent, pos, Vector3.UP, profil.couleur_secondaire,
-					0.82, 0.13, 3.2)
+					0.82, 0.15, 3.2)
 			_emit_burst(parent, pos, profil.couleur_secondaire, 12, 7.5,
 					0.12, 0.32, -1.0)
 		_:
-			# MILO et GUS : l'étoile franche de la planche, quatre grands
-			# rayons, un anneau net, quelques étincelles qui retombent.
-			_poser_etoile(parent, pos, coeur, 8, 0.44 * t, 0.08)
-			_anneau(parent, pos, Vector3.UP, color, 0.48, 0.07, 4.0)
+			# MILO et GUS : « petite étoile or + étincelles ». Quatre
+			# grands rayons, un anneau net, des étincelles qui retombent.
+			#
+			# L'ÉTOILE PREND LA COULEUR DU TIREUR, plus le cœur presque
+			# blanc. Un impact blanc ne dit pas qui a touché : c'est la
+			# moitié de l'information perdue au moment précis où elle
+			# compte. Le cœur clair est conservé, mais PLUS PETIT et
+			# DERRIÈRE la teinte, comme sur la planche.
+			_poser_etoile(parent, pos, color, 8, 0.50 * t, 0.13)
+			_poser_etoile(parent, pos, coeur, 4, 0.20 * t, 0.07)
+			_anneau(parent, pos, Vector3.UP, color, 0.48, 0.11, 4.0)
 			_emit_burst(parent, pos, color, 10, 6.0, 0.09, 0.26, -7.0)
 
 

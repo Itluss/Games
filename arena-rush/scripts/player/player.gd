@@ -486,7 +486,15 @@ func server_take_damage(amount: float, from: Vector3, killer_id: int,
 		return
 	if not health.apply_damage(amount, from, killer_id):
 		return
-	Net.broadcast(self, &"net_health", [health.current_health, from])
+	# ─── LE COUP ENCAISSÉ PORTE LA COULEUR DE CELUI QUI L'A TIRÉ ───────
+	#
+	# C'est la cinquième colonne de la planche, et elle sert la règle
+	# d'identification mieux que tout le reste : quand on se fait toucher,
+	# on ne regarde pas le tireur — on regarde SON personnage. Un éclat
+	# doré dit « Milo », un éclat rose dit « Ruby », sans lever les yeux.
+	# Le rouge de danger uniforme ne disait rien de plus que « aïe ».
+	Net.broadcast(self, &"net_health",
+			[health.current_health, from, _teinte_du_tireur(killer_id)])
 	if health.is_dead:
 		Net.broadcast(self, &"net_die", [killer_id])
 		MatchDirector.eliminate(peer_id)
@@ -507,6 +515,21 @@ func server_take_damage(amount: float, from: Vector3, killer_id: int,
 ## La progression n'est tenue que pour le joueur LOCAL et humain. Un bot n'a
 ## pas de profil, et un joueur distant tient le sien sur sa propre machine —
 ## lui écrire son XP d'ici serait à la fois faux et impossible à valider.
+## Couleur d'identité du tireur, pour le retour de coup encaissé.
+##
+## Elle retombe sur le rouge de danger si le tireur n'est plus là — un mob,
+## la zone, ou un joueur parti entre le tir et l'impact.
+func _teinte_du_tireur(id: int) -> Color:
+	for n in get_tree().get_nodes_in_group(&"players"):
+		var j := n as Player
+		if j != null and j.peer_id == id:
+			var vis := j.weapon.profil_visuel() if j.weapon else null
+			if vis != null:
+				return vis.couleur
+			break
+	return Cfg.COL_DANGER
+
+
 func _crediter_elimination(killer_id: int, from_team: int) -> void:
 	if from_team != Cfg.Team.PLAYER or killer_id == 0 or killer_id == peer_id:
 		return
@@ -524,12 +547,13 @@ func _crediter_elimination(killer_id: int, from_team: int) -> void:
 
 
 @rpc("authority", "call_local", "unreliable_ordered")
-func net_health(value: float, from: Vector3) -> void:
+func net_health(value: float, from: Vector3,
+		teinte := Cfg.COL_DANGER) -> void:
 	if not Net.is_server():
 		health.set_replicated_health(value)
 	visual.set_state(CharacterVisual.State.HIT)
-	visual.flash(Cfg.COL_DANGER)
-	Fx.hit(global_position + Vector3(0, 1.0, 0), Cfg.COL_DANGER, 1.0)
+	visual.flash(teinte)
+	Fx.hit(global_position + Vector3(0, 1.0, 0), teinte, 1.0)
 	if peer_id == Net.local_id() and not is_bot:
 		Fx.shake(0.16)
 

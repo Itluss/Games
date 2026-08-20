@@ -48,17 +48,81 @@ static func mat(color: Color, emission: float = 0.0,
 ## temps. Le noyau est donc opaque : sa couleur remplace le fond au lieu de
 ## s'y ajouter, donc elle se voit sur n'importe quel décor. Le halo additif
 ## vient par-dessus, en second, pour le nerf.
+## ─── L'ÉNERGIE PASSE PAR L'ALBÉDO, PAS PAR `emission` ────────────────
+##
+## C'EST LE DÉFAUT QUI EXPLIQUE « PAS SPECTACULAIRE », et il ne se voyait
+## nulle part dans le code : tout paraissait réglé.
+##
+## En `SHADING_MODE_UNSHADED`, Godot écrit l'albédo tel quel et SAUTE la
+## passe d'éclairage — or `emission` est ajoutée dans cette passe. Un
+## matériau non éclairé ignore donc complètement son émission.
+##
+## Mesuré, pas supposé (`outils_dev/sonde_emission.gd`, trois carrés sur
+## fond noir) :
+##
+##     non éclairé + émission 3,0     →  r=0,027  v=0,000  b=0,000
+##     par pixel   + émission 3,0     →  r=1,000  v=1,000  b=0,600
+##     non éclairé + albédo 3,0       →  r=1,000  v=1,000  b=0,600
+##
+## Conséquence : TOUS les matériaux d'effet du jeu étant non éclairés,
+## aucun n'a jamais dépassé 1,0 de luminance — donc aucun n'a jamais
+## franchi `glow_hdr_threshold`, donc aucun tir n'a jamais fleuri. Monter
+## `emission_energy_multiplier` ne faisait littéralement rien.
+##
+## La troisième ligne donne la sortie : un albédo supérieur à 1 traverse
+## le mode non éclairé sans être écrêté. On y verse donc l'énergie.
+##
+## On garde `emission` renseignée : elle ne coûte rien et redevient juste
+## si un jour ces matériaux repassent en éclairage par pixel.
 static func noyau_mat(color: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	# À PEINE ÉCLAIRCI. Un premier essai à +35 % de clarté rendait toutes
 	# les munitions blanches : la teinte de l'arme, qui est le seul moyen
 	# de savoir qui tire quoi, disparaissait au profit d'un trait pâle.
-	m.albedo_color = color.lightened(0.1)
+	#
+	# LE FACTEUR 3,0 EST CE QUI FAIT BRÛLER LE NOYAU. Au-delà de 1, le
+	# pixel dépasse le seuil du halo et déborde ; en dessous, la balle
+	# reste une pastille mate. C'est la différence entre une munition
+	# qu'on voit et une munition qu'on devine.
+	# PAS D'ÉCLAIRCISSEMENT : la sur-exposition suffit à faire brûler le
+	# noyau, et un éclaircissement en plus le poussait vers le citron —
+	# l'or de Milo perdait sa chaleur, qui est la moitié de sa signature.
+	m.albedo_color = sur_expose(color, ENERGIE_NOYAU, 1.0)
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.emission_enabled = true
 	m.emission = color
-	m.emission_energy_multiplier = 0.9
+	m.emission_energy_multiplier = ENERGIE_NOYAU
 	return m
+
+## Facteur appliqué à l'albédo du noyau des projectiles.
+const ENERGIE_NOYAU := 1.9
+
+## Plafond du canal le plus clair après sur-exposition.
+##
+## POURQUOI UN PLAFOND PLUTÔT QU'UN SIMPLE PRODUIT. Premier essai : on
+## multipliait les trois canaux par l'énergie, jusqu'à 5,2 pour certaines
+## gerbes. L'or de Milo, (0,95 ; 0,70 ; 0,17), devenait (4,9 ; 3,6 ; 0,9) —
+## les trois canaux écrêtent, et il ne reste que du BLANC. Vérifié en
+## image : la balle de Milo n'était plus qu'une goutte pâle et son éclair
+## qu'une rayure blanche. Or la planche est explicite : « aucune
+## identification par la couleur seule », mais la couleur reste la moitié
+## du message.
+##
+## À 2,2, le canal dominant dépasse franchement le seuil du halo — donc ça
+## déborde — tandis que les autres gardent leur écart relatif : l'or reste
+## or, le rose reste rose.
+const PIC_SUR_EXPOSE := 2.2
+
+## Sur-expose une couleur SANS lui faire perdre sa teinte : on monte le
+## canal dominant jusqu'au plafond et on emmène les autres dans le même
+## rapport.
+static func sur_expose(color: Color, energie: float,
+		alpha: float) -> Color:
+	var pic: float = maxf(color.r, maxf(color.g, color.b))
+	var f: float = energie
+	if pic * f > PIC_SUR_EXPOSE:
+		f = PIC_SUR_EXPOSE / maxf(pic, 0.001)
+	return Color(color.r * f, color.g * f, color.b * f, alpha)
 
 ## Matériau lumineux des projectiles, traînées, gerbes et anneaux.
 ##
@@ -83,7 +147,12 @@ static func noyau_mat(color: Color) -> StandardMaterial3D:
 static func glow_mat(color: Color, energy: float = 3.0,
 		opacite: float = 1.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(color.r, color.g, color.b, opacite)
+	# `energy` PART DANS L'ALBÉDO — voir la démonstration au-dessus de
+	# `noyau_mat`. En mode non éclairé, `emission` n'est jamais lue ; ce
+	# paramètre, présent depuis toujours, n'avait donc aucun effet, et
+	# c'est pour cela que les gerbes, les anneaux et les traînées
+	# ressortaient plats quelle que soit la valeur qu'on y mettait.
+	m.albedo_color = sur_expose(color, energy, opacite)
 	m.emission_enabled = true
 	m.emission = color
 	m.emission_energy_multiplier = energy

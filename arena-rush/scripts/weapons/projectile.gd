@@ -21,6 +21,10 @@ class_name Projectile
 ## premier banc des armes a affiché.
 static var emis: int = 0
 
+## Sur-exposition du ruban. Au-dessus de 1, il franchit le seuil du halo
+## et déborde ; en dessous, c'est un ruban de papier.
+const ENERGIE_RUBAN := 2.0
+
 var data: WeaponData = null
 var direction: Vector3 = Vector3.FORWARD
 var shooter_id: int = 0
@@ -43,6 +47,11 @@ var _identite: ProfilTir = null
 ## Couleur effectivement rendue : celle du tireur, ou celle de l'arme.
 var _teinte: Color = Color.WHITE
 var _sphere: SphereShape3D
+var _ruban: MeshInstance3D
+## Distance parcourue depuis le départ. Elle sert de PHASE à l'ondulation :
+## c'est elle qui fait voyager la vague avec la balle au lieu de la laisser
+## battre sur place.
+var _parcouru: float = 0.0
 
 func _ready() -> void:
 	# Construction unique : l'objet étant recyclé, on ne rebâtit jamais sa
@@ -86,6 +95,40 @@ func _ready() -> void:
 	_halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_halo.mesh = hm
 	add_child(_halo)
+
+	# ─── LE RUBAN — LA TRAÎNÉE QUI REMPLACE LE « TRAIT LASER » ─────────
+	#
+	# Le retour était sans appel : « on dirait qu'un trait relie le tireur
+	# au projectile ». C'était exact — la queue conique faisait jusqu'à
+	# TROIS MÈTRES, et la planche l'a mise noir sur blanc dans sa colonne
+	# « ce qu'il faut éviter ».
+	#
+	# Le ruban est court, attaché à la balle, et reconstruit chaque trame
+	# dans le repère du projectile. Il tient dans une douzaine de segments,
+	# soit vingt-six sommets : sur trente projectiles simultanés, moins de
+	# huit cents sommets par image. Ce n'est rien, et c'est ce qui permet de
+	# lui donner une ONDULATION sans toucher à la trajectoire.
+	_ruban = MeshInstance3D.new()
+	_ruban.name = "Ruban"
+	_ruban.mesh = ImmediateMesh.new()
+	_ruban.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var rm := StandardMaterial3D.new()
+	rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# MÉLANGE NORMAL, PLUS ADDITIF — même raison que partout ailleurs :
+	# sur le sable en plein soleil, additif veut dire blanc.
+	rm.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+	rm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	rm.vertex_color_use_as_albedo = true
+	# L'albédo MULTIPLIE la couleur des sommets. On y met la sur-exposition
+	# une fois pour toutes : les couleurs de sommets restent dans [0,1] —
+	# où le rendu de compatibilité les quantifie sur huit bits — tandis que
+	# le débordement lumineux vient du matériau.
+	rm.albedo_color = Color(ENERGIE_RUBAN, ENERGIE_RUBAN, ENERGIE_RUBAN,
+			1.0)
+	rm.disable_receive_shadows = true
+	_ruban.material_override = rm
+	add_child(_ruban)
 
 	_sphere = SphereShape3D.new()
 	_shape = CollisionShape3D.new()
@@ -154,14 +197,22 @@ func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
 	# invisible sur un téléphone. On grossit donc ce qu'on voit d'un tiers
 	# sans toucher d'un millimètre à ce qui touche — la précision de tir
 	# reste exactement celle d'avant.
+	# ─── LA TÊTE EST PETITE, ET C'EST VOULU ────────────────────────────
+	#
+	# « La tête du projectile ressemble trop à une capsule de debug » —
+	# c'était vrai : elle valait 1,3 fois le calibre de collision, soit
+	# près de vingt centimètres de rayon pour Bruno. Quand le profil donne
+	# ses dimensions en mètres, elles priment. La visibilité vient alors de
+	# l'ÉMISSION et du halo, pas du volume : un point net et brûlant se voit
+	# mieux qu'une grosse pastille terne, et il ne cache personne.
 	var rv := r * 1.3
+	var lv := rv * 3.5
+	if _identite != null and _identite.tete_rayon > 0.0:
+		rv = _identite.tete_rayon
+		lv = _identite.tete_longueur
 	var cap := _mesh.mesh as CapsuleMesh
 	cap.radius = rv
-	# UN CALIBRE ET DEMI DE CORPS, pas deux et demi. Le premier réglage
-	# donnait à Bruno une balle de un mètre quatre-vingts — plus longue que
-	# lui. La proportion de la planche est celle d'une balle de revolver :
-	# une tête ronde et un corps court.
-	cap.height = rv * 2.0 + rv * 1.5
+	cap.height = maxf(lv, rv * 2.05)
 	cap.radial_segments = 10
 	cap.rings = 4
 	_mesh.material_override = VisualKit.noyau_mat(_teinte)
@@ -184,6 +235,19 @@ func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
 	# mètres à l'écran, quand la planche lui dessine une fumée COURTE et
 	# épaisse. Le trait long et fin, c'est la signature de Milo, de Nox et
 	# de Gus — pas la sienne.
+	# LE RUBAN PRIME SUR LE CÔNE. Le cône reste pour les armes de butin,
+	# qui n'ont pas de profil : elles gardent exactement le rendu d'avant.
+	_parcouru = 0.0
+	if _identite != null and _identite.trainee_metres > 0.0:
+		_halo.visible = false
+		_allonge = 0.0
+		_ruban.visible = true
+		_orienter()
+		_setup_trail()
+		visible = true
+		set_physics_process(true)
+		return
+	_ruban.visible = false
 	var longueur := 6.0
 	if _identite != null:
 		var facteur := 5.0
@@ -220,7 +284,7 @@ func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
 ## Aligne le corps du projectile sur sa vitesse réelle, pas sur la
 ## direction de tir : une grenade qui retombe doit pointer vers le bas.
 func _orienter() -> void:
-	if _allonge <= 0.0:
+	if _allonge <= 0.0 and not _ruban.visible:
 		return
 	var v := _velocity
 	if v.length_squared() < 0.01:
@@ -346,6 +410,81 @@ func _trainee_profil() -> void:
 	_trail.emitting = true
 
 
+## Reconstruit le ruban derrière la tête. Appelé chaque trame physique.
+##
+## Il est dessiné dans le repère LOCAL du projectile, dont l'avant est -Z :
+## la queue s'étale donc vers +Z. Le ruban est HORIZONTAL — la caméra plonge
+## à 52°, c'est le plan qui porte la lecture, et c'est aussi celui où une
+## ondulation latérale se voit.
+func _tracer_ruban() -> void:
+	var im := _ruban.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if _identite == null or _identite.trainee_metres <= 0.0 or _done:
+		return
+	# ─── DEUX BRINS CROISÉS, ET C'EST CE QUI LE REND VISIBLE ───────────
+	#
+	# Le ruban était une seule bande couchée dans le plan du sol. Vu de
+	# côté — donc à hauteur de canon, l'angle même de la planche — il est
+	# vu par la TRANCHE : il ne restait qu'un cheveu clair derrière la
+	# balle. On en trace donc deux, l'un horizontal, l'autre vertical.
+	# Vingt-six sommets de plus par projectile ; à trente projectiles, cela
+	# reste sous le millier de sommets par image.
+	_brin(im, Vector3.RIGHT)
+	_brin(im, Vector3.UP)
+
+
+## Un brin du ruban. `cote` porte la largeur : `RIGHT` couche la bande à
+## plat, `UP` la dresse.
+func _brin(im: ImmediateMesh, cote: Vector3) -> void:
+	var n := 12
+	var pas: float = _identite.trainee_metres / float(n)
+	# ─── LE RUBAN NE DOIT PAS ÊTRE PLUS LARGE QUE LA BALLE ─────────────
+	#
+	# À 2,4 fois le calibre, ce n'était plus une traînée mais un AILERON :
+	# un coin jaune opaque, deux fois et demie plus haut que le projectile,
+	# avec une coupe franche juste derrière lui. Vérifié en gros plan.
+	# La planche dit « trail fin », « épaisseur : fine » — donc au plus la
+	# largeur de la balle, et qui s'efface tout de suite.
+	var large: float = maxf(_identite.tete_rayon, 0.03) * 1.30
+	var ampl: float = _identite.trainee_ondulation
+	var periode: float = maxf(_identite.trainee_periode, 0.05)
+	var tete := _teinte
+	var bout: Color = _identite.couleur_bout
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in n + 1:
+		var t := float(i) / float(n)
+		var z := float(i) * pas
+		# L'ondulation est indexée sur la DISTANCE PARCOURUE, pas sur le
+		# temps : la vague voyage donc avec la balle et ne bat pas sur
+		# place. Le projectile, lui, ne bouge pas d'un millimètre.
+		var x := 0.0
+		if ampl > 0.0:
+			x = ampl * sin(TAU * (_parcouru - z) / periode)
+		# La largeur s'effile et l'opacité s'éteint : le ruban n'a ni bout
+		# net ni fin brutale, c'est ce qui l'empêche de faire un trait.
+		var w: float = large * pow(1.0 - t, 1.35)
+		# LE DÉGRADÉ EST EN AVANCE SUR LE FONDU. Avec un mélange linéaire,
+		# le cyan du bout de Ruby n'apparaissait que là où l'opacité était
+		# déjà retombée à presque rien : on ne voyait qu'un ruban rose,
+		# alors que la planche demande « rose + cyan ». En resserrant la
+		# courbe, la teinte de bout arrive AVANT que le ruban s'efface.
+		var c := tete.lerp(bout, pow(t, 0.55))
+		# Il n'est jamais tout à fait opaque, même au départ : c'est une
+		# traînée lumineuse, pas un drapeau. Le bord franc qu'on voyait
+		# venait d'un alpha à 1 collé au projectile.
+		# L'EXPOSANT DÉCIDE DE LA LONGUEUR VUE, pas `trainee_metres`. À
+		# 1,7, les deux tiers arrière du ruban étaient déjà transparents :
+		# on mesurait deux mètres de traînée et on en voyait quatre-vingts
+		# centimètres. À 1,15, la moitié arrière se voit encore.
+		c.a = 0.9 * pow(1.0 - t, 1.15)
+		var centre := Vector3(x, 0.0, z)
+		im.surface_set_color(c)
+		im.surface_add_vertex(centre - cote * w)
+		im.surface_set_color(c)
+		im.surface_add_vertex(centre + cote * w)
+	im.surface_end()
+
+
 func _physics_process(delta: float) -> void:
 	if _done or data == null:
 		return
@@ -360,6 +499,9 @@ func _physics_process(delta: float) -> void:
 	# mort de la limite.
 	global_position = PlanMonde.replier(global_position)
 	_orienter()
+	_parcouru += _velocity.length() * delta
+	if _ruban.visible:
+		_tracer_ruban()
 	var next := global_position + _velocity * delta
 
 	# Rebond sur le sol pour les grenades : lues comme des objets qui
@@ -431,6 +573,7 @@ func _detonate(at: Vector3, direct_target: Node = null) -> void:
 	set_physics_process(false)
 	visible = false
 	_trail.emitting = false
+	(_ruban.mesh as ImmediateMesh).clear_surfaces()
 
 	if data.splash_radius > 0.0:
 		Fx.explosion(at, data.splash_radius, _teinte)

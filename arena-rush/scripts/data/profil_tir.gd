@@ -67,6 +67,34 @@ class_name ProfilTir
 ## Seconde teinte, utilisée par les traînées à deux tons (Ruby).
 @export var couleur_secondaire: Color = Color.WHITE
 
+## ─── LA TÊTE ET LE RUBAN, EN MÈTRES ────────────────────────────────────
+##
+## POURQUOI EN MÈTRES ET PLUS EN MULTIPLES DU CALIBRE. Le calibre sert à la
+## COLLISION : y accrocher la taille du dessin liait la lisibilité à la
+## difficulté, et la moindre retouche de l'un déplaçait l'autre. Surtout,
+## un multiplicateur unique donnait à Milo une queue de trois mètres — le
+## « trait laser persistant » que la planche interdit explicitement.
+##
+## Une tête de vingt centimètres et un ruban d'un mètre : à la caméra de
+## jeu, cela fait un point net suivi d'un trait bref. C'est le dessin de la
+## planche, et c'est un choix de LISIBILITÉ, pas de puissance.
+@export var tete_rayon: float = 0.0
+@export var tete_longueur: float = 0.0
+## Longueur du ruban derrière la tête, en mètres. Zéro = ancien cône.
+@export var trainee_metres: float = 0.0
+## Amplitude latérale de l'ondulation, en mètres. Zéro = ruban droit.
+##
+## LE PROJECTILE, LUI, RESTE PARFAITEMENT DROIT. L'ondulation est dessinée
+## dans le ruban et nulle part ailleurs : la collision ne la voit pas, le
+## serveur ne la connaît pas, et la trajectoire ne s'en trouve pas
+## compliquée d'une ligne.
+@export var trainee_ondulation: float = 0.0
+## Longueur d'onde de cette ondulation, en mètres.
+@export var trainee_periode: float = 1.2
+## Couleur de la QUEUE du ruban. La tête garde `couleur` : c'est ce dégradé
+## qui donne à Ruby son rose-vers-cyan sans un seul shader.
+@export var couleur_bout: Color = Color(1, 1, 1, 0)
+
 @export_group("Impact")
 ## ETOILE     petite étoile nette — Milo, Gus.
 ## ECLATS     plusieurs éclats dispersés — Poppy.
