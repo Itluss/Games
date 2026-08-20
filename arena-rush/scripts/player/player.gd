@@ -851,13 +851,20 @@ func equip_weapon_id(id: StringName, slot: int) -> void:
 func server_pickup(id: StringName) -> StringName:
 	if Registry.weapon(id) == null:
 		return &""
-	var free_slot := slots.find(&"")
-	if free_slot != -1:
-		Net.broadcast(self, &"net_set_slot", [free_slot, id, true])
-		return &""
-	# Inventaire plein : on remplace l'arme ACTIVE. Le joueur choisit donc
-	# ce qu'il abandonne, simplement en sélectionnant son slot avant de
-	# marcher sur le loot.
+	# ─── UNE SEULE ARME EN MAIN : ON REMPLACE TOUJOURS ─────────────────
+	#
+	# L'inventaire comptait deux emplacements, et le ramassage remplissait
+	# d'abord celui qui était libre. C'était juste tant qu'un bouton
+	# permettait de basculer de l'un à l'autre ; ce bouton a été retiré de
+	# l'écran, et le deuxième emplacement serait devenu un trou noir : on
+	# ramasse une arme, elle y tombe, et rien ne peut l'en sortir.
+	#
+	# Le ramassage remplace donc TOUJOURS l'arme en main. Marcher sur un
+	# butin devient un choix franc — je prends celle-là et je laisse la
+	# mienne — au lieu d'un rangement invisible.
+	#
+	# Les emplacements eux-mêmes sont conservés : le jour où l'on remet un
+	# bouton d'échange, il n'y a que cette fonction à défaire.
 	var dropped := slots[active_slot]
 	Net.broadcast(self, &"net_set_slot", [active_slot, id, true])
 	return dropped

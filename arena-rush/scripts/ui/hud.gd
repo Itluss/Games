@@ -19,7 +19,6 @@ const MARGIN := 26
 const STICK_SIZE := 210
 const FIRE_SIZE := 168
 const ESQUIVE_SIZE := 104
-const ARME_SIZE := 92
 
 var player: Player = null
 
@@ -44,7 +43,6 @@ var _fire_tapped: bool = false
 ## Le bouton suit désormais son propre doigt, par index, exactement comme
 ## le joystick. La voie souris subsiste pour le bureau.
 var _doigt_tir: int = -1
-var _swap_button: UiKit.BoutonRond
 var _dash_button: UiKit.BoutonRond
 ## RENOMMÉ, ET CE N'EST PAS COSMÉTIQUE. Ce libellé s'appelait
 ## `_timer_label` et affichait le chronomètre de la partie. Le mode
@@ -52,18 +50,14 @@ var _dash_button: UiKit.BoutonRond
 ## niveau — mais `_process` continuait d'y réécrire « 0:52 » à chaque
 ## image, par-dessus « LV.1 ». Le défaut se voyait sur toute capture
 ## d'écran ; le nom, lui, le rendait invisible à la relecture.
-var _niveau_label: Label
 var _announce: UiKit.Banniere
 var _countdown: Label
 var _health_bar: UiKit.BarreVie
 var _slot_panels: Array[UiKit.CarteArme] = []
-var _slot_verrou: UiKit.CarteArme
-var _portrait: Portrait
 var _minicarte: Minicarte
 var _fps_label: Label
 var _classement: Classement
 var _wanted: BarreWanted
-var _barre_xp: UiKit.JaugeXp
 var _kill_fx: KillFeedback
 var _replay_center: CenterContainer
 var _tueur_affiche: String = ""
@@ -71,7 +65,6 @@ var _overlay: Control
 var _overlay_title: Label
 var _overlay_sub: Label
 
-var _swap_queued: bool = false
 var _dash_queued: bool = false
 var _help: Control = null
 
@@ -236,12 +229,15 @@ func _build_top() -> void:
 ## Largeur du bloc de carte, en pixels.
 const COTE_CARTE := 190
 ## Côté du portrait du bas, en pixels.
-const PORTRAIT := 68
 ## Largeur commune de la vie et de l'expérience. Alignée sur la rangée
 ## d'armes : trois blocs de largeurs différentes empilés donnent une pile
 ## en escalier, et l'œil lit un défaut là où il n'y a qu'un contenu plus
 ## court.
-const LARGEUR_BAS := 476
+## Largeur de la barre de vie du bas. Alignée sur la carte d'arme
+## au-dessus : deux blocs de largeurs différentes empilés donnent une pile
+## en escalier, et l'œil lit un défaut là où il n'y a qu'un contenu plus
+## court.
+const LARGEUR_BAS := 300
 ## Largeur du classement.
 const LARGEUR_CLASSEMENT := 232
 
@@ -399,61 +395,19 @@ func _build_bottom() -> void:
 	ligne.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(ligne)
 
-	# ─── LE PORTRAIT, AVEC SON NIVEAU POSÉ DESSUS ─────────────────────
+	# ─── CE QUI A ÉTÉ RETIRÉ D'ICI, ET POURQUOI ───────────────────────
 	#
-	# LA CELLULE EST UN `Control`, ET C'EST UN CORRECTIF. Le badge de
-	# niveau était enfant direct du `PanelContainer` : or ce conteneur
-	# REDIMENSIONNE tous ses enfants pour remplir sa zone, ancres
-	# comprises. Le badge se retrouvait donc étalé sur tout le cadre, par
-	# dessus le portrait, et n'affichait plus que « LV » tronqué — vérifié
-	# en capture. Un `Control` neutre ne touche à rien : le fond remplit,
-	# le badge reste dans son coin.
-	var cellule := Control.new()
-	cellule.custom_minimum_size = Vector2(PORTRAIT + 16, PORTRAIT + 16)
-	cellule.size_flags_vertical = Control.SIZE_SHRINK_END
-	cellule.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ligne.add_child(cellule)
-
-	var cadre := PanelContainer.new()
-	cadre.set_anchors_preset(Control.PRESET_FULL_RECT)
-	cadre.add_theme_stylebox_override(&"panel",
-			UiKit.panneau(18, UiKit.PANNEAU, UiKit.PANNEAU_BORD, 3))
-	cadre.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cellule.add_child(cadre)
-	var marge := MarginContainer.new()
-	for cote in [&"margin_left", &"margin_right", &"margin_top",
-			&"margin_bottom"]:
-		marge.add_theme_constant_override(cote, 8)
-	marge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cadre.add_child(marge)
-	_portrait = Portrait.new()
-	_portrait.custom_minimum_size = Vector2(PORTRAIT, PORTRAIT)
-	marge.add_child(_portrait)
-
-	# Le badge déborde légèrement en bas à droite du cadre : posé dedans,
-	# il mangeait le menton du portrait.
-	var socle := PanelContainer.new()
-	socle.add_theme_stylebox_override(&"panel",
-			UiKit.panneau(10, UiKit.CREUX, UiKit.OR_SOMBRE, 2))
-	socle.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	socle.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	socle.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	socle.offset_left = 6
-	socle.offset_top = 4
-	socle.offset_right = 6
-	socle.offset_bottom = 4
-	socle.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cellule.add_child(socle)
-	var mb := MarginContainer.new()
-	for cote in [&"margin_left", &"margin_right"]:
-		mb.add_theme_constant_override(cote, 6)
-	for cote in [&"margin_top", &"margin_bottom"]:
-		mb.add_theme_constant_override(cote, 1)
-	mb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	socle.add_child(mb)
-	_niveau_label = _label("LV.1", 16, UiKit.OR_CLAIR)
-	mb.add_child(_niveau_label)
-
+	# Le portrait, le badge de niveau, la barre d'expérience, le deuxième
+	# emplacement d'arme et l'emplacement verrouillé ont tous disparu.
+	#
+	# Ce ne sont pas des suppressions par économie : ces cinq éléments
+	# décrivaient un jeu de progression — collectionner, débloquer, monter
+	# de niveau — alors que le mode qui se joue est un deathmatch à
+	# réapparition permanente avec une étoile à tenir trente secondes. Rien
+	# de ce qu'ils affichaient ne change une décision prise en combat.
+	#
+	# Il reste donc les deux seules choses qu'on lit EN JOUANT : avec quoi
+	# je tire et combien il m'en reste, et combien de vie j'ai.
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override(&"separation", 8)
 	col.alignment = BoxContainer.ALIGNMENT_END
@@ -462,55 +416,30 @@ func _build_bottom() -> void:
 
 	var slots := HBoxContainer.new()
 	slots.alignment = BoxContainer.ALIGNMENT_CENTER
-	slots.add_theme_constant_override(&"separation", 10)
 	slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(slots)
 
-	# DEUX EMPLACEMENTS OUVERTS, UN VERROUILLÉ. Le troisième n'est pas un
-	# ornement : il montre ce que le niveau débloquera. Un emplacement vide
-	# ne dit rien ; un emplacement fermé avec sa condition écrite dessus
-	# donne une raison de continuer.
-	for i in 2:
-		var carte := UiKit.CarteArme.new()
-		# 196 ET NON 178. Resserrée, la carte faisait chevaucher le nom de
-		# l'arme et son compteur de munitions — « Shotgun » passait sous le
-		# « 24 ». Vérifié en capture au format téléphone.
-		carte.custom_minimum_size = Vector2(196, 70)
-		carte.gui_input.connect(_on_slot_input.bind(i))
-		carte.mouse_filter = Control.MOUSE_FILTER_STOP
-		carte.pivot_offset = Vector2(98, 35)
-		slots.add_child(carte)
-		_slot_panels.append(carte)
-
-	_slot_verrou = UiKit.CarteArme.new()
-	_slot_verrou.custom_minimum_size = Vector2(134, 70)
-	_slot_verrou.verrouille = true
-	_slot_verrou.nom = "ÉPÉE VORTEX"
-	_slot_verrou.condition = "NIV. %d" % NIVEAU_TROISIEME_ARME
-	_slot_verrou.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slots.add_child(_slot_verrou)
+	# ─── UN SEUL EMPLACEMENT, ET IL N'EST PLUS CLIQUABLE ──────────────
+	#
+	# Le bouton « ARME » et la sélection au doigt sur les cartes étaient
+	# les deux seules façons de changer d'arme. Les retirer sans toucher au
+	# reste aurait laissé un deuxième emplacement invisible où les armes
+	# ramassées seraient tombées pour ne jamais en ressortir — un butin
+	# qu'on prend et qu'on ne peut pas employer.
+	#
+	# L'inventaire tient donc en UNE arme : voir `Player.server_pickup`,
+	# qui remplace désormais toujours l'arme en main.
+	var carte := UiKit.CarteArme.new()
+	carte.custom_minimum_size = Vector2(LARGEUR_BAS, 70)
+	carte.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slots.add_child(carte)
+	_slot_panels.append(carte)
 
 	_health_bar = UiKit.BarreVie.new()
 	_health_bar.custom_minimum_size = Vector2(LARGEUR_BAS, 34)
 	_health_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_health_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_health_bar)
-
-	# L'EXPÉRIENCE EN FILET. Fine, sous la vie, sans chiffre : elle avance
-	# lentement et ne se lit jamais en urgence. Lui donner la même
-	# épaisseur qu'à la vie mettrait sur le même plan une information de
-	# survie et une information de collection.
-	_barre_xp = UiKit.JaugeXp.new()
-	_barre_xp.custom_minimum_size = Vector2(LARGEUR_BAS, 9)
-	_barre_xp.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_barre_xp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.add_child(_barre_xp)
-
-
-## Niveau auquel le troisième emplacement s'ouvrira. La valeur est ICI et
-## nulle part ailleurs : l'étiquette affichée et la règle qui l'ouvrira un
-## jour doivent être le même nombre.
-const NIVEAU_TROISIEME_ARME := 6
 
 
 func _build_controls() -> void:
@@ -563,15 +492,15 @@ func _build_controls() -> void:
 	# est pressé cent fois par partie ; l'échange d'arme est le plus petit
 	# parce qu'il l'est trois fois. Une taille égale pour les trois ferait
 	# manquer le seul qui compte.
-	_swap_button = UiKit.bouton_rond(ARME_SIZE, "ARME", &"echange",
-			UiKit.ARME_CLAIR, UiKit.ARME_SOMBRE)
-	_swap_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_swap_button.offset_left = -(FIRE_SIZE + MARGIN + ARME_SIZE + 18)
-	_swap_button.offset_top = -(MARGIN + ARME_SIZE + 8)
-	_swap_button.offset_right = -(FIRE_SIZE + MARGIN + 18)
-	_swap_button.offset_bottom = -(MARGIN + 8)
-	_swap_button.pressed.connect(func(): _swap_queued = true)
-	_root.add_child(_swap_button)
+	# ─── PLUS DE BOUTON « ARME » ──────────────────────────────────────
+	#
+	# Il servait à basculer entre deux emplacements ; il n'y en a plus
+	# qu'un. Le laisser aurait donné un bouton qui ne fait rien, ce qui est
+	# pire qu'un bouton absent : on appuie, on attend un effet, il ne vient
+	# pas, et l'on croit que le jeu a raté l'appui.
+	#
+	# La place gagnée profite au pouce droit, qui n'a plus que TIR et
+	# ESQUIVE à distinguer.
 
 	_dash_button = UiKit.bouton_rond(ESQUIVE_SIZE, "ESQUIVE", &"eclair",
 			UiKit.ESQUIVE_CLAIR, UiKit.ESQUIVE_SOMBRE)
@@ -659,27 +588,20 @@ func consume_tap() -> bool:
 	_fire_tapped = false
 	return v
 
-## Consommation à usage unique : le contrôleur lit l'appui une seule fois,
-## sinon un simple tap déclencherait un changement d'arme par image.
+## PLUS RIEN NE L'ARME, ET LA FONCTION RESTE. Le contrôleur l'interroge à
+## chaque image ; la supprimer demanderait de le modifier lui aussi, pour
+## un gain nul. Elle rend donc toujours faux, et la ligne le dit.
+##
+## Le jour où l'on voudra deux armes, il suffira de reposer un bouton :
+## tout le chemin en aval — `Player.swap_weapon`, la réplication, l'effet —
+## est intact.
 func consume_swap() -> bool:
-	var v := _swap_queued
-	_swap_queued = false
-	return v
+	return false
 
 func consume_dash() -> bool:
 	var v := _dash_queued
 	_dash_queued = false
 	return v
-
-func _on_slot_input(event: InputEvent, index: int) -> void:
-	var tapped: bool = false
-	if event is InputEventScreenTouch:
-		tapped = (event as InputEventScreenTouch).pressed
-	elif event is InputEventMouseButton:
-		var mb := event as InputEventMouseButton
-		tapped = mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT
-	if tapped and player and player.active_slot != index:
-		_swap_queued = true
 
 # --- MISES À JOUR --------------------------------------------------------
 
@@ -740,15 +662,12 @@ func _rafraichir_progression() -> void:
 	# sur les joueurs eux-mêmes, ce qui est la seule façon de citer aussi
 	# les bots. La série, elle, n'a plus de place à l'écran : elle reste
 	# tenue par `Profil` et célébrée par le retour d'élimination.
-	if _niveau_label == null:
-		return
-	var etat := Profil.etat_niveau()
-	_niveau_label.text = "LV.%d" % int(etat["niveau"])
-	_barre_xp.regler(int(etat["xp_dans_niveau"]), int(etat["xp_du_niveau"]))
-	if _slot_verrou:
-		# L'emplacement fermé disparaît le jour où le niveau l'ouvre : une
-		# case verrouillée qu'on a débloquée n'a plus rien à dire.
-		_slot_verrou.visible = int(etat["niveau"]) < NIVEAU_TROISIEME_ARME
+	# ET LE NIVEAU AUSSI A QUITTÉ L'ÉCRAN. Portrait, badge de niveau et
+	# barre d'expérience décrivaient un jeu de progression ; le mode qui se
+	# joue est un deathmatch permanent avec une étoile à tenir. `Profil`
+	# continue de tout enregistrer — la progression n'est pas supprimée,
+	# elle n'est plus AFFICHÉE en combat.
+	pass
 
 
 func _on_niveau_gagne(niveau: int) -> void:
