@@ -3,6 +3,7 @@ extends SceneTree
 func _init() -> void:
 	print("%-26s %7s %7s   %s" % ["pièce", "tot.", "socle", "objet utile (m)"])
 	for n in ["west_rock_formation_a","west_rock_formation_b","west_rock_small",
+			"west_stonewall_short",
 			"west_stonewall_straight","west_fence_straight","west_sign_wood",
 			"west_haybale","west_crate","west_barrel","west_wagon","west_cactus_a"]:
 		if not KitWestern.disponible(n):

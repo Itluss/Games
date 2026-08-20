@@ -2240,6 +2240,28 @@ func _murets_western() -> void:
 			sh.rotation.y = -a + PI * 0.5
 			_obstacles.add_child(sh)
 
+		# ─── L'ÉBOULIS DU BOUT, ET POURQUOI IL N'EST QUE DÉCOR ─────────
+		#
+		# `west_stonewall_short` a été commandé pour faire le muret
+		# lui-même. Mesuré, il fait 1,90 de long pour 0,58 de haut : c'est
+		# un ÉBOULIS BAS, pas un mur à hauteur de poitrine — même verdict
+		# que `west_stonewall_straight`. L'étirer jusqu'à 1,50 m de haut
+		# donnerait un mur invisible : 40 cm de pierre visible et une
+		# collision à 1,50, dans laquelle le joueur se cogne sans
+		# comprendre. On le garde donc à SES proportions, posé au bout du
+		# muret comme la planche le montre, et SANS COLLISION : le level
+		# design validé ne bouge pas d'un centimètre pour une décoration.
+		var bout := a0 + arc
+		var pb := c + Vector2(cos(bout), sin(bout)) * r
+		var eb := KitWestern.instancier(&"west_stonewall_short",
+				Vector3(1.45, 0.44, 0.93))
+		if eb != null:
+			eb.name = "Prop_west_stonewall_short"
+			eb.position = Vector3(pb.x, PlanAreneWestern.LEVEE, pb.y)
+			eb.rotation.y = -bout + PI * 0.5 + rng.randf_range(-0.25, 0.25)
+			add_child(eb)
+			_props += 1
+
 
 ## BARRIERES DE BOIS — deux lisses sur des poteaux. Elles arretent le corps
 ## mais laissent VOIR au travers, ce qui en fait le seul couvert de la
