@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://dbg60gc4yh7tg"
+path="res://.godot/imported/west_stonewall_straight_normal.png-76eae6cc7e480af3a338d0736d5153f0.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "4c74ec5696e280ff0aa3e93d75061ed9"
+}
+
+[deps]
+
+source_file="res://assets/models/west_stonewall_straight_normal.png"
+dest_files=["res://.godot/imported/west_stonewall_straight_normal.png-76eae6cc7e480af3a338d0736d5153f0.ctex"]
+
+[params]
+
+compress/mode=1
+compress/high_quality=false
+compress/lossy_quality=0.75
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=256
+detect_3d/compress_to=1
