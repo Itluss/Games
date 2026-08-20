@@ -37,6 +37,16 @@ class_name PlanAreneWestern
 const COTE := 80.0
 const DEMI := COTE * 0.5
 ## Rayon de la clôture. Au-delà, le désert continue visuellement.
+## LEVÉE ANTI-SCINTILLEMENT — douze millimètres, et ce n'est pas cosmétique.
+##
+## Meshy livre chaque modèle pieds à y = 0 : sa face inférieure tombe alors
+## EXACTEMENT dans le plan du sol. Deux surfaces coplanaires se disputent
+## le même pixel, et laquelle gagne dépend de l'arrondi de la profondeur —
+## la pièce clignote dès que la caméra bouge, et jamais sur une capture
+## fixe. Douze millimètres les départagent, et personne ne voit flotter
+## quoi que ce soit depuis dix mètres de haut.
+const LEVEE := 0.012
+
 const RAYON_CLOTURE := 38.0
 ## Anneau libre exigé autour de chaque grosse masse, en mètres.
 const DEGAGEMENT := 3.6

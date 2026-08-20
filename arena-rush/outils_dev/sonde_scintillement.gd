@@ -19,11 +19,16 @@ extends Node3D
 ##   2. CHEVAUCHEMENT ANORMAL — deux grosses masses qui s'interpénètrent.
 ##      Tolérable sur quelques centimètres (un débris posé contre un mur),
 ##      pathologique au-delà.
-##   3. PIÈCE ENFONCÉE — sa base est sous le sol. Les faces qui traversent
-##      le plan du sol se battent avec lui sur toute leur surface.
-##   4. PIÈCE POSÉE PILE À ZÉRO — sa face inférieure est EXACTEMENT dans le
-##      plan du sol. C'est la cause la plus sournoise : géométriquement
-##      irréprochable, et elle clignote quand même.
+##   3. BASE AU RAS D'UN PLAN DE SOL — la face inférieure d'une pièce
+##      tombe à quelques millimètres du sol. C'est la cause la plus
+##      sournoise : géométriquement irréprochable, et elle clignote quand
+##      même. Attention au raisonnement inverse, que cette sonde a tenu un
+##      temps : une pièce ENFONCÉE ne clignote pas. Une face verticale qui
+##      traverse le sol ne lui dispute aucun pixel, elle est simplement
+##      cachée dessous. Les socles des modèles Meshy sont enterrés exprès.
+##   4. PIÈCE ENFOUIE — sous un demi-mètre de sol. Celle-là n'est pas un
+##      défaut de rendu mais une pose ratée ; elle est mesurée à part et
+##      nommée pour ce qu'elle est.
 ##
 ## La sonde ne juge pas la beauté du niveau. Elle ne répond qu'à une
 ## question : « quelque chose va-t-il clignoter ? »
@@ -60,7 +65,7 @@ func _ready() -> void:
 
 	_doublons(pieces)
 	_chevauchements(pieces)
-	_enfoncements(pieces)
+	_enfoncements(pieces, _plans_de_sol(arene))
 	_sols_multiples(arene)
 
 	print("")
@@ -81,7 +86,7 @@ func _ligne(ok: bool, libelle: String, detail: String) -> void:
 ## MONDIALE — c'est elle qui dit ce qui occupe quel volume.
 func _relever(n: Node, out: Array[Dictionary] = []) -> Array[Dictionary]:
 	var mi := n as MeshInstance3D
-	if mi != null and mi.mesh != null and mi.name != "Sol":
+	if mi != null and mi.mesh != null and not _est_du_sol_ou_fondu(mi):
 		var b := mi.get_aabb()
 		var coins: Array[Vector3] = []
 		for i in 8:
@@ -97,6 +102,26 @@ func _relever(n: Node, out: Array[Dictionary] = []) -> Array[Dictionary]:
 	for e in n.get_children():
 		_relever(e, out)
 	return out
+
+
+## CE QUI N'EST PAS UNE PIÈCE.
+##
+## Trois maillages ne se jugent pas comme des props, et les compter comme
+## tels faisait crier la sonde sur du travail sain :
+##
+##   · « Sol » et « Dalles » SONT le sol. Une pièce coplanaire avec le sol
+##     est un défaut ; le sol coplanaire avec lui-même est une tautologie.
+##   · « Fusion_… » est un LOT FONDU — toutes les caisses d'une teinte
+##     réunies en un seul maillage pour n'être dessinées qu'une fois. Sa
+##     boîte englobante couvre l'arène entière, donc recouvre celle de tous
+##     les autres à cent pour cent. La sonde y voyait le pire
+##     chevauchement possible là où il n'y a qu'un gain de performance.
+##
+## Une sonde qui accuse ce qu'elle devrait ignorer finit par être ignorée
+## elle-même — et c'est comme ça qu'un vrai scintillement passe.
+func _est_du_sol_ou_fondu(mi: MeshInstance3D) -> bool:
+	return mi.name == "Sol" or mi.name == "Dalles" \
+			or String(mi.name).begins_with("Fusion_")
 
 
 ## Remonte au pivot posé par l'arène : c'est LUI la pièce, pas la maille.
@@ -149,6 +174,23 @@ func _chevauchements(pieces: Array[Dictionary]) -> void:
 			# dans une grosse est le vrai défaut, et le rapport au volume
 			# total le diluerait jusqu'à l'invisible.
 			var part := inter.get_volume() / minf(a.get_volume(), b.get_volume())
+			# ET LE CENTRE DE LA PETITE DOIT ÊTRE AU CŒUR DE LA GROSSE.
+			#
+			# La boîte englobante d'un rocher Meshy est un pavé posé autour
+			# d'une forme irrégulière montée sur un socle : une caisse
+			# rangée contre le flanc du rocher tombe DANS la boîte sans
+			# jamais toucher la pierre. La sonde criait alors à
+			# l'interpénétration sur des poses parfaitement propres — six
+			# fois de suite, ce qui est le meilleur moyen de faire ignorer
+			# la septième, celle qui aurait été vraie. On exige donc que le
+			# centre de la petite pièce soit dans le TIERS CENTRAL de la
+			# grosse : là, elle est vraiment dedans.
+			var grosse: AABB = a if a.get_volume() >= b.get_volume() else b
+			var petite: AABB = b if a.get_volume() >= b.get_volume() else a
+			var noyau := AABB(grosse.position + grosse.size * 0.25,
+					grosse.size * 0.5)
+			if not noyau.has_point(petite.get_center()):
+				continue
 			pire = maxf(pire, part)
 			if part > SEUIL_CHEVAUCHEMENT:
 				pires.append("%s ∩ %s (%.0f %%)"
@@ -160,25 +202,61 @@ func _chevauchements(pieces: Array[Dictionary]) -> void:
 		print("        → %s" % p)
 
 
-func _enfoncements(pieces: Array[Dictionary]) -> void:
-	var enfonces: Array[String] = []
-	var rases: Array[String] = []
-	var plus_bas := INF
+## CE QUI FAIT CLIGNOTER, C'EST LA PROXIMITÉ, PAS LA PROFONDEUR.
+##
+## La première version de cette mesure signalait toute pièce dont la base
+## passait sous zéro. Le raisonnement écrit à côté — « les faces qui
+## traversent le plan du sol se battent avec lui » — est FAUX, et il m'a
+## fait chercher un défaut là où il n'y en avait pas. Deux surfaces ne se
+## disputent un pixel que si elles sont COPLANAIRES. Une face verticale qui
+## traverse le sol ne lui dispute rien : elle est simplement cachée en
+## dessous.
+##
+## Ce qui compte est donc la DISTANCE de la base de chaque pièce au plan de
+## sol le plus proche. Les modèles Meshy arrivent sur un socle qu'on
+## enterre exprès — treize centimètres pour les gros rochers — et c'est
+## sain tant que cette base ne vient pas frôler un plan de sol.
+##
+## Reste une seconde question, qui n'a rien à voir avec le scintillement :
+## une pièce enfouie d'un demi-mètre n'est pas un défaut de rendu, c'est
+## une pose ratée. Elle garde sa mesure, séparée et nommée pour ce qu'elle
+## est.
+func _enfoncements(pieces: Array[Dictionary], sols: Array[float]) -> void:
+	var frolent: Array[String] = []
+	var enfouies: Array[String] = []
+	var plus_proche := INF
 	for p: Dictionary in pieces:
 		var y: float = (p["aabb"] as AABB).position.y
-		plus_bas = minf(plus_bas, y)
-		if y < -0.02:
-			enfonces.append("%s (base à %.3f m)" % [p["nom"], y])
-		elif y < LEVEE_MINI:
-			rases.append("%s (base à %.4f m)" % [p["nom"], y])
-	_ligne(enfonces.is_empty(), "aucune pièce enfoncée dans le sol",
-			"base la plus basse %.3f m" % plus_bas)
-	for e in enfonces.slice(0, 6):
+		var d := INF
+		for s_y: float in sols:
+			d = minf(d, absf(y - s_y))
+		plus_proche = minf(plus_proche, d)
+		if d < LEVEE_MINI:
+			frolent.append("%s (base à %.4f m, plan à %.4f m)"
+					% [p["nom"], y, y + d])
+		if y < -0.50:
+			enfouies.append("%s (base à %.3f m)" % [p["nom"], y])
+	_ligne(frolent.is_empty(), "aucune base au ras d'un plan de sol",
+			"écart le plus faible %.4f m (seuil %.3f)"
+			% [plus_proche, LEVEE_MINI])
+	for f in frolent.slice(0, 6):
+		print("        → %s" % f)
+	_ligne(enfouies.is_empty(), "aucune pièce enfouie",
+			"%d pièce(s) sous -0.50 m" % enfouies.size())
+	for e in enfouies.slice(0, 6):
 		print("        → %s" % e)
-	_ligne(rases.is_empty(), "aucune pièce coplanaire avec le sol",
-			"%d pièce(s) sous %.3f m" % [rases.size(), LEVEE_MINI])
-	for r in rases.slice(0, 6):
-		print("        → %s" % r)
+
+
+## RELÈVE LES PLANS DE SOL — le dessus du pavé, et la nappe de dalles.
+func _plans_de_sol(n: Node, out: Array[float] = []) -> Array[float]:
+	var mi := n as MeshInstance3D
+	if mi != null and mi.mesh != null \
+			and (mi.name == "Sol" or mi.name == "Dalles"):
+		var b := mi.get_aabb()
+		out.append(mi.global_position.y + b.position.y + b.size.y)
+	for e in n.get_children():
+		_plans_de_sol(e, out)
+	return out
 
 
 ## UN SEUL SOL. Deux dalles de sol superposées est la cause de

@@ -417,6 +417,15 @@ func _fermer_fusion() -> void:
 		# artistique évite.
 		st.generate_normals(false)
 		var mi := MeshInstance3D.new()
+		# NOMMÉE POUR CE QU'ELLE EST : UN LOT FONDU, PAS UNE PIÈCE.
+		#
+		# La sonde de scintillement relevait ces maillages comme des props
+		# ordinaires. Or un lot fondu couvre TOUTE l'arène : sa boîte
+		# englobante recouvre celle de tous les autres à cent pour cent, et
+		# la sonde criait au chevauchement pathologique sur ce qui est
+		# précisément l'optimisation qu'on cherche. Le nom lui permet de
+		# les écarter — et à moi de lire ses rapports.
+		mi.name = "Fusion_%s" % cle
 		mi.mesh = st.commit()
 		var teinte: Color = e["teinte"]
 		if bool(e["emissif"]):
@@ -580,6 +589,16 @@ func _build_ground() -> void:
 	# problème. Sur une dalle plate posée au sol et jamais vue par en
 	# dessous, désactiver l'élimination des faces arrière ne coûte rien —
 	# aucune face cachée n'est dessinée en plus.
+	# LES DEUX FACES SONT DESSINÉES, ET CE N'EST PAS UN CAPRICE.
+	#
+	# Écrite à la main, la nappe est sortie TOURNÉE VERS LE BAS : le moteur
+	# l'écartait en entier et le sable lointain se voyait à travers. Rien
+	# n'avait l'air cassé — c'est le pire des symptômes, et il m'a coûté
+	# trois rendus avant que je pense à mettre le doute sur l'orientation
+	# plutôt que sur la couleur. Plutôt que de raisonner une fois de plus
+	# sur un sens de rotation, on retire la question : une nappe plate que
+	# la caméra ne voit jamais par en dessous n'a rien à gagner au tri des
+	# faces arrière.
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	for iz in NB_CELLULES:
 		for ix in NB_CELLULES:
@@ -1788,6 +1807,88 @@ func _sol_arene_test() -> void:
 	_obstacles.add_child(col)
 
 
+
+## LA NAPPE DE DALLES — ce qui sort l'aire de jeu de l'aplat.
+##
+## Un seul aplat de sable sur quatre-vingts mètres ne donne AUCUN repère :
+## le joueur ne voit pas qu'il avance, et les distances deviennent
+## illisibles. La maquette ne fait pas ça — elle montre un sol craquelé en
+## plaques, chacune d'une valeur légèrement différente.
+##
+## POURQUOI DES COULEURS DE SOMMET ET PAS DES PLAQUES POSÉES DESSUS. Une
+## plaque posée sur le sol serait COPLANAIRE avec lui, et c'est exactement
+## le défaut de scintillement que le décalage de huit millimètres a coûté
+## cher à corriger. Ici il n'y a qu'un seul maillage : la variation est
+## portée par la couleur des sommets, donc aucune surface n'en dispute une
+## autre. Un matériau, un appel de rendu, environ seize cents triangles.
+func _dalles_western() -> void:
+	const PORTEE := 46.0
+	const PAS := 3.0
+	const GIGUE := 0.85
+	var n := int(PORTEE * 2.0 / PAS)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4477
+
+	# LES SOMMETS SONT DÉPLACÉS AVANT D'ÊTRE UTILISÉS, ET C'EST TOUT
+	# L'INTÉRÊT DE LA NAPPE.
+	#
+	# Une grille régulière donne un damier de cuisine — c'est ce qu'a
+	# rendu le premier essai. En bougeant chaque NOEUD de la grille d'un
+	# tirage partagé par les quatre dalles qui s'y touchent, les dalles
+	# deviennent des quadrilatères irréguliers qui se raccordent quand
+	# même sans trou. C'est la craquelure de la maquette.
+	var noeuds: Array = []
+	for ix in n + 1:
+		var colonne: Array = []
+		for iz in n + 1:
+			colonne.append(Vector2(
+					-PORTEE + float(ix) * PAS + rng.randf_range(-GIGUE, GIGUE),
+					-PORTEE + float(iz) * PAS + rng.randf_range(-GIGUE, GIGUE)))
+		noeuds.append(colonne)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for ix in n:
+		for iz in n:
+			var a2: Vector2 = noeuds[ix][iz]
+			var b2: Vector2 = noeuds[ix + 1][iz]
+			var c2: Vector2 = noeuds[ix + 1][iz + 1]
+			var d2: Vector2 = noeuds[ix][iz + 1]
+			var m2: Vector2 = (a2 + b2 + c2 + d2) * 0.25
+			# On saute les dalles hors du disque : au-delà de la clôture,
+			# c'est le grand pavé sombre du lointain qui doit se voir.
+			if m2.length() > PORTEE:
+				continue
+			var teinte: Color = W_DALLES[rng.randi_range(0, 3)]
+			# Le centre porte la teinte pleine, les coins une version
+			# assombrie : le dégradé entre les deux creuse un joint sombre
+			# le long de chaque bord, sans une seule texture.
+			var bord := teinte.darkened(0.13)
+			var m := Vector3(m2.x, 0.0, m2.y)
+			for paire in [[a2, b2], [b2, c2], [c2, d2], [d2, a2]]:
+				st.set_normal(Vector3.UP)
+				st.set_color(teinte)
+				st.add_vertex(m)
+				for k in 2:
+					var v: Vector2 = paire[k]
+					st.set_normal(Vector3.UP)
+					st.set_color(bord)
+					st.add_vertex(Vector3(v.x, 0.0, v.y))
+	var mi := MeshInstance3D.new()
+	mi.name = "Dalles"
+	mi.mesh = st.commit()
+	var mat := VisualKit.mat(Color.WHITE, 0.0, 0.95)
+	mat.vertex_color_use_as_albedo = true
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	# Deux centimètres au-dessus du grand pavé, huit millimètres sous les
+	# pieds des props : les deux marges qui empêchent le scintillement.
+	mi.position = Vector3(0, -0.008, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	print("SONDE dalles surf=", mi.mesh.get_surface_count() if mi.mesh else -1, " aabb=", mi.mesh.get_aabb() if mi.mesh else "nul")
+
+
 ## POSE UNE PIÈCE, ET LA LÈVE DE DOUZE MILLIMÈTRES.
 ##
 ## LA LEVÉE EST LE CORRECTIF ANTI-SCINTILLEMENT. PropKit pose chaque modèle
@@ -1880,15 +1981,37 @@ func _mur_arene_test() -> void:
 ## le sol est un plan sans relief qui prend la lumière de plein fouet,
 ## alors que les socles sont bombés et s'auto-ombrent. Réglé à l'oeil sur
 ## la capture, pas au nuancier.
-const W_SABLE := Color("d9a765")
+## Sable du LOINTAIN — tout ce qui est au-delà de la clôture. Plus sourd
+## que celui de l'aire de jeu : sur la maquette, l'arène est un îlot clair
+## posé sur un désert plus foncé, et c'est ce contraste qui dit au joueur
+## où finit le terrain.
+const W_SABLE := Color("a87b3f")
+## Les quatre valeurs des dalles de l'aire de jeu, prises sur la maquette.
+## Les quatre valeurs des dalles de l'aire de jeu. Elles sont VOLONTAIREMENT
+## proches les unes des autres : le premier essai les écartait de vingt pour
+## cent et le sol devenait un damier de cuisine, qui tirait l'oeil au lieu
+## de le laisser tranquille. Ce qu'on veut, c'est un sol qui ne soit pas
+## plat — pas un sol qui se remarque.
+const W_DALLES := [Color("cf9c58"), Color("c6934f"),
+		Color("bd8a48"), Color("b48141")]
 const W_ROCHE := Color("c0603c")
 const W_ROCHE_SOMMET := Color("d87a52")
-const W_PIERRE := Color("7a6a58")
-## Assise supérieure du muret : plus claire, pour que l'arête se voie.
-const W_PIERRE_HAUT := Color("94826c")
+## Les trois valeurs de la pierre des murets, prises sur la planche : un
+## crème clair, un moyen, un plus chaud. Trois teintes SEULEMENT — chaque
+## teinte crée son propre matériau à la fusion, et une pierre par teinte
+## rendrait la fusion inutile.
+const W_MURET := [Color("d3c7ae"), Color("bcae92"), Color("a2947a")]
 const W_BOIS := Color("9c6334")
 const W_FOIN := Color("e0b352")
 const W_CACTUS := Color("5f9c4a")
+## Les teintes du semis de décor. Deux valeurs par famille, pas plus :
+## chaque teinte crée son propre matériau à la fusion.
+## Le premier essai les avait en vert franc et en pierre presque blanche :
+## les buissons se lisaient comme des objets à ramasser et les cailloux
+## comme des hexagones posés là. Sourdes, les deux redeviennent du décor.
+const W_BUISSON := [Color("4c7133"), Color("42632c")]
+const W_CAILLOU := [Color("94805f"), Color("7e6c50")]
+const W_HERBE := [Color("9a9a52"), Color("87873f")]
 
 ## Compteur d'alternance des deux formations rocheuses.
 var _n_form: int = 0
@@ -1903,6 +2026,7 @@ func _batir_arene_western() -> void:
 	_chariots_western()
 	_petits_western()
 	_vegetation_western()
+	_semis_decor_western()
 	_cloture_western()
 	_fermer_fusion()
 
@@ -1919,9 +2043,13 @@ func _batir_arene_western() -> void:
 ##
 ## Il deborde tres largement l'arene : depuis la camera, on ne doit jamais
 ## en voir la fin. Un sol qui s'arrete transforme un desert en plateau de
-## tournage. Une seule dalle, une seule teinte, aucun motif : le sol est un
-## FOND, et sa seule mission est qu'on lise les joueurs et les projectiles
-## par-dessus.
+## tournage.
+##
+## Il est en DEUX morceaux. Un grand pave sombre pour le lointain, et
+## par-dessus l'aire de jeu, la nappe de dalles craquelees de
+## `_dalles_western`. Le pave seul suffisait a la lisibilite mais donnait
+## un aplat sans aucun repere : on ne voyait plus qu'on avancait, et les
+## distances devenaient impossibles a juger.
 func _sol_western() -> void:
 	var cote := 220.0
 	var mi := MeshInstance3D.new()
@@ -1943,7 +2071,7 @@ func _sol_western() -> void:
 	# pour toutes, y compris pour les pièces qu'on ajoutera plus tard sans
 	# y penser. Huit millimètres sont sous le seuil du visible depuis dix
 	# mètres de haut.
-	mi.position = Vector3(0, -0.258, 0)
+	mi.position = Vector3(0, -0.278, 0)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
@@ -1955,6 +2083,8 @@ func _sol_western() -> void:
 	# et le décaler ferait flotter les personnages de huit millimètres.
 	col.position = Vector3(0, -0.25, 0)
 	_obstacles.add_child(col)
+
+	_dalles_western()
 
 
 ## FORMATIONS ROCHEUSES — l'ilot de gameplay.
@@ -1986,7 +2116,8 @@ func _formations_western() -> void:
 		var noeud := KitWestern.instancier(modele,
 				Vector3(r * 2.0, h, r * 1.9))
 		if noeud != null:
-			noeud.position = Vector3(c.x, 0.0, c.y)
+			noeud.name = "Prop_%s" % modele
+			noeud.position = Vector3(c.x, PlanAreneWestern.LEVEE, c.y)
 			noeud.rotation.y = rng.randf() * TAU
 			add_child(noeud)
 			_props += 1
@@ -2044,40 +2175,62 @@ func _murets_western() -> void:
 			# rien y toucher. On garde donc la primitive, teintée à la
 			# palette de la planche. Un vrai muret à hauteur de poitrine se
 			# commandera à part.
-			# ─── DEUX ASSISES, PAS UN BLOC ────────────────────────────
+			# ─── DE LA MAÇONNERIE, PAS UN RUBAN ───────────────────────
 			#
-			# Le muret d'un seul bloc beige clair ressortait BLANC à
-			# l'écran : aucune arête pour accrocher la lumière, aucune
-			# ombre propre, et une teinte trop proche du blanc pur. Au
-			# milieu du sable il ne se lisait plus comme de la pierre mais
-			# comme un trou dans l'image. On l'empile donc en deux assises
-			# légèrement décalées, la seconde plus étroite et plus claire :
-			# la ligne d'ombre entre les deux suffit à le rendre lisible,
-			# et le désaxement de chaque segment casse l'effet de ruban.
+			# La planche ne montre pas un mur lisse : elle montre des
+			# PIERRES POSÉES — deux assises de blocs crème, joints décalés,
+			# chacune un peu de travers. C'est ce découpage qui donne au
+			# muret sa lecture ; un bloc unique de la même teinte claire
+			# ressortait BLANC à l'écran, sans arête pour accrocher la
+			# lumière, et se lisait comme un trou dans l'image.
 			#
 			# LA COLLISION NE BOUGE PAS. Elle reste la boîte pleine posée
 			# plus bas : le level design validé décide des lignes de tir,
-			# la décoration n'a pas le droit d'y toucher.
+			# la décoration n'a pas le droit d'y toucher. Les pierres
+			# tiennent donc toutes dans son gabarit.
 			var seg := arc * r / float(n) + 0.35
-			var biais := rng.randf_range(-0.06, 0.06)
 			var base := Transform3D(
-					Basis.from_euler(Vector3(0, -a + PI * 0.5 + biais, 0)),
+					Basis.from_euler(Vector3(0, -a + PI * 0.5, 0)),
 					Vector3(p.x, 0, p.y))
-			var h_bas: float = PlanAreneWestern.H_MOYEN * 0.62
+			var h_bas: float = PlanAreneWestern.H_MOYEN * 0.58
 			var h_haut: float = PlanAreneWestern.H_MOYEN - h_bas
-			var b := BoxMesh.new()
-			b.size = Vector3(seg, h_bas, 0.78)
-			var t := base
-			t.origin.y = h_bas * 0.5
-			_fondre(b, t, W_PIERRE.darkened(rng.randi_range(0, 2) * 0.05))
-			var h := BoxMesh.new()
-			h.size = Vector3(seg * 0.92, h_haut, 0.62)
-			var th := base
-			th.origin.y = h_bas + h_haut * 0.5
-			th.origin += base.basis * Vector3(
-					rng.randf_range(-0.06, 0.06), 0.0,
-					rng.randf_range(-0.05, 0.05))
-			_fondre(h, th, W_PIERRE_HAUT.darkened(rng.randi_range(0, 2) * 0.04))
+			# Assise du bas : deux pierres. Assise du haut : deux aussi,
+			# mais décalées d'une demi-pierre pour croiser les joints.
+			for etage in 2:
+				var y0: float = 0.0 if etage == 0 else h_bas
+				var hp: float = h_bas if etage == 0 else h_haut
+				var prof: float = 0.80 if etage == 0 else 0.66
+				var decal: float = 0.0 if etage == 0 else 0.5
+				for k in 2:
+					var u := (float(k) + 0.5 + decal) / 2.0 - 0.5
+					if absf(u) > 0.5:
+						continue
+					var l := seg * 0.5 * rng.randf_range(0.86, 0.98)
+					var pierre := BoxMesh.new()
+					pierre.size = Vector3(l, hp * rng.randf_range(0.94, 1.0),
+							prof * rng.randf_range(0.90, 1.0))
+					var t := base
+					t.basis = t.basis.rotated(Vector3.UP,
+							rng.randf_range(-0.07, 0.07))
+					t.origin += base.basis * Vector3(
+							u * seg, 0.0, rng.randf_range(-0.05, 0.05))
+					t.origin.y = y0 + pierre.size.y * 0.5
+					_fondre(pierre, t, W_MURET[rng.randi_range(0, 2)])
+			# Éboulis au pied : la planche en pose toujours quelques-uns,
+			# et ils cachent la ligne où le mur rencontre le sable.
+			if rng.randf() < 0.55:
+				var caillou := SphereMesh.new()
+				caillou.radius = rng.randf_range(0.13, 0.22)
+				caillou.height = caillou.radius * 1.5
+				caillou.radial_segments = 6
+				caillou.rings = 3
+				var tc := base
+				tc.origin += base.basis * Vector3(
+						rng.randf_range(-0.4, 0.4), 0.0,
+						(0.44 if rng.randf() < 0.5 else -0.44))
+				tc.origin.y = caillou.radius * 0.5
+				_fondre(caillou, tc, W_MURET[2])
+
 			var sh := CollisionShape3D.new()
 			var cb := BoxShape3D.new()
 			cb.size = Vector3(arc * r / float(n) + 0.35,
@@ -2114,7 +2267,8 @@ func _barrieres_western() -> void:
 					Vector3(l / float(combien) * 1.02, 1.3, 0.6))
 			if bar == null:
 				break
-			bar.position = Vector3(pp.x, 0.0, pp.y)
+			bar.name = "Prop_west_fence_straight"
+			bar.position = Vector3(pp.x, PlanAreneWestern.LEVEE, pp.y)
 			bar.rotation.y = a
 			add_child(bar)
 			_props += 1
@@ -2159,7 +2313,8 @@ func _chariots_western() -> void:
 		var a := deg_to_rad(float(c["angle"]))
 		var n := KitWestern.instancier(&"west_wagon", Vector3(4.6, 2.8, 2.6))
 		if n != null:
-			n.position = Vector3(p.x, 0.0, p.y)
+			n.name = "Prop_west_wagon"
+			n.position = Vector3(p.x, PlanAreneWestern.LEVEE, p.y)
 			n.rotation.y = a
 			add_child(n)
 			_props += 1
@@ -2210,7 +2365,8 @@ func _petits_western() -> void:
 			Vector3(1.1, 0.9, 1.1)) as Vector3
 		var n := KitWestern.instancier(modele, volume)
 		if n != null:
-			n.position = Vector3(p.x, 0.0, p.y)
+			n.name = "Prop_%s" % modele
+			n.position = Vector3(p.x, PlanAreneWestern.LEVEE, p.y)
 			n.rotation.y = a
 			add_child(n)
 			_props += 1
@@ -2246,6 +2402,92 @@ func _petits_western() -> void:
 ## VEGETATION — AUCUNE COLLISION, et c'est la regle. Un cactus qui arrete
 ## une poursuite est un defaut : on ne comprend pas pourquoi on s'est
 ## arrete, et le decor devient un piege.
+## SEMIS DE DÉCOR — ce qui remplit le vide entre les couverts.
+##
+## La maquette est DENSE : entre deux rochers il y a toujours une touffe,
+## un caillou, un buisson. Le plan de niveau, lui, ne compte que les pièces
+## qui décident du jeu — treize formations, dix murets, dix-huit petits
+## couverts. Posé tel quel, le terrain était juste : il était aussi vide.
+##
+## RIEN ICI N'A DE COLLISION, ET C'EST LA RÈGLE. Le level design validé
+## fixe les lignes de tir et les contournements ; l'art pass n'a pas le
+## droit d'y toucher. Tout ce semis se traverse.
+func _semis_decor_western() -> void:
+	const COMBIEN := 160
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20250820
+	var masses := PlanAreneWestern.masses()
+	var poses := 0
+	var essais := 0
+	while poses < COMBIEN and essais < COMBIEN * 12:
+		essais += 1
+		var a := rng.randf() * TAU
+		# Racine carrée du tirage : sans elle, tout se tasse au centre.
+		var r: float = sqrt(rng.randf()) * (PlanAreneWestern.RAYON_CLOTURE - 2.2)
+		var p := Vector2(cos(a), sin(a)) * r
+		var libre := true
+		for m: Dictionary in masses:
+			if p.distance_to(m["pos"]) < float(m["rayon"]) + 0.9:
+				libre = false
+				break
+		if not libre:
+			continue
+		# On ne décore pas le pas de la porte : un joueur qui apparaît doit
+		# voir du sol nu autour de lui, pas un buisson collé au visage.
+		for ap: Vector2 in PlanAreneWestern.APPARITIONS:
+			if p.distance_to(ap) < 2.0:
+				libre = false
+				break
+		if not libre:
+			continue
+		poses += 1
+		var quoi := rng.randf()
+		if quoi < 0.34:
+			# BUISSON — trois boules serrées, jamais une seule : une sphère
+			# isolée se lit comme une balle posée par terre.
+			var teinte: Color = W_BUISSON[rng.randi_range(0, 1)]
+			for boule in 3:
+				var b := SphereMesh.new()
+				b.radius = rng.randf_range(0.26, 0.44)
+				b.height = b.radius * 1.15
+				b.radial_segments = 7
+				b.rings = 3
+				_fondre(b, Transform3D(Basis.IDENTITY, Vector3(
+						p.x + rng.randf_range(-0.28, 0.28),
+						b.radius * 0.34,
+						p.y + rng.randf_range(-0.28, 0.28))), teinte)
+		elif quoi < 0.72:
+			# CAILLOU — plat et large, pour qu'on ne le confonde jamais
+			# avec un objet à ramasser.
+			var c := SphereMesh.new()
+			c.radius = rng.randf_range(0.15, 0.30)
+			c.height = c.radius * 0.9
+			c.radial_segments = 7
+			c.rings = 3
+			_fondre(c, Transform3D(
+					Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)),
+					Vector3(p.x, c.radius * 0.35, p.y)),
+					W_CAILLOU[rng.randi_range(0, 1)] as Color)
+		else:
+			# TOUFFE SÈCHE — quelques lames en éventail, à hauteur de
+			# cheville : c'est ce qui donne au sable son échelle.
+			var teinte: Color = W_HERBE[rng.randi_range(0, 1)]
+			for lame in 4:
+				var l := CylinderMesh.new()
+				l.top_radius = 0.0
+				l.bottom_radius = rng.randf_range(0.045, 0.075)
+				l.height = rng.randf_range(0.30, 0.52)
+				l.radial_segments = 4
+				var pen := rng.randf_range(0.18, 0.42)
+				_fondre(l, Transform3D(
+						Basis.from_euler(Vector3(
+								pen * cos(float(lame) * 1.9),
+								rng.randf() * TAU,
+								pen * sin(float(lame) * 1.9))),
+						Vector3(p.x + rng.randf_range(-0.16, 0.16),
+								l.height * 0.5,
+								p.y + rng.randf_range(-0.16, 0.16))), teinte)
+
 func _vegetation_western() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 991
@@ -2255,7 +2497,8 @@ func _vegetation_western() -> void:
 			var n := KitWestern.instancier(&"west_cactus_a",
 					Vector3(1.3, 2.1, 1.3))
 			if n != null:
-				n.position = Vector3(p.x, 0.0, p.y)
+				n.name = "Prop_west_cactus_a"
+				n.position = Vector3(p.x, PlanAreneWestern.LEVEE, p.y)
 				n.rotation.y = rng.randf() * TAU
 				add_child(n)
 				_props += 1
