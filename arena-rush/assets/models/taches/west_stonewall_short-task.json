@@ -1,0 +1,28 @@
+{
+  "id": "01a01c72-6a85-78c5-8720-4dfaeedba14f",
+  "type": "image-to-3d",
+  "name": "",
+  "art_style": "",
+  "object_prompt": "",
+  "style_prompt": "",
+  "negative_prompt": "",
+  "texture_prompt": "Stylized 3D cartoon Wild West environment asset for a colorful mobile arena shooter. Warm inviting western art direction, large rounded chunky shapes, slightly exaggerated proportions, extremely clear silhouette from an elevated gameplay camera, polished game-ready appearance, minimal unnecessary surface detail, warm sand terracotta and honey wood palette, optimized for mobile, no photorealism, no gritty post-apocalyptic style, no background, isolated object., hand-painted stylized game texture, clean flat colors, crisp edges, glossy toy plastic finish, royal blue jacket, white and light grey armor plates, orange trim, gold star emblem, dark navy trousers, no dirt, no wear, no text",
+  "texture_image_url": "",
+  "text_style_prompt": "",
+  "image_style_url": "",
+  "status": "FAILED",
+  "created_at": 1787183655835,
+  "progress": 75,
+  "started_at": 1787183655839,
+  "finished_at": 1787183726795,
+  "expires_at": 1787442926795,
+  "task_error": {
+    "type": "service_unavailable",
+    "message": "The generation service is temporarily unavailable. Please retry."
+  },
+  "model_url": "",
+  "model_urls": {},
+  "thumbnail_url": "",
+  "texture_urls": null,
+  "consumed_credits": 0
+}
