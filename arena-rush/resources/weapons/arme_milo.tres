@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/profils/milo.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"arme_milo"
+display_name = "Colt du Shérif"
+damage = 8.0
+fire_rate = 2.6
+range = 24.0
+projectile_speed = 46.0
+projectile_count = 1
+spread_degrees = 0.0
+splash_radius = 0.0
+gravity = 0.0
+fuse_time = 0.0
+bounces = 0
+color = Color(0.949, 0.702, 0.173, 1)
+projectile_radius = 0.11
+trail_length = 0.0
+shake = 0.0
+recoil = 0.06
+silhouette = "pistol"
+profil = ExtResource("2")
+max_ammo = -1

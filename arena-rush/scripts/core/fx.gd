@@ -170,6 +170,33 @@ func _lueur(color: Color) -> StandardMaterial3D:
 	return m
 
 
+## LUEUR VISIBLE DES DEUX CÔTÉS.
+##
+## L'étoile est un maillage plat écrit à la main : selon le sens de
+## rotation de ses triangles, une face sur deux pourrait être écartée. On
+## retire la question au lieu d'y répondre — une étoile plate, brève et
+## lumineuse n'a rien à gagner au tri des faces arrière.
+##
+## ATTENTION, CE N'ÉTAIT PAS LA CAUSE DE L'ÉTOILE INVISIBLE, et je l'ai
+## cru une demi-heure. `glow_mat` désactivait déjà ce tri. Le vrai coupable
+## était la DURÉE : soixante millisecondes d'effet, contre trois cents
+## millisecondes par image dans le rendu logiciel des bancs. L'étoile
+## naissait et mourait entre deux images. En jeu, à soixante images par
+## seconde, elle occupe quatre images — c'est le bon réglage. Cette
+## fonction reste parce qu'elle est juste, pas parce qu'elle a corrigé
+## quoi que ce soit.
+func _lueur_deux_faces(color: Color) -> StandardMaterial3D:
+	var cle := color.to_html(false) + "|2f"
+	if not _mat_lueur.has(cle):
+		var m := VisualKit.glow_mat(color, 2.6)
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		m.billboard_keep_scale = true
+		_mat_lueur[cle] = m
+	var connu: StandardMaterial3D = _mat_lueur[cle]
+	return connu
+
+
 func _materiau_gerbe(color: Color, velocity: float, radius: float,
 		gravity: float) -> ParticleProcessMaterial:
 	# La signature ne retient que ce qui distingue VRAIMENT deux effets. Les
@@ -283,6 +310,190 @@ func _autofree(node: Node, delay: float) -> void:
 # --- EFFETS DE JEU -------------------------------------------------------
 
 ## Départ de coup : éclair de bouche court et lumineux.
+## ─── LES FORMES DE DÉPART ET D'IMPACT ──────────────────────────────────
+##
+## POURQUOI UNE ÉTOILE EN MAILLAGE, ET PAS SEULEMENT DES PARTICULES.
+##
+## La consigne est qu'un joueur reconnaisse l'arme SANS la couleur. Une
+## gerbe de particules ne se distingue d'une autre gerbe que par sa teinte
+## et sa densité : passée en niveaux de gris, elle ne dit plus rien. Une
+## ÉTOILE À TROIS BRANCHES et une ÉTOILE À SEPT BRANCHES restent
+## différentes en gris, et c'est le seul test qui compte.
+##
+## Chaque étoile est un maillage plat dans le plan du sol. La caméra plonge
+## à 52° : une étoile horizontale y est vue à peine raccourcie, alors
+## qu'une étoile verticale se réduirait à un trait.
+
+## Étoiles en attente de réemploi. Dix joueurs à cinq coups par seconde
+## font cinquante départs par seconde : les créer et les détruire à ce
+## rythme serait une allocation permanente sur un téléphone.
+var _etoiles_libres: Array[MeshInstance3D] = []
+var _mesh_etoile: Dictionary = {}
+
+
+## Maillage d'étoile à `branches` branches, dans le plan XY, rayon 1.
+##
+## LE PLAN XY, ET PAS XZ, PARCE QUE L'ÉTOILE EST UN PANNEAU TOURNÉ VERS LA
+## CAMÉRA. Posée à plat dans le plan du sol, elle était vue sous 52° :
+## écrasée en ellipse, sa branche la plus proche recouvrait les jambes du
+## personnage et on ne lisait plus ni ses pointes ni leur nombre. Or c'est
+## le NOMBRE DE BRANCHES qui sépare Gus de Milo une fois la couleur
+## retirée. Un panneau garde sa forme quel que soit l'angle — et la planche
+## de référence dessine bien des étoiles plates, pas des soleils au sol.
+func _etoile(branches: int) -> ArrayMesh:
+	if _mesh_etoile.has(branches):
+		var connu: ArrayMesh = _mesh_etoile[branches]
+		return connu
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in branches:
+		var a := TAU * float(i) / float(branches)
+		# Une branche est un triangle très effilé : large au centre, pointu
+		# au bout. C'est ce qui donne l'arête franche du dessin.
+		var pointe := Vector3(cos(a), sin(a), 0)
+		var large := 0.16
+		var g := Vector3(cos(a - large), sin(a - large), 0) * 0.22
+		var d := Vector3(cos(a + large), sin(a + large), 0) * 0.22
+		for v in [Vector3.ZERO, d, pointe, Vector3.ZERO, pointe, g]:
+			st.set_normal(Vector3.BACK)
+			st.add_vertex(v)
+	var m := st.commit()
+	_mesh_etoile[branches] = m
+	return m
+
+
+## Pose une étoile qui grandit et s'efface. `duree` doit rester courte :
+## un départ qui traîne masque le personnage, ce que la consigne interdit.
+func _poser_etoile(parent: Node, pos: Vector3, color: Color, branches: int,
+		rayon: float, duree: float) -> void:
+	var mi: MeshInstance3D = null
+	while mi == null and not _etoiles_libres.is_empty():
+		var candidat: MeshInstance3D = _etoiles_libres.pop_back()
+		if is_instance_valid(candidat):
+			mi = candidat
+	if mi == null:
+		mi = MeshInstance3D.new()
+		# NOMMÉE, et pas seulement pour la lisibilité des rapports : c'est
+		# ce nom qui permet à un banc de faire le ménage entre deux essais
+		# sans emporter le décor avec les effets.
+		mi.name = "EtoileFx"
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	else:
+		var ancien := mi.get_parent()
+		if ancien != null:
+			ancien.remove_child(mi)
+	mi.mesh = _etoile(branches)
+	mi.material_override = _lueur_deux_faces(color)
+	mi.position = pos
+	# Le panneau ignore la rotation du nœud : la variété vient donc du
+	# nombre de branches et de la taille, pas d'un angle.
+	mi.rotation = Vector3.ZERO
+	mi.scale = Vector3.ONE * rayon * 0.45
+	parent.add_child(mi)
+	var t := create_tween()
+	t.set_parallel(true)
+	t.tween_property(mi, "scale", Vector3.ONE * rayon, duree) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	t.chain().tween_callback(func():
+		if not is_instance_valid(mi):
+			return
+		var p2 := mi.get_parent()
+		if p2 != null:
+			p2.remove_child(mi)
+		_etoiles_libres.append(mi))
+
+
+## DÉPART DE TIR, selon le profil de l'arme. C'est la première demi-seconde
+## de l'identité : le joueur doit savoir qui tire avant de voir la balle.
+func depart(parent: Node, pos: Vector3, dir: Vector3, profil: ProfilTir,
+		color: Color) -> void:
+	var t: float = profil.flash_taille
+	match profil.flash:
+		"fin":
+			# Nox : minuscule, pointu, presque pas de fumée. On doit le
+			# deviner plus que le voir.
+			_poser_etoile(parent, pos, color, profil.flash_branches,
+					0.38 * t, 0.05)
+			_emit_burst(parent, pos, color, 3, 2.2, 0.03, 0.08, -1.0)
+		"large":
+			# Poppy : large, irrégulier, plein d'étincelles projetées vers
+			# l'avant. C'est la ferraille qui part.
+			_poser_etoile(parent, pos, color, profil.flash_branches,
+					0.70 * t, 0.08)
+			_emit_burst(parent, pos + dir * 0.25, color, 14, 7.5, 0.10,
+					0.20, -2.0)
+			_flash_light(parent, pos, color, 1.2, 2.8, 0.06)
+		"massif":
+			# Bruno : le plus imposant des six, et le plus bref. Un cœur
+			# clair, une couronne large, une bouffée courte — puis plus
+			# rien, pour ne pas manger l'écran.
+			_poser_etoile(parent, pos, color, profil.flash_branches,
+					0.72 * t, 0.10)
+			_poser_etoile(parent, pos, Color(1, 0.93, 0.72), 4, 0.42 * t, 0.07)
+			_emit_burst(parent, pos + dir * 0.3, color, 18, 9.0, 0.14,
+					0.26, -3.0)
+			# ─── LA LUMIÈRE RESTE MODESTE, MÊME POUR BRUNO ─────────────
+			#
+			# Réglée proportionnellement à la taille du flash, elle montait
+			# à onze d'énergie sur treize mètres de portée : l'image entière
+			# virait à l'orange et on ne voyait plus ni le personnage ni la
+			# forme du départ. Or c'est la FORME qui identifie l'arme, pas
+			# la quantité de lumière. Une lampe de départ doit souligner le
+			# canon, pas repeindre la scène.
+			_flash_light(parent, pos, color, 1.9, 3.8, 0.07)
+		_:
+			# Étoile nette — Milo, Ruby, Gus. Ils se séparent par le nombre
+			# de branches, la taille et le rythme, pas par la forme.
+			# ─── LA FORME PRIME SUR LE HALO ────────────────────────────
+			#
+			# Réglée à 0,44 avec une lampe généreuse, l'étoile disparaissait
+			# derrière son propre halo : on voyait une tache lumineuse, donc
+			# une COULEUR, et la consigne dit que la couleur ne doit jamais
+			# suffire. On grossit l'étoile et on baisse la lampe : ce qui
+			# reste à l'écran est un nombre de branches, qui survit au
+			# passage en niveaux de gris.
+			_poser_etoile(parent, pos, color, profil.flash_branches,
+					0.62 * t, 0.06)
+			_emit_burst(parent, pos, color, 6, 4.0, 0.05, 0.14, -1.5)
+			_flash_light(parent, pos, color, 0.9, 2.2, 0.05)
+
+
+## IMPACT DE PROJECTILE, selon le profil. C'est la seconde moitié de la
+## signature : on doit reconnaître l'arme même en ne voyant que le mur.
+func impact_profil(pos: Vector3, profil: ProfilTir, color: Color) -> void:
+	var parent := _parent_for(self)
+	var t: float = profil.impact_taille
+	match profil.impact:
+		"point":
+			_poser_etoile(parent, pos, color, 3, 0.22 * t, 0.06)
+			_emit_burst(parent, pos, color, 4, 3.0, 0.05, 0.14)
+		"eclats":
+			# Plusieurs petits éclats dispersés : le mitraillage se lit au
+			# NOMBRE de marques, pas à la taille d'une seule.
+			for k in 3:
+				var d := Vector3(randf_range(-0.35, 0.35), randf_range(-0.2, 0.2),
+						randf_range(-0.35, 0.35))
+				_poser_etoile(parent, pos + d, color, 4, 0.20 * t, 0.07)
+			_emit_burst(parent, pos, color, 12, 6.5, 0.16, 0.26)
+		"explosion":
+			# Court, large, et qui disparaît vite. Une explosion qui dure
+			# cache l'action — c'est le contraire du but.
+			_poser_etoile(parent, pos, color, 6, 0.75 * t, 0.10)
+			_shockwave(parent, pos, 1.5 * t, color)
+			_emit_burst(parent, pos, color, 22, 9.0, 0.22, 0.34)
+			_emit_burst(parent, pos, Color(0.62, 0.55, 0.46), 10, 3.4, 0.3,
+					0.5, -2.0)
+			_flash_light(parent, pos, color, 2.2, 4.0, 0.10)
+		"scintille":
+			_poser_etoile(parent, pos, color, 5, 0.34 * t, 0.09)
+			_emit_burst(parent, pos, color, 8, 5.0, 0.1, 0.24)
+			_emit_burst(parent, pos, profil.couleur_secondaire, 8, 7.0, 0.12,
+					0.30, -1.0)
+		_:
+			_poser_etoile(parent, pos, color, 4, 0.30 * t, 0.07)
+			_emit_burst(parent, pos, color, 8, 5.5, 0.09, 0.22)
+
+
 func muzzle_flash(parent: Node, pos: Vector3, color: Color, power: float = 1.0) -> void:
 	_emit_burst(parent, pos, color, int(8 * power), 5.0 * power, 0.06, 0.18, -1.0)
 	_flash_light(parent, pos, color, 3.0 * power, 4.0 * power, 0.09)

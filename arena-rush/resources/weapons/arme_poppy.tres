@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/profils/poppy.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"arme_poppy"
+display_name = "Pétoire à Ferraille"
+damage = 1.8
+fire_rate = 1.9
+range = 15.0
+projectile_speed = 30.0
+projectile_count = 2
+spread_degrees = 22.0
+splash_radius = 0.0
+gravity = 0.0
+fuse_time = 0.0
+bounces = 0
+color = Color(0.949, 0.439, 0.118, 1)
+projectile_radius = 0.1
+trail_length = 0.0
+shake = 0.0
+recoil = 0.16
+silhouette = "shotgun"
+profil = ExtResource("2")
+max_ammo = -1

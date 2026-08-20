@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ProfilTir" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/profil_tir.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+heros = &"nox"
+mode = "simple"
+rafale_coups = 1
+rafale_intervalle = 0.07
+flash = "fin"
+flash_taille = 0.5
+flash_branches = 3
+trainee = "fine"
+trainee_longueur = 3.0
+couleur_secondaire = Color(0.68, 1, 0.62, 1)
+impact = "point"
+impact_taille = 0.5
+recul_corps = "minimal"
+recul_amplitude = 0.02
+recul_duree = 0.09
+secousse_locale = 0.0
+son_hauteur = 700.0
+son_duree = 0.045
+son_grain = 0.25
+son_chute = 70.0

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/profils/nox.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"arme_nox"
+display_name = "Dard Silencieux"
+damage = 3.0
+fire_rate = 7.0
+range = 20.0
+projectile_speed = 55.0
+projectile_count = 1
+spread_degrees = 1.0
+splash_radius = 0.0
+gravity = 0.0
+fuse_time = 0.0
+bounces = 0
+color = Color(0.341, 0.831, 0.318, 1)
+projectile_radius = 0.07
+trail_length = 0.0
+shake = 0.0
+recoil = 0.02
+silhouette = "pistol"
+profil = ExtResource("2")
+max_ammo = -1

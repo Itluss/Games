@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/profils/ruby.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"arme_ruby"
+display_name = "Éclat Rose"
+damage = 4.0
+fire_rate = 5.2
+range = 20.0
+projectile_speed = 42.0
+projectile_count = 1
+spread_degrees = 0.0
+splash_radius = 0.0
+gravity = 0.0
+fuse_time = 0.0
+bounces = 0
+color = Color(1.0, 0.247, 0.643, 1)
+projectile_radius = 0.11
+trail_length = 0.0
+shake = 0.0
+recoil = 0.05
+silhouette = "pistol"
+profil = ExtResource("2")
+max_ammo = -1

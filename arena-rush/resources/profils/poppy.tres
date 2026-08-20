@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ProfilTir" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/profil_tir.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+heros = &"poppy"
+mode = "rafale"
+rafale_coups = 3
+rafale_intervalle = 0.06
+flash = "large"
+flash_taille = 1.35
+flash_branches = 7
+trainee = "multiple"
+trainee_longueur = 3.0
+couleur_secondaire = Color(1, 0.72, 0.3, 1)
+impact = "eclats"
+impact_taille = 0.9
+recul_corps = "lourd"
+recul_amplitude = 0.13
+recul_duree = 0.26
+secousse_locale = 0.0
+son_hauteur = 260.0
+son_duree = 0.07
+son_grain = 0.75
+son_chute = 40.0

@@ -48,6 +48,15 @@ class_name WeaponData
 ## Forme du modèle d'arme, construite proceduralement.
 @export_enum("pistol", "shotgun", "rifle", "launcher") var silhouette: String = "pistol"
 
+@export_group("Identité de tir")
+## LE PROFIL EST OPTIONNEL, ET C'EST VOULU.
+##
+## Les armes ramassées au sol gardent le comportement d'origine : sans
+## profil, tout se passe comme avant cette passe. Seules les armes de poing
+## signature des six héros en portent un. C'est ce qui permet d'ajouter une
+## identité de tir sans rouvrir l'équilibrage de l'arsenal existant.
+@export var profil: ProfilTir = null
+
 @export_group("Munitions")
 ## -1 = illimité (l'arme de départ ne doit jamais laisser un joueur nu).
 @export var max_ammo: int = -1
@@ -58,3 +67,16 @@ func cooldown() -> float:
 
 func is_infinite_ammo() -> bool:
 	return max_ammo < 0
+
+## Coups tirés par déclenchement — un pour une arme simple, davantage pour
+## une rafale. Sert au calcul des dégâts par seconde et au banc.
+func coups_par_declenchement() -> int:
+	if profil == null or profil.mode == "simple":
+		return 1
+	return maxi(1, profil.rafale_coups)
+
+## Dégâts théoriques par seconde. C'est la mesure qui garantit qu'ajouter
+## une identité de tir n'a pas déplacé l'équilibrage.
+func dps() -> float:
+	return damage * float(projectile_count) \
+			* float(coups_par_declenchement()) * fire_rate

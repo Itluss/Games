@@ -114,6 +114,17 @@ var state: State = State.IDLE
 ## l'autre — et une remise à zéro faite ailleurs effacerait la démarche
 ## sans qu'on comprenne pourquoi. Le nœud de démarche s'insère AU-DESSUS :
 ## il ne touche qu'à ce qui lui appartient.
+## ─── ÉTAT DU RECUL DE TIR ──────────────────────────────────────────────
+##
+## Quatre nombres, pas un clip d'animation. Un clip par héros aurait coûté
+## six exports Meshy et n'aurait pas pu se mêler à l'inclinaison ni au coup
+## encaissé — or ces trois réactions arrivent souvent ensemble.
+var _recul_t: float = 0.0
+var _recul_duree: float = 0.15
+var _recul_ampl: float = 0.05
+var _recul_type: String = "sec"
+var _recul_canon: int = 0
+
 var _demarche: Node3D
 var _loco: Locomotion
 var _rig: Node3D
@@ -491,6 +502,20 @@ func attach_weapon(model: Node3D) -> void:
 	_mount.add_child(model)
 
 
+## DÉCLENCHE LA RÉACTION DU CORPS AU TIR.
+##
+## Appelée à CHAQUE coup, y compris les coups d'une rafale : c'est ce qui
+## fait que la rafale de Poppy secoue trois fois et non une.
+func recul_de_tir(profil: ProfilTir, canon: int) -> void:
+	if profil == null or _dead:
+		return
+	_recul_type = profil.recul_corps
+	_recul_ampl = profil.recul_amplitude
+	_recul_duree = maxf(profil.recul_duree, 0.02)
+	_recul_canon = canon
+	_recul_t = 1.0
+
+
 ## Place l'arme dans la main : POSITION de l'os, ORIENTATION du corps.
 ##
 ## DEUX DÉFAUTS DISTINCTS, corrigés ici, et il a fallu les mesurer pour
@@ -803,10 +828,60 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 			_anim.speed_scale = 1.0
 
 	# COUP ENCAISSÉ : recul du buste, très bref.
+	var recul_z := 0.0
+	var recul_x := 0.0
+	var recul_y := 0.0
+	var recul_roul := 0.0
 	if _hit_t > 0.0:
-		_rig.position.z = (_hit_t / 0.18) * 0.14
-	else:
-		_rig.position.z = 0.0
+		recul_z += (_hit_t / 0.18) * 0.14
+
+	# ─── RECUL DE TIR — LA MOITIÉ CORPORELLE DE L'IDENTITÉ ──────────────
+	#
+	# La consigne interdit « la même animation sur les six personnages avec
+	# seulement une vitesse différente ». Ce n'est donc pas un clip : c'est
+	# une réaction PROCÉDURALE, différente en NATURE d'un héros à l'autre.
+	# Milo encaisse dans le bras et le buste ne bouge presque pas ; Bruno
+	# part en arrière et revient lentement ; Gus tourne l'épaule qui tire.
+	#
+	# Elle s'AJOUTE à l'inclinaison et au coup encaissé au lieu de les
+	# remplacer : un personnage touché pendant qu'il tire doit montrer les
+	# deux.
+	if _recul_t > 0.0:
+		_recul_t = maxf(_recul_t - delta / maxf(_recul_duree, 0.01), 0.0)
+		var r := _recul_t
+		match _recul_type:
+			"lourd":
+				# Poppy : l'arme est trop grosse pour elle. Le buste part
+				# franchement et revient d'un coup.
+				recul_z += r * _recul_ampl * 3.4
+				recul_x += r * 0.13
+			"massif":
+				# Bruno : tout le corps encaisse, et le retour traîne —
+				# c'est la lenteur du retour qui dit le poids.
+				recul_z += r * r * _recul_ampl * 3.0
+				recul_x += r * r * 0.18
+			"minimal":
+				# Nox : presque rien. Il faut regarder pour le voir.
+				recul_z += r * _recul_ampl * 1.6
+				recul_x += r * 0.02
+			"vif":
+				# Ruby : un contrecoup qui rebondit, jamais un recul lourd.
+				# Le sinus lui donne son petit sursaut de retour.
+				recul_z += sin(r * PI) * _recul_ampl * 2.6
+				recul_x += r * 0.05
+				recul_roul += sin(r * PI * 2.0) * 0.05
+			"alterne":
+				# Gus : l'épaule qui tire recule, l'autre reste. C'est cette
+				# torsion qui fait le balancement à deux temps, et elle est
+				# lisible même sans voir les revolvers.
+				recul_z += r * _recul_ampl * 2.0
+				recul_y += r * (0.13 if _recul_canon == 0 else -0.13)
+				recul_roul += r * (-0.06 if _recul_canon == 0 else 0.06)
+			_:
+				# Milo, et le défaut : sec, contrôlé, retour immédiat.
+				recul_z += r * _recul_ampl * 2.2
+				recul_x += r * 0.05
+	_rig.position.z = recul_z
 
 	# INCLINAISON — le corps penche dans le sens de la marche et s'incline
 	# dans les changements de direction. Sans elle, un personnage glisse à
@@ -817,8 +892,9 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 			clampf(_vel.z * 0.10 + _acc.z * 0.07, -0.20, 0.20),
 			clampf(_vel.x * 0.13 + _acc.x * 0.09, -0.22, 0.22))
 	_lean = _lean.lerp(target_lean, 1.0 - exp(-delta / 0.09))
-	_rig.rotation.x = -_lean.x
-	_rig.rotation.z = -_lean.y
+	_rig.rotation.x = -_lean.x + recul_x
+	_rig.rotation.z = -_lean.y + recul_roul
+	_rig.rotation.y = recul_y
 
 	# ÉCRASEMENT ponctuel, réservé aux impacts. La respiration d'antan a
 	# disparu : le clip de repos en contient une vraie.

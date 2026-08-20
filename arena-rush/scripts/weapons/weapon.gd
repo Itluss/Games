@@ -32,10 +32,36 @@ var _model: Node3D = null
 var _muzzle: Node3D = null
 var _recoil_offset: float = 0.0
 
+## ─── ÉTAT DE RAFALE ────────────────────────────────────────────────────
+##
+## Une rafale n'est PAS diffusée coup par coup sur le réseau. Le serveur
+## envoie un seul ordre de tir ; chaque pair déroule ensuite la même
+## séquence, au même intervalle, sur la même horloge physique. Trois coups
+## de Poppy coûtent donc un message, pas trois — et ils restent alignés
+## parce que rien d'aléatoire n'intervient entre eux.
+var _rafale_restante: int = 0
+var _rafale_delai: float = 0.0
+var _rafale_dir: Vector3 = Vector3.FORWARD
+var _rafale_team: int = 0
+var _rafale_owner: int = 0
+var _rafale_autorite: bool = false
+
+## Canon en cours pour une arme à deux revolvers. Il avance à CHAQUE coup,
+## y compris ceux d'une rafale : c'est lui qui fait l'alternance de Gus.
+var _canon: int = 0
+
+## Émis à chaque coup effectivement parti, avec le canon utilisé.
+## Le visuel du personnage s'y accroche pour son recul.
+signal coup_parti(canon: int)
+
 func equip(weapon_data: WeaponData) -> void:
 	data = weapon_data
 	ammo = weapon_data.max_ammo
 	_cooldown = 0.0
+	# Une arme qu'on change au milieu d'une rafale ne doit pas continuer à
+	# cracher les coups de la précédente.
+	_rafale_restante = 0
+	_canon = 0
 	if _model and is_instance_valid(_model):
 		_model.queue_free()
 	_model = VisualKit.build_weapon(weapon_data.silhouette, weapon_data.color)
@@ -63,6 +89,18 @@ func muzzle_position() -> Vector3:
 func _physics_process(delta: float) -> void:
 	if _cooldown > 0.0:
 		_cooldown -= delta
+	# LA RAFALE S'ÉCOULE SUR L'HORLOGE PHYSIQUE, comme la cadence. Sur
+	# l'horloge d'affichage, elle s'étirerait ou se tasserait selon la
+	# fluidité : deux joueurs sur deux téléphones n'entendraient pas le
+	# même rythme, et le rythme est précisément ce qui identifie l'arme.
+	if _rafale_restante > 0:
+		_rafale_delai -= delta
+		while _rafale_delai <= 0.0 and _rafale_restante > 0:
+			_rafale_restante -= 1
+			_coup(muzzle_position(), _rafale_dir, _rafale_team,
+					_rafale_owner, _rafale_autorite)
+			if _rafale_restante > 0:
+				_rafale_delai += maxf(data.profil.rafale_intervalle, 0.02)
 
 ## Temps restant avant que l'arme ne puisse tirer. Publié pour que le
 ## joueur dimensionne exactement sa mémoire d'appui.
@@ -128,12 +166,44 @@ func fire(origin: Vector3, dir: Vector3, team: int, owner_id: int,
 		authoritative: bool) -> void:
 	if data == null:
 		return
+	var basis_dir := dir.normalized()
+	_coup(origin, basis_dir, team, owner_id, authoritative)
+	# Le reste de la rafale part tout seul, sur l'horloge physique.
+	var coups := data.coups_par_declenchement()
+	if coups > 1:
+		_rafale_restante = coups - 1
+		_rafale_delai = maxf(data.profil.rafale_intervalle, 0.02)
+		_rafale_dir = basis_dir
+		_rafale_team = team
+		_rafale_owner = owner_id
+		_rafale_autorite = authoritative
+
+
+## UN COUP — la brique élémentaire, commune au tir simple et à la rafale.
+##
+## LA POSITION EST RECALCULÉE À CHAQUE COUP D'UNE RAFALE, jamais reprise
+## du premier. Un joueur qui court pendant sa rafale verrait sinon les
+## deux derniers coups sortir d'un point resté derrière lui.
+func _coup(origin: Vector3, basis_dir: Vector3, team: int, owner_id: int,
+		authoritative: bool) -> void:
 	var scene_root := get_tree().current_scene
 	if scene_root == null:
 		return
-
 	tirs += 1
-	var basis_dir := dir.normalized()
+
+	# ─── DEUX REVOLVERS : LE CANON ALTERNE, ET C'EST TOUTE LA SIGNATURE ──
+	#
+	# L'alternance est calculée à partir d'un compteur local qui avance à
+	# chaque coup. Comme `_coup` s'exécute sur TOUS les pairs dans le même
+	# ordre, tout le monde voit le même canon tirer au même moment, sans
+	# qu'un seul octet de plus circule sur le réseau.
+	var canon := 0
+	var depart := origin
+	if data.profil != null and data.profil.mode == "alterne":
+		canon = _canon
+		_canon = 1 - _canon
+		depart += global_transform.basis.x * (0.26 if canon == 0 else -0.26)
+
 	for i in data.projectile_count:
 		var spread_dir := basis_dir
 		if data.spread_degrees > 0.0:
@@ -151,22 +221,35 @@ func fire(origin: Vector3, dir: Vector3, team: int, owner_id: int,
 		var p := Pool.acquire(PROJECTILE_SCENE, scene_root)
 		if p == null:
 			continue
-		(p as Projectile).setup(data, origin, spread_dir, team, owner_id,
+		(p as Projectile).setup(data, depart, spread_dir, team, owner_id,
 				authoritative)
 
-	Fx.muzzle_flash(scene_root, origin, data.color,
-			clampf(data.damage * data.projectile_count / 20.0, 0.6, 2.0))
+	if data.profil != null:
+		Fx.depart(scene_root, depart, basis_dir, data.profil, data.color)
+		Sfx.tir(data.profil, depart)
+	else:
+		Fx.muzzle_flash(scene_root, depart, data.color,
+				clampf(data.damage * data.projectile_count / 20.0, 0.6, 2.0))
 	_recoil_offset = data.recoil
 	if _model:
 		_model.position.z = _recoil_offset
+	coup_parti.emit(canon)
 
 ## Secousse réservée au tireur local : sentir SON arme, pas celle des
 ## autres. Seules les armes LOURDES en déclenchent : une arme à cadence
 ## rapide qui secoue à chaque tir produit une vibration continue, jamais
 ## une sensation de puissance.
 func shake_local() -> void:
-	if data and data.shake > 0.0:
-		Fx.shake(data.shake)
+	if data == null:
+		return
+	# Le profil prime sur l'ancien champ : c'est lui qui porte désormais
+	# l'identité, et il permet une secousse minuscule là où `shake` était
+	# pensé pour les armes lourdes du butin.
+	var amplitude := data.shake
+	if data.profil != null:
+		amplitude = data.profil.secousse_locale
+	if amplitude > 0.0:
+		Fx.shake(amplitude)
 
 func ammo_text() -> String:
 	if data == null:

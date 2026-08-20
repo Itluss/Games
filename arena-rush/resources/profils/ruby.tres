@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ProfilTir" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/profil_tir.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+heros = &"ruby"
+mode = "simple"
+rafale_coups = 1
+rafale_intervalle = 0.07
+flash = "etoile"
+flash_taille = 0.9
+flash_branches = 5
+trainee = "ruban"
+trainee_longueur = 7.0
+couleur_secondaire = Color(0.208, 0.902, 1, 1)
+impact = "scintille"
+impact_taille = 0.9
+recul_corps = "vif"
+recul_amplitude = 0.05
+recul_duree = 0.11
+secousse_locale = 0.0
+son_hauteur = 880.0
+son_duree = 0.07
+son_grain = 0.15
+son_chute = 46.0

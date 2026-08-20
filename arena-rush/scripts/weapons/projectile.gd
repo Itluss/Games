@@ -10,6 +10,17 @@ class_name Projectile
 ## Chaque arme donne au projectile sa couleur, sa taille, sa traînée et sa
 ## trajectoire : c'est ce qui rend une arme reconnaissable en vol.
 
+## PROJECTILES RÉELLEMENT ÉMIS DEPUIS LE LANCEMENT.
+##
+## POURQUOI UN COMPTEUR QUI NE REDESCEND JAMAIS — c'est la même leçon que
+## `Weapon.tirs`, et elle a été apprise deux fois. Compter les projectiles
+## PRÉSENTS dans la scène revient à échantillonner : le réservoir les
+## reprend au bout de cinquante millisecondes, si bien qu'un banc qui
+## regarde après une rafale trouve moins de projectiles qu'au départ — et
+## conclut qu'il en est parti un nombre négatif. C'est exactement ce que le
+## premier banc des armes a affiché.
+static var emis: int = 0
+
 var data: WeaponData = null
 var direction: Vector3 = Vector3.FORWARD
 var shooter_id: int = 0
@@ -83,8 +94,14 @@ func _ready() -> void:
 	area_entered.connect(_on_area_entered)
 
 ## Arme le projectile. `authoritative` n'est vrai que sur le serveur.
+## Remet le compteur à zéro. Réservé aux bancs : le jeu ne s'en sert pas.
+static func remettre_compteur() -> void:
+	emis = 0
+
+
 func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
 		team: int, owner_id: int, authoritative: bool) -> void:
+	emis += 1
 	data = weapon_data
 	direction = dir.normalized()
 	shooter_team = team
@@ -164,7 +181,20 @@ func _orienter() -> void:
 		return
 	look_at(global_position + avant, Vector3.UP)
 
+## LA TRAÎNÉE — quatre langages différents, jamais quatre teintes.
+##
+## FINE      un grain serré derrière le noyau : Milo, Nox, Gus.
+## MULTIPLE  un grain plus dispersé : plusieurs traits qui partent
+##           ensemble se lisent comme une volée, pas comme une balle.
+## EPAISSE   un grain gros et lent, qui donne la masse de Bruno.
+## RUBAN     un grain qui s'écarte latéralement : le projectile reste
+##           parfaitement DROIT — c'est sa queue qui ondule. C'est la
+##           consigne, et c'est aussi la seule façon de ne pas compliquer
+##           les collisions pour un effet.
 func _setup_trail() -> void:
+	if data.profil != null and Cfg.quality != Cfg.Quality.LOW:
+		_trainee_profil()
+		return
 	if data.trail_length <= 0.0 or Cfg.quality == Cfg.Quality.LOW:
 		_trail.emitting = false
 		return
@@ -189,6 +219,73 @@ func _setup_trail() -> void:
 	tm.rings = 3
 	_trail.draw_pass_1 = tm
 	_trail.material_override = VisualKit.glow_mat(data.color, 1.6, 0.75)
+	_trail.emitting = true
+
+
+func _trainee_profil() -> void:
+	var profil: ProfilTir = data.profil
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_POINT
+	pm.gravity = Vector3.ZERO
+	pm.color = data.color
+	var grain := data.projectile_radius
+	var duree := 0.10
+	var quantite := 10
+	match profil.trainee:
+		"multiple":
+			pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+			pm.emission_sphere_radius = data.projectile_radius * 1.4
+			pm.initial_velocity_min = 0.4
+			pm.initial_velocity_max = 1.6
+			pm.spread = 40.0
+			grain = data.projectile_radius * 0.8
+			duree = 0.09
+			quantite = 12
+		"epaisse":
+			pm.initial_velocity_min = 0.0
+			pm.initial_velocity_max = 0.5
+			grain = data.projectile_radius * 1.15
+			duree = 0.20
+			quantite = 20
+		"ruban":
+			# L'ondulation vient d'ici, et de nulle part ailleurs : les
+			# grains sont éjectés sur les côtés avec une vitesse orbitale,
+			# ce qui dessine une vrille derrière une balle droite.
+			pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+			pm.emission_sphere_radius = data.projectile_radius * 0.6
+			pm.initial_velocity_min = 1.6
+			pm.initial_velocity_max = 2.6
+			pm.spread = 90.0
+			pm.damping_min = 4.0
+			pm.damping_max = 7.0
+			grain = data.projectile_radius * 0.7
+			duree = 0.16
+			quantite = 18
+		_:
+			pm.initial_velocity_min = 0.0
+			pm.initial_velocity_max = 0.2
+			grain = data.projectile_radius * 0.72
+			duree = clampf(profil.trainee_longueur * 0.022, 0.06, 0.16)
+			quantite = 9
+	pm.scale_min = 0.35
+	pm.scale_max = 0.95
+	pm.scale_curve = null
+	_trail.process_material = pm
+	_trail.amount = maxi(4, int(float(quantite) * Cfg.fx_scale()))
+	_trail.lifetime = duree
+	_trail.local_coords = false
+	var tm := SphereMesh.new()
+	tm.radius = grain
+	tm.height = grain * 2.0
+	tm.radial_segments = 6
+	tm.rings = 3
+	_trail.draw_pass_1 = tm
+	# Ruby seule a deux teintes : sa queue passe du rose au cyan, et c'est
+	# ce dégradé qui la rend reconnaissable même de très loin.
+	var teinte := data.color
+	if profil.trainee == "ruban":
+		teinte = data.color.lerp(profil.couleur_secondaire, 0.5)
+	_trail.material_override = VisualKit.glow_mat(teinte, 1.9, 0.8)
 	_trail.emitting = true
 
 func _physics_process(delta: float) -> void:
@@ -282,7 +379,14 @@ func _detonate(at: Vector3, direct_target: Node = null) -> void:
 		if _authoritative:
 			_apply_splash(at)
 	else:
-		Fx.impact(at, data.color, 0.8)
+		# L'IMPACT PORTE LA MOITIÉ DE LA SIGNATURE. Un joueur qui ne voit
+		# que le mur derrière lui doit déjà savoir qui tire : trois éclats
+		# dispersés, c'est Poppy ; un point vert minuscule, c'est Nox.
+		if data.profil != null:
+			Fx.impact_profil(at, data.profil, data.color)
+			Sfx.impact(data.profil, at)
+		else:
+			Fx.impact(at, data.color, 0.8)
 		if _authoritative and direct_target != null:
 			_damage(direct_target, data.damage, at)
 

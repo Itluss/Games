@@ -43,8 +43,17 @@ func _load_dir(path: String, into: Dictionary) -> void:
 			continue
 		into[res.id] = res
 
+## LES ARMES DE POING SIGNATURE NE TOMBENT JAMAIS AU SOL.
+##
+## Elles appartiennent à un héros et le suivent. Les laisser entrer dans
+## la table du butin donnerait le revolver de Milo à Bruno — et l'identité
+## de tir, qui est tout l'objet de cette passe, ne voudrait plus rien dire.
+func _est_signature(id: StringName) -> bool:
+	return String(id).begins_with("arme_")
+
+
 func _build_tiers() -> void:
-	var ids := weapons.keys()
+	var ids := weapons.keys().filter(func(id): return not _est_signature(id))
 	ids.sort_custom(func(a, b):
 		var wa: WeaponData = weapons[a]
 		var wb: WeaponData = weapons[b]
@@ -61,6 +70,18 @@ func weapon(id: StringName) -> WeaponData:
 
 func mob(id: StringName) -> MobData:
 	return mobs.get(id)
+
+## L'ARME DE DÉPART DÉPEND DU HÉROS.
+##
+## C'est le seul point de branchement dont l'identité de tir avait besoin :
+## avant, `starting_weapon()` rendait la même arme aux six personnages, et
+## le tir de Milo était donc exactement celui de Bruno. Le butin, lui, ne
+## change pas — un héros qui ramasse un fusil à pompe tire au fusil à
+## pompe, et c'est très bien : il a fait un choix.
+func arme_de_heros(heros: StringName) -> WeaponData:
+	var trouvee := weapon(StringName("arme_%s" % heros))
+	return trouvee if trouvee != null else starting_weapon()
+
 
 func starting_weapon() -> WeaponData:
 	return weapon(&"basic_blaster")

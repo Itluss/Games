@@ -234,7 +234,15 @@ func _ready() -> void:
 		_build_aim_visuals()
 
 	_target_pos = global_position
-	equip_weapon_id(Registry.starting_weapon().id if Registry.starting_weapon() else &"basic_blaster", 0)
+	# CHAQUE HÉROS COMMENCE AVEC SON ARME. C'est ce qui donne à chacun sa
+	# signature de tir dès la première seconde de la partie.
+	var depart := Registry.arme_de_heros(heros())
+	equip_weapon_id(depart.id if depart else &"basic_blaster", 0)
+	# LE CORPS RÉAGIT À CHAQUE COUP, PAS À CHAQUE DEMANDE DE TIR. Les deux
+	# diffèrent dès qu'il y a rafale : Poppy tire une fois et encaisse
+	# trois fois. Passer par le signal de l'arme est la seule façon de ne
+	# pas avoir à redire ici comment se déroule une rafale.
+	weapon.coup_parti.connect(_sur_coup_parti)
 
 func _physics_process(delta: float) -> void:
 	if is_eliminated:
@@ -434,6 +442,11 @@ func net_fire(origin: Vector3, dir: Vector3) -> void:
 		return
 	visual.set_state(CharacterVisual.State.ATTACK)
 	weapon.fire(origin, dir, Cfg.Team.PLAYER, peer_id, Net.is_server())
+
+func _sur_coup_parti(canon: int) -> void:
+	if visual and weapon.data:
+		visual.recul_de_tir(weapon.data.profil, canon)
+
 
 # --- ZONE ----------------------------------------------------------------
 
