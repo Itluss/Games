@@ -480,7 +480,12 @@ const HEROS_DISPONIBLES: Array[StringName] = [
 ## Le héros du joueur local. Nommé à part parce que l'interface en a
 ## besoin AVANT qu'aucun joueur n'existe : le bandeau se construit au
 ## montage du HUD, pas à l'apparition du corps.
-const HEROS_LOCAL := &"milo"
+##
+## CORSAIR — le premier visage du roster « 30 premiers héros ». Pilote
+## du nouveau pipeline mascottes : tricorne, cache-œil, pistolet en
+## main, validé au contrôle sous deux angles. Les bots gardent les six
+## anciens héros le temps que le roster se remplisse.
+const HEROS_LOCAL := &"corsair"
 
 func heros() -> StringName:
 	if peer_id == Net.local_id():

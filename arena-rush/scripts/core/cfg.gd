@@ -124,6 +124,8 @@ const COL_IDENTITE := {
 	&"gus": Color("a463f2"),
 	&"nox": Color("57d451"),
 	&"poppy": Color("f2612a"),
+	# Corsair, première mascotte jouable : le rouge de son bandana.
+	&"corsair": Color("e04a3a"),
 }
 
 ## Couleur d'identité d'un héros, avec un repli neutre pour l'inconnu.

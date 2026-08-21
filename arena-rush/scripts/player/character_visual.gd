@@ -42,6 +42,12 @@ var _heros: StringName = &""
 ## joueur invisible.
 func _chemin_modele() -> String:
 	if _heros != &"":
+		# LES MASCOTTES DU ROSTER « 30 PREMIERS HÉROS » PRIMENT : c'est le
+		# nouveau visage du jeu. Les anciens hero_* restent en repli, le
+		# temps que le roster se remplisse asset par asset, après contrôle.
+		var m := "res://assets/models/mascotte_%s.glb" % _heros
+		if ResourceLoader.exists(m):
+			return m
 		var c := "res://assets/models/hero_%s.glb" % _heros
 		if ResourceLoader.exists(c):
 			return c
