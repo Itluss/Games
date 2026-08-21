@@ -2311,7 +2311,10 @@ func _asset_ile(e: Dictionary) -> Variant:
 					_: return null
 				if g != 1.0:
 					return null
-				h = 2.0
+				# Les CUBES DE MUR se calent sur l'emprise, pas la hauteur :
+				# posés sur des cellules de 2 m qui se touchent, un cube
+				# Meshy plus étroit transformait les remparts en pointillés.
+				return KitIle.maille(nom, 2.0, 2.0)
 		"plateforme":
 			nom = &"ile_plateforme"
 			h = 0.9

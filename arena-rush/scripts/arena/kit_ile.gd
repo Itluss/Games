@@ -52,9 +52,17 @@ const DOSSIER_SOURCES := "res://assets/models/"
 ## et vert encore doublés, cabane et puits encore réduits à leur toit,
 ## palmier encore sans tronc — tous repartis en mode TEXTE, la voie qui
 ## a réussi au tonneau.
+## Lot n° 3 (mode texte), contrôle sur aperçu ET en situation : le cube
+## vert, le cube violet, la cabane (murs et toit, enfin) et le palmier
+## (tronc et noix de coco) entrent. Le cube rouge est revenu en DALLE
+## couchée flanquée d'une excroissance rocheuse — emprise 1,65 fois la
+## hauteur, il ferait 3,3 m de large à l'échelle : recalé, son module
+## procédural reste. Le puits n'a pas sa base en pierre et, surtout,
+## AUCUN module du plan ne le consomme : ignoré.
 const APPROUVES: Array[StringName] = [
 	&"ile_barriere", &"ile_caisse", &"ile_cactus", &"ile_buisson",
 	&"ile_fleurs", &"ile_tour", &"ile_bloc_jaune", &"ile_tonneau",
+	&"ile_bloc_vert", &"ile_bloc_violet", &"ile_cabane", &"ile_palmier",
 ]
 ## Nombre de tranches horizontales pour l'analyse du socle.
 const TRANCHES := 24
@@ -73,10 +81,18 @@ static func disponible(nom: StringName) -> bool:
 ## recentrée sur l'objet, socle sous le sol. Rend null si le fichier
 ## manque — l'appelant retombe alors sur le module procédural, et la
 ## carte reste jouable pendant que le lot Meshy se génère.
-static func maille(nom: StringName, hauteur: float) -> Variant:
+##
+## `emprise` > 0 : l'échelle se cale sur l'EMPRISE AU SOL au lieu de la
+## hauteur. C'est la règle des CUBES DE MUR : posés sur des cellules de
+## 2 m qui se touchent, un cube Meshy de 1,7 m d'emprise mis « à
+## hauteur » laisse 30 cm de jour entre voisins — les remparts
+## deviennent des pointillés. Calé à 2 m d'emprise, le mur redevient un
+## mur ; la hauteur atterrit où elle veut, personne ne la mesure.
+static func maille(nom: StringName, hauteur: float,
+		emprise: float = 0.0) -> Variant:
 	if nom not in APPROUVES:
 		return null
-	var cle := "%s_%.2f" % [nom, hauteur]
+	var cle := "%s_%.2f_%.2f" % [nom, hauteur, emprise]
 	if _cache.has(cle):
 		return _cache[cle]
 	var chemin := DOSSIER + String(nom) + ".res"
@@ -99,6 +115,8 @@ static func maille(nom: StringName, hauteur: float) -> Variant:
 	var utile: AABB = mesure["utile"]
 
 	var f: float = hauteur / maxf(utile.size.y, 0.0001)
+	if emprise > 0.0:
+		f = emprise / maxf(maxf(utile.size.x, utile.size.z), 0.0001)
 	var centre := utile.get_center() * f
 	# ON N'ENTERRE PAS À MOITIÉ : sous cinq centimètres, on remonte à
 	# cinq — la leçon des tonneaux western, posés à un dixième de
