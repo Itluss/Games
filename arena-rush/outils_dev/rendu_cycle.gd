@@ -75,7 +75,7 @@ func _ready() -> void:
 
 	_visuel = CharacterVisual.new()
 	add_child(_visuel)
-	_visuel.build(Color(0.30, 0.55, 0.95), Color(1.0, 0.75, 0.25), 1.7)
+	_visuel.build(Color(0.30, 0.55, 0.95), Color(1.0, 0.75, 0.25), 1.7, &"corsair")
 	# UNE VRAIE ARME dans la main : sa taille et sa tenue font partie de ce
 	# qu'il faut juger. Un chiffre d'échelle ne dit pas si l'arme paraît
 	# proportionnée.
