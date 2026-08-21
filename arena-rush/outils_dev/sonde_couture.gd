@@ -38,6 +38,8 @@ var _cote := 0
 var _attente := 0
 var _avant: Image = null
 var _ecarts: Array[float] = []
+## Écart brut de la paire en cours, en attente de sa photo de bruit.
+var _ecart_paire := 0.0
 var _prete := false
 
 func _ready() -> void:
@@ -108,7 +110,9 @@ func _positions(i: int) -> Array:
 
 func _placer() -> void:
 	_immobiliser()
-	_joueur.global_position = _positions(_paire)[_cote]
+	# Trois temps par traversée : côté 0, côté 1, puis RETOUR au côté 0
+	# pour la photo de bruit — même position que la première.
+	_joueur.global_position = _positions(_paire)[1 if _cote == 1 else 0]
 	if _cam and _cam.has_method(&"_snap"):
 		_cam.call(&"_snap")
 	_attente = REPOS
@@ -127,11 +131,31 @@ func _analyser() -> void:
 		_cote = 1
 		_placer()
 		return
-	var e := _difference(_avant, img)
+	if _cote == 1:
+		# ─── TROISIÈME PHOTO : MESURER LE BRUIT DE LA SCÈNE ────────────
+		#
+		# Le monde est figé, mais pas le TEMPS des shaders : l'eau ondule
+		# et rien ne l'arrête en gl_compatibility. Sur cette machine,
+		# quatre trames durent un dixième de seconde et ce mouvement est
+		# invisible ; sur un runner CI chargé, les MÊMES quatre trames
+		# couvrent une seconde et l'eau a visiblement bougé entre les deux
+		# photos — écart 0,24 au run n°109 pour 0,045 de tolérance, sur
+		# une couture pourtant saine (0,013 en local, trois passes). On
+		# REVIENT donc au point de départ pour une troisième photo :
+		# l'écart entre la première et celle-ci, à position IDENTIQUE, est
+		# le bruit d'animation pur. La couture n'est en cause que pour ce
+		# qui DÉPASSE ce bruit.
+		_ecart_paire = _difference(_avant, img)
+		_cote = 2
+		_placer()
+		return
+	var bruit := _difference(_avant, img)
+	var e := maxf(_ecart_paire - bruit, 0.0)
 	_ecarts.append(e)
 	if e > TOLERANCE:
-		print("      ! traversée %d : écart %.4f en %s"
-				% [_paire, e, str(_positions(_paire)[0])])
+		print("      ! traversée %d : écart %.4f (brut %.4f, bruit %.4f) en %s"
+				% [_paire, e, _ecart_paire, bruit,
+						str(_positions(_paire)[0])])
 	_paire += 1
 	_cote = 0
 	if _paire >= PAIRES:
