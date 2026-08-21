@@ -131,30 +131,45 @@ func _eau_et_pont() -> void:
 			"%.0f, %.0f" % [pont.x, pont.y])
 
 
-## LE LABYRINTHE RESTE OUVERT — la règle n° 1. Deux mesures :
-##   · la place est dégagée : les seize points d'un anneau à sept mètres
-##     sont presque tous libres ;
-##   · l'anneau de circulation à seize mètres, entre la place et les
-##     quartiers, est praticable aux trois quarts au moins — c'est lui
-##     qui garantit « toujours une autre route ».
+## LE LABYRINTHE RESTE OUVERT — la règle n° 1, mesurée sur ce que le
+## plan PROMET désormais : des RUES. L'ancienne mesure balayait un anneau
+## à seize mètres ; depuis que la carte est un réseau d'allées, cet
+## anneau traverse légitimement des haies — l'instrument mesurait la
+## promesse d'avant. Ici on parcourt le FIL de chaque rue déclarée par le
+## plan, pas à pas : les deux axes, le rectangle des rues à ±12, et le
+## tour de place entre la plateforme et son enclos. Une rue se doit
+## d'être praticable de bout en bout — le seuil est à 90 %.
 func _ouverture() -> void:
-	var libres := 0
+	var rues := [
+		["axe nord",  Vector2(0, 13),   Vector2(0, 33)],
+		["axe sud",   Vector2(0, -13),  Vector2(0, -33)],
+		["axe est",   Vector2(13, 0),   Vector2(33, 0)],
+		["axe ouest", Vector2(-13, 0),  Vector2(-33, 0)],
+		["rue z=+12", Vector2(-30, 12), Vector2(30, 12)],
+		["rue z=-12", Vector2(-30, -12), Vector2(30, -12)],
+		["rue x=+12", Vector2(12, -30), Vector2(12, 30)],
+		["rue x=-12", Vector2(-12, -30), Vector2(-12, 30)],
+	]
+	for r: Array in rues:
+		var de: Vector2 = r[1]
+		var vers: Vector2 = r[2]
+		var n := int(de.distance_to(vers) / 1.0)
+		var libres := 0
+		for i in n + 1:
+			var q := de.lerp(vers, float(i) / maxf(n, 1))
+			if bool(_arene.call(&"position_libre",
+					Vector3(q.x, 0.2, q.y), RAYON_CORPS)):
+				libres += 1
+		_dire("la rue « %s » circule" % r[0],
+				libres >= (n + 1) * 9 / 10, "%d/%d" % [libres, n + 1])
+	# Le tour de place, entre la plateforme et l'enclos en moulinet.
+	var tour := 0
 	for i in 16:
 		var a := TAU * float(i) / 16.0
 		if bool(_arene.call(&"position_libre",
-				Vector3(cos(a) * 7.0, 0.2, sin(a) * 7.0), RAYON_CORPS)):
-			libres += 1
-	_dire("la place de l'étoile est dégagée", libres >= 14,
-			"%d/16" % libres)
-	var courables := 0
-	const N := 72
-	for i in N:
-		var a := TAU * float(i) / N
-		if bool(_arene.call(&"position_libre",
-				Vector3(cos(a) * 16.0, 0.2, sin(a) * 16.0), RAYON_CORPS)):
-			courables += 1
-	_dire("l'anneau de circulation est praticable", courables >= N * 3 / 4,
-			"%d/%d" % [courables, N])
+				Vector3(cos(a) * 5.6, 0.2, sin(a) * 5.6), RAYON_CORPS)):
+			tour += 1
+	_dire("le tour de place circule", tour == 16, "%d/16" % tour)
 
 
 ## L'ENCEINTE TIENT : un point du large est dehors, et le rapatriement le

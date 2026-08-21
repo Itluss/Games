@@ -2120,7 +2120,7 @@ func _teinte_sol_blocs(c: Vector2, graine: int) -> Color:
 		t = t.lerp(KitBlocs.CHEMIN, 0.45)
 	# La place de l'étoile : un disque à peine rosé qui la nomme.
 	if r < 11.0:
-		t = t.lerp(KitBlocs.SOL_CLAIR, 0.45)
+		t = t.lerp(KitBlocs.SOL_CLAIR, 0.30)
 	# Les abords de la jungle et de l'oasis verdissent : la zone déteint
 	# sur son sol, c'est ce qui fait « quartier » vu du ciel.
 	for z in [[Vector2(25, 27), 14.0], [Vector2(-23, -23), 13.0]]:
@@ -2130,11 +2130,15 @@ func _teinte_sol_blocs(c: Vector2, graine: int) -> Color:
 					(1.0 - e / z[1]) * 0.30)
 	# La frange de l'île : l'herbe du pourtour, puis le large qui fonce.
 	var enceinte := PlanAreneBlocs.BORD
-	if r > enceinte - 5.0:
-		t = t.lerp(Color("6fbf49"), clampf((r - enceinte + 5.0) / 6.0,
-				0.0, 1.0) * 0.8)
-	if r > enceinte + 4.0:
-		t = t.darkened(clampf((r - enceinte - 4.0) / 12.0, 0.0, 1.0) * 0.65)
+	# La frange d'herbe est un LISERÉ de deux ou trois tuiles, comme sur
+	# la planche — pas une marée. Le premier réglage démarrait à cinq
+	# mètres du bord avec une rampe molle : la moitié de l'île virait au
+	# vert fluo, mesuré en capture plein cadre.
+	if r > enceinte - 2.5:
+		t = t.lerp(Color("5da53e"), clampf((r - enceinte + 2.5) / 4.0,
+				0.0, 1.0) * 0.65)
+	if r > enceinte + 3.0:
+		t = t.darkened(clampf((r - enceinte - 3.0) / 8.0, 0.0, 1.0) * 0.8)
 	return t
 
 
@@ -2232,18 +2236,31 @@ func _modules_blocs() -> void:
 			lots[maille] = []
 		var pos: Vector2 = e["pos"]
 		var a: float = deg_to_rad(float(e.get("a", 0.0)))
+		# `y` est l'ÉTAGE : la planche empile de VRAIS cubes, elle n'étire
+		# pas de monolithes. Un bloc d'étage est le même cube, posé deux
+		# mètres plus haut — même lot, même appel de dessin.
 		(lots[maille] as Array).append(Transform3D(
 				Basis.from_euler(Vector3(0, -a, 0)),
-				Vector3(pos.x, PlanAreneBlocs.LEVEE, pos.y)))
-		_collision_module(e)
+				Vector3(pos.x, PlanAreneBlocs.LEVEE + float(e.get("y", 0.0)),
+						pos.y)))
+		# L'étage n'a pas de collision : rien ne vole à trois mètres, et
+		# le cube du dessous bloque déjà corps et tirs.
+		if float(e.get("y", 0.0)) == 0.0:
+			_collision_module(e)
 	for maille: Mesh in lots.keys():
 		var entrees: Array = lots[maille]
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
 		mm.mesh = maille
 		mm.instance_count = entrees.size()
 		for i in entrees.size():
 			mm.set_instance_transform(i, entrees[i])
+			# LÉGÈRE VARIATION PAR EXEMPLAIRE — le grain de la planche :
+			# deux cubes voisins n'y ont jamais exactement le même ton.
+			# La couleur d'instance MULTIPLIE la couleur de sommets.
+			var v := 0.94 + float(((i * 2654435761) % 100 + 100) % 100) * 0.0012
+			mm.set_instance_color(i, Color(v, v, v))
 		var inst := MultiMeshInstance3D.new()
 		inst.name = "LotBlocs"
 		inst.multimesh = mm
@@ -2351,6 +2368,8 @@ func _ombres_contact_blocs() -> void:
 			"buisson": emprise = Vector2(1.3, 1.3)
 			"cactus": emprise = Vector2(1.3, 1.3)
 			_: continue
+		if float(e.get("y", 0.0)) > 0.0:
+			continue
 		var p: Vector2 = e["pos"]
 		var a := deg_to_rad(float(e.get("a", 0.0)))
 		taches.append(Transform3D(
