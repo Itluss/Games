@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "Vague principale du roster « 30 premiers héros » — pipeline validé par les trois pilotes (Shade, Corsair, Slime, run n°15) : découpes heros30 à ~200 px sur fond clair, famille mascotte. Contrôle qualité individuel + en situation avant toute intégration.",
+  "_hauteur_cible_m": 1.6,
+  "nom": "mascotte_doc",
+  "mode": "image",
+  "famille": "mascotte",
+  "image": "art/references/decoupes/heros30/doc.png",
+  "prompt": "small medic robot mascot: rounded white robot head with blue headphones and cyan eyes, green medical cross on the chest, holding a small white heal pistol",
+  "polycount": 9000,
+  "texturer": true
+}

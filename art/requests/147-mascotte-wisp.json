@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "Vague principale du roster « 30 premiers héros » — pipeline validé par les trois pilotes (Shade, Corsair, Slime, run n°15) : découpes heros30 à ~200 px sur fond clair, famille mascotte. Contrôle qualité individuel + en situation avant toute intégration.",
+  "_hauteur_cible_m": 1.3,
+  "nom": "mascotte_wisp",
+  "mode": "image",
+  "famille": "mascotte",
+  "image": "art/references/decoupes/heros30/wisp.png",
+  "prompt": "small ghost mascot: rounded turquoise spectral body with a wavy tapered bottom and no legs, two stubby arms, dark face patch with glowing cyan eyes",
+  "polycount": 6000,
+  "texturer": true
+}

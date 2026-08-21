@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "Vague principale du roster « 30 premiers héros » — pipeline validé par les trois pilotes (Shade, Corsair, Slime, run n°15) : découpes heros30 à ~200 px sur fond clair, famille mascotte. Contrôle qualité individuel + en situation avant toute intégration.",
+  "_hauteur_cible_m": 1.6,
+  "nom": "mascotte_knight",
+  "mode": "image",
+  "famille": "mascotte",
+  "image": "art/references/decoupes/heros30/knight.png",
+  "prompt": "small knight mascot: oversized grey metal helmet with slit visor and blue plume, blue scarf, holding a short sword in one hand and a round grey shield in the other",
+  "polycount": 9000,
+  "texturer": true
+}

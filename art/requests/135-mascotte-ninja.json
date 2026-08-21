@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "Vague principale du roster « 30 premiers héros » — pipeline validé par les trois pilotes (Shade, Corsair, Slime, run n°15) : découpes heros30 à ~200 px sur fond clair, famille mascotte. Contrôle qualité individuel + en situation avant toute intégration.",
+  "_hauteur_cible_m": 1.6,
+  "nom": "mascotte_ninja",
+  "mode": "image",
+  "famille": "mascotte",
+  "image": "art/references/decoupes/heros30/ninja.png",
+  "prompt": "small black cat ninja mascot: black cat head with pointy ears, yellow headband with knot, yellow eyes, black body with yellow scarf, holding a metal shuriken",
+  "polycount": 9000,
+  "texturer": true
+}

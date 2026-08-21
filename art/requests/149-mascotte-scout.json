@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "Vague principale du roster « 30 premiers héros » — pipeline validé par les trois pilotes (Shade, Corsair, Slime, run n°15) : découpes heros30 à ~200 px sur fond clair, famille mascotte. Contrôle qualité individuel + en situation avant toute intégration.",
+  "_hauteur_cible_m": 1.6,
+  "nom": "mascotte_scout",
+  "mode": "image",
+  "famille": "mascotte",
+  "image": "art/references/decoupes/heros30/scout.png",
+  "prompt": "small fox mascot: orange fox head with dark ear tips and green goggles on forehead, orange body with dark paws, holding a small wooden carbine rifle",
+  "polycount": 9000,
+  "texturer": true
+}
