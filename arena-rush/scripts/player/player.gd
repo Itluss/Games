@@ -473,8 +473,15 @@ func _simulate(delta: float) -> void:
 ##
 ## Le joueur local reçoit MILO, l'étalon des six : c'est le personnage par
 ## rapport auquel les autres démarches ont été réglées.
+## LES BOTS PORTENT LE ROSTER MASCOTTES. Dix-neuf visages approuvés au
+## contrôle qualité du 21/08 (lot pilote + vague principale) — Corsair
+## n'y figure pas : c'est le visage du joueur, croiser son double
+## brouillerait la lecture. Les six anciens héros restent au dépôt en
+## repli de chargement, mais plus personne ne les tire au sort.
 const HEROS_DISPONIBLES: Array[StringName] = [
-	&"milo", &"poppy", &"bruno", &"nox", &"ruby", &"gus",
+	&"shade", &"slime", &"bone", &"boom", &"buzz", &"flare", &"frost",
+	&"gizmo", &"knight", &"ninja", &"pixel", &"prick", &"pumpkin",
+	&"ram", &"root", &"ruby", &"spore", &"tiki", &"wisp",
 ]
 
 ## Le héros du joueur local. Nommé à part parce que l'interface en a
