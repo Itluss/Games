@@ -95,6 +95,23 @@ class_name ProfilTir
 ## qui donne à Ruby son rose-vers-cyan sans un seul shader.
 @export var couleur_bout: Color = Color(1, 1, 1, 0)
 
+## ─── CANON EN COURS D'EMPLOI — ÉTAT, PAS RÉGLAGE ────────────────────
+##
+## 0 = droite, 1 = gauche. Il n'est PAS exporté : ce n'est pas un choix
+## d'artiste enregistré dans la ressource, c'est une information vivante
+## que `Weapon` pose juste avant de demander le départ, et que `Fx` lit
+## pour dessiner la gerbe du bon côté.
+##
+## POURQUOI PASSER PAR LE PROFIL PLUTÔT QUE PAR UN ARGUMENT. `Fx.depart`
+## est appelé depuis trois endroits et sa signature sert aussi aux armes de
+## butin, qui n'ont pas de canons. Lui ajouter un paramètre qui ne concerne
+## qu'un héros sur six l'aurait alourdi partout pour servir ici.
+##
+## LA RESSOURCE EST PARTAGÉE ENTRE TOUTES LES ARMES D'UN MÊME HÉROS, et
+## c'est sans conséquence : la valeur est posée puis lue dans la même
+## fonction, sans une image entre les deux.
+var canon_courant: int = 0
+
 @export_group("Impact")
 ## ETOILE     petite étoile nette — Milo, Gus.
 ## ECLATS     plusieurs éclats dispersés — Poppy.

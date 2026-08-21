@@ -261,6 +261,11 @@ func _coup(origin: Vector3, basis_dir: Vector3, team: int, owner_id: int,
 
 	var vis := profil_visuel()
 	if vis != null:
+		# LE CANON EST PUBLIÉ AVANT LE DÉPART, pas après. `Fx` en a besoin
+		# pour décaler la gerbe du bon côté et tourner l'étoile un coup sur
+		# deux — c'est ce qui rend l'alternance de Gus VISIBLE, et pas
+		# seulement audible.
+		vis.canon_courant = canon
 		Fx.depart(scene_root, depart, basis_dir, vis, vis.couleur)
 		Sfx.tir(vis, depart)
 	else:

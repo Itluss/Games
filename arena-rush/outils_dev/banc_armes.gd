@@ -214,6 +214,28 @@ func _axes(a: Dictionary, b: Dictionary, detail: Array[String]) -> int:
 	if (pa.mode == "alterne") != (pb.mode == "alterne"):
 		n += 1
 		detail.append("double canon")
+	# ─── TAILLE DU PROJECTILE, EN MÈTRES ───────────────────────────────
+	#
+	# AXE AJOUTÉ, ET IL MANQUAIT. Le banc jugeait la FORME de la traînée et
+	# la famille du départ, mais pas le CALIBRE de la balle — alors que
+	# c'est la première chose qu'on voit passer, et qu'elle va désormais du
+	# simple au quadruple : 0,038 pour l'aiguille de Nox, 0,165 pour l'obus
+	# de Bruno. Ne pas la compter, c'était noter Bruno sur tout sauf ce qui
+	# le rend reconnaissable — la même faute que pour le double canon de
+	# Gus, commise une seconde fois.
+	var ta: float = maxf(pa.tete_rayon, 0.001)
+	var tb: float = maxf(pb.tete_rayon, 0.001)
+	if maxf(ta, tb) / minf(ta, tb) >= 1.5:
+		n += 1
+		detail.append("calibre ×%.1f" % (maxf(ta, tb) / minf(ta, tb)))
+	# LONGUEUR DE LA QUEUE. Un trait bref derrière une gerbe (Poppy) ne se
+	# lit pas comme une traînée longue derrière une aiguille (Nox), même
+	# si les deux sont classées « fine ».
+	var qa: float = maxf(pa.trainee_metres, 0.001)
+	var qb: float = maxf(pb.trainee_metres, 0.001)
+	if maxf(qa, qb) / minf(qa, qb) >= 1.5:
+		n += 1
+		detail.append("queue ×%.1f" % (maxf(qa, qb) / minf(qa, qb)))
 	# RÉACTION DU CORPS.
 	if pa.recul_corps != pb.recul_corps:
 		n += 1

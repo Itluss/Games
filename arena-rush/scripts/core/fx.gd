@@ -550,9 +550,17 @@ func _rendre_maille(mi: MeshInstance3D) -> void:
 ## le NOMBRE DE BRANCHES qui sépare Gus de Milo une fois la couleur
 ## retirée. Un panneau garde sa forme quel que soit l'angle — et la planche
 ## de référence dessine bien des étoiles plates, pas des soleils au sol.
-func _etoile(branches: int) -> ArrayMesh:
-	if _mesh_etoile.has(branches):
-		var connu: ArrayMesh = _mesh_etoile[branches]
+## `phase` fait TOURNER LA FORME ELLE-MÊME, et pas le nœud qui la porte.
+##
+## Le panneau du départ regarde toujours la caméra : lui appliquer une
+## rotation n'a aucun effet, le moteur la remplace. Pour que la silhouette
+## change d'un tir à l'autre — ce dont Gus a besoin, et ce qui doit rester
+## vrai en niveaux de gris — il faut donc une AUTRE maille, cuite une fois
+## et gardée en cache comme les autres.
+func _etoile(branches: int, phase: float = 0.0) -> ArrayMesh:
+	var cle := "%d:%.3f" % [branches, phase]
+	if _mesh_etoile.has(cle):
+		var connu: ArrayMesh = _mesh_etoile[cle]
 		return connu
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -580,7 +588,7 @@ func _etoile(branches: int) -> ArrayMesh:
 		st.set_normal(Vector3.BACK)
 		st.add_vertex(Vector3(cos(a1), sin(a1), 0) * base)
 	for i in branches:
-		var a := TAU * float(i) / float(branches)
+		var a := TAU * float(i) / float(branches) + phase
 		# L'ALTERNANCE N'A DE SENS QUE SUR UN NOMBRE PAIR. À cinq branches,
 		# elle laissait DEUX grands rayons côte à côte et une étoile
 		# bancale ; or cinq branches, c'est exactement ce que la planche
@@ -596,16 +604,16 @@ func _etoile(branches: int) -> ArrayMesh:
 			st.set_normal(Vector3.BACK)
 			st.add_vertex(v)
 	var m := st.commit()
-	_mesh_etoile[branches] = m
+	_mesh_etoile[cle] = m
 	return m
 
 
 ## Pose une étoile qui grandit et s'efface. `duree` doit rester courte :
 ## un départ qui traîne masque le personnage, ce que la consigne interdit.
 func _poser_etoile(parent: Node, pos: Vector3, color: Color, branches: int,
-		rayon: float, duree: float) -> void:
+		rayon: float, duree: float, phase: float = 0.0) -> void:
 	var mi := _prendre_maille()
-	mi.mesh = _etoile(branches)
+	mi.mesh = _etoile(branches, phase)
 	var m := _teinter(mi, color, 5.0, true)
 	mi.position = pos
 	# Le panneau ignore la rotation du nœud : la variété vient du nombre de
@@ -676,10 +684,23 @@ func depart(parent: Node, pos: Vector3, dir: Vector3, profil: ProfilTir,
 			# interdit qu'un effet persiste, et un souffle qui reste
 			# cacherait l'adversaire au moment où on doit le suivre.
 			_poser_gerbe(parent, pos, dir, color, profil.flash_branches,
-					4.0, 0.95 * t, 0.10)
-			_poser_gerbe(parent, pos, dir, coeur, 5, 2.2, 0.66 * t, 0.08)
-			_anneau(parent, devant, dir, coeur, 0.82, 0.09, 5.0)
-			_anneau(parent, devant, dir, color, 1.30, 0.16, 3.0)
+					4.0, 0.72 * t, 0.09)
+			_poser_gerbe(parent, pos, dir, coeur, 5, 2.2, 0.48 * t, 0.07)
+			# ─── LES ANNEAUX SE RESSERRENT — 0,52 ET 0,80, PAS 0,82 ET 1,30
+			#
+			# Vu à la caméra de jeu, l'anneau de 1,30 m de RAYON faisait
+			# 2,60 m de diamètre, soit cent quarante-cinq pixels sur un
+			# écran qui en compte trois cent quatre-vingt-dix de haut : un
+			# tiers de la hauteur, posé sur Bruno, qui disparaissait
+			# dessous. La planche est catégorique — « aucun effet ne cache
+			# les ennemis » — et son propre projectile devenait invisible
+			# dans son flash.
+			#
+			# Un personnage fait soixante centimètres de large. Un souffle
+			# de départ se lit à cette échelle : plus large, il cesse
+			# d'être une détonation pour devenir un voile.
+			_anneau(parent, devant, dir, coeur, 0.52, 0.075, 5.0)
+			_anneau(parent, devant, dir, color, 0.80, 0.13, 3.0)
 			_emit_burst(parent, pos + dir * 0.5, color, 20, 9.5, 0.16,
 					0.26, -2.5)
 			_emit_burst(parent, pos + dir * 0.8, Color(0.44, 0.36, 0.32),
@@ -692,10 +713,13 @@ func depart(parent: Node, pos: Vector3, dir: Vector3, profil: ProfilTir,
 				&"ruby":
 					_depart_ruby(parent, pos, devant, dir, profil, color,
 							coeur, t)
+				&"gus":
+					_depart_gus(parent, pos, devant, dir, profil, color,
+							coeur, t)
 				_:
-					# GUS et les armes de butin : le départ générique
-					# d'avant, inchangé. La consigne est de faire de Milo
-					# et Ruby l'étalon AVANT de reprendre les autres.
+					# Les armes de butin gardent le départ générique
+					# d'avant : elles n'ont pas de profil de héros, donc
+					# rien à quoi les rendre reconnaissables.
 					_poser_gerbe(parent, pos, dir, color,
 							profil.flash_branches, 2.4, 0.78 * t, 0.06)
 					_poser_gerbe(parent, pos, dir, coeur, 4, 1.6,
@@ -756,6 +780,51 @@ func _depart_ruby(parent: Node, pos: Vector3, devant: Vector3, dir: Vector3,
 	_emit_burst(parent, pos + dir * 0.22, profil.couleur_secondaire, 12,
 			7.5, 0.07, 0.15, -1.2)
 	_flash_light(parent, pos, color, 1.6, 1.15, 0.05)
+
+
+## ─── GUS : LE DÉPART DIT QUEL CANON A PARLÉ ──────────────────────────
+##
+## Il tombait jusqu'ici sur la gerbe générique, et c'était le seul des six
+## à ne rien avoir en propre. Le problème n'était pas qu'elle soit laide :
+## c'est qu'elle est SYMÉTRIQUE, et que la symétrie efface justement ce qui
+## fait Gus. Deux revolvers qui alternent, si les deux départs se
+## ressemblent trait pour trait, se lisent comme un seul revolver rapide.
+##
+## Sa signature tient donc en deux dissymétries :
+##
+##   · LA GERBE PENCHE DU CÔTÉ DU CANON. Le décalage est minuscule — huit
+##     centimètres — mais il suffit : deux coups consécutifs ne partent pas
+##     du même point de l'écran, et l'œil lit un va-et-vient.
+##   · L'ÉTOILE TOURNE D'UN COUP SUR DEUX. Six branches, tournées d'un
+##     demi-pas à gauche : la forme change entre deux tirs, ce qui reste
+##     vrai en niveaux de gris — c'est exactement ce que le banc exige.
+##
+## Le canon est lu sur le profil, que `Weapon` met à jour avant chaque
+## coup : voir `ProfilTir.canon_courant`.
+func _depart_gus(parent: Node, pos: Vector3, devant: Vector3, dir: Vector3,
+		profil: ProfilTir, color: Color, coeur: Color, t: float) -> void:
+	var droite := profil.canon_courant == 0
+	# Le décalage latéral se calcule dans le repère du tir : « à droite »
+	# doit vouloir dire à droite DE L'ARME, pas à droite du monde.
+	var lat := dir.cross(Vector3.UP).normalized()
+	if lat.length() < 0.5:
+		lat = Vector3.RIGHT
+	var cote: float = 0.08 if droite else -0.08
+	var ancre := devant + lat * cote
+	# La rotation de l'étoile alterne d'un demi-pas : sur six branches,
+	# c'est trente degrés — assez pour que la forme change, trop peu pour
+	# qu'on croie à deux armes différentes.
+	var pas := TAU / float(maxi(profil.flash_branches, 3)) * 0.5
+	_poser_etoile(parent, ancre, color, profil.flash_branches, 0.30 * t,
+			0.055, 0.0 if droite else pas)
+	_poser_etoile(parent, ancre + dir * 0.10, coeur, 4, 0.17 * t, 0.045)
+	_poser_gerbe(parent, pos + lat * cote, dir, color, 4, 2.2, 0.42 * t,
+			0.055)
+	# UN SEUL ANNEAU, ET PETIT. Gus tire deux fois plus souvent qu'il n'y
+	# paraît : deux anneaux par coup, comme Poppy, saturerait la zone du
+	# canon en une seconde de tir soutenu.
+	_anneau(parent, ancre, dir, coeur, 0.26, 0.05, 3.6)
+	_flash_light(parent, pos + lat * cote, color, 1.4, 1.3, 0.05)
 
 
 ## IMPACT DE PROJECTILE, selon le profil. C'est la seconde moitié de la

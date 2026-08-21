@@ -38,6 +38,8 @@ var _width: float = 1.0
 var _ratio: float = 1.0
 var _teinte: Color = Color("4cd964")
 var _t: float = 0.0
+## Plaque réduite à sa seule étoile — le joueur local. Voir `mode_discret`.
+var _discret: bool = false
 
 ## Texture d'arrondi partagée. Une seule pour tout le jeu : elle ne dépend
 ## ni du personnage ni de sa couleur, seulement de la forme.
@@ -163,7 +165,40 @@ func afficher_etoile(actif: bool) -> void:
 	add_child(_etoile)
 
 
+## ─── LA PLAQUE S'ÉTEINT QUAND ELLE DEVIENT ILLISIBLE ─────────────────
+##
+## Distance au-delà de laquelle nom et barre disparaissent, en mètres.
+##
+## POURQUOI CE RÉGLAGE EXISTE. La sonde de stabilité compte les maillages
+## VISIBLES à l'image, et son plafond — 720 en profil téléphone — est calé
+## sur des mesures : 686 tient en zone grise, 782 tue l'écran. Le jeu
+## culmine entre 683 et 720 : la marge est nulle, et la barrière tombe au
+## hasard des passes.
+##
+## Or les plaques de nom que porte chaque combattant ajoutent un `Label3D`
+## par joueur — dix en partie complète, allumés en permanence, y compris
+## pour ceux qui sont à quarante mètres où le nom fait trois pixels. C'est
+## de la charge payée pour une information que personne ne lit.
+##
+## VINGT-SIX MÈTRES, ET PAS DIX. La caméra plonge de 10,4 m et embrasse une
+## bonne vingtaine de mètres de terrain : couper trop court ferait
+## disparaître la barre d'un adversaire encore parfaitement visible, ce qui
+## serait un défaut de jeu bien pire que quelques instances de plus.
+const PORTEE_LISIBLE := 26.0
+
+## Période de vérification, en secondes. Cinq fois par seconde : une plaque
+## qui s'allume un dixième de seconde trop tard ne se remarque pas, et l'on
+## évite dix mesures de distance par image.
+const PERIODE_PORTEE := 0.2
+
+var _prochain_test := 0.0
+
+
 func _process(delta: float) -> void:
+	_prochain_test -= delta
+	if _prochain_test <= 0.0:
+		_prochain_test = PERIODE_PORTEE
+		_regler_portee()
 	if _etoile == null or not is_instance_valid(_etoile):
 		return
 	# Un battement lent : l'étoile respire pour attirer l'œil sans tourner,
@@ -184,12 +219,30 @@ func _process(delta: float) -> void:
 ## D'où ce mode plutôt qu'un simple `visible = false` sur toute la plaque :
 ## on éteint le nom et la barre, on garde l'étoile.
 func mode_discret(actif: bool) -> void:
-	if _bg:
-		_bg.visible = not actif
-	if _fill:
-		_fill.visible = not actif
+	# L'ÉTAT EST MÉMORISÉ, ET C'EST INDISPENSABLE. `_regler_portee` rallume
+	# la plaque cinq fois par seconde dès qu'elle revient à portée : sans
+	# ce drapeau, le joueur local retrouverait son propre nom au-dessus de
+	# la tête un cinquième de seconde après le montage.
+	_discret = actif
+	_regler_portee()
+
+
+## L'ÉTOILE DU PORTEUR N'EST JAMAIS ÉTEINTE, elle. C'est l'objectif du
+## mode : la voir de loin est exactement son travail, et il n'y en a qu'une
+## sur la carte — le coût est d'une instance, pas de dix.
+func _regler_portee() -> void:
+	if _bg == null:
+		return
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if cam == null:
+		return
+	var loin := global_position.distance_to(cam.global_position) \
+			> PORTEE_LISIBLE
+	var montrer := not loin and not _discret
+	_bg.visible = montrer
+	_fill.visible = montrer
 	if _nom:
-		_nom.visible = not actif
+		_nom.visible = montrer
 
 
 func set_ratio(value: float) -> void:

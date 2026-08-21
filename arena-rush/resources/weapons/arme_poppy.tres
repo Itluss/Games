@@ -7,12 +7,12 @@
 script = ExtResource("1")
 id = &"arme_poppy"
 display_name = "Pétoire à Ferraille"
-damage = 1.2
+damage = 0.9
 fire_rate = 1.9
 range = 15.0
 projectile_speed = 30.0
-projectile_count = 3
-spread_degrees = 22.0
+projectile_count = 4
+spread_degrees = 16.0
 splash_radius = 0.0
 gravity = 0.0
 fuse_time = 0.0

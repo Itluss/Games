@@ -34,7 +34,20 @@ const HAUTEUR := 780
 const CAM_HAUTEUR := 10.4
 const CAM_RECUL := 8.0
 const CAM_FOV := 58.0
-## Écartement des deux tireurs, en mètres.
+## ─── LES SIX HÉROS, ET PLUS SEULEMENT DEUX ──────────────────────────
+##
+## La scène servait d'étalon pendant qu'on refaisait Milo et Ruby. Les
+## quatre autres arrivent au même niveau : elle les prend tous, dans
+## l'ordre de la planche, et la pellicule les photographie l'un après
+## l'autre au lieu de s'arrêter après le deuxième.
+##
+## L'ORDRE COMPTE POUR LA COMPARAISON : on met côte à côte ceux qui
+## risquent de se confondre. Milo et Gus partagent l'or, Poppy et Bruno
+## l'orange — s'ils se ressemblent, c'est là qu'on le verra.
+const HEROS: Array[StringName] = [
+	&"milo", &"gus", &"poppy", &"bruno", &"nox", &"ruby",
+]
+## Écartement de deux tireurs voisins, en mètres.
 const ECART := 3.4
 ## Distance du mur de réception.
 const MUR := 10.0
@@ -68,6 +81,12 @@ var _macro := false
 var _etape := 0
 var _n := 0
 var _attente := 0
+## Index du tireur photographié par la pellicule.
+var _arme := 0
+## Héros unique demandé par `--seul=`. Vide = tous.
+var _seul := ""
+## Liste réellement posée : `HEROS`, ou le seul héros demandé.
+var _ordre: Array[StringName] = []
 var _sonde := false
 
 
@@ -84,12 +103,13 @@ func _ready() -> void:
 		elif a == "--macro":
 			_macro = true
 			_film = true
+		elif a.begins_with("--seul="):
+			_seul = a.substr(7)
 	Engine.time_scale = RALENTI_FILM if _film else RALENTI
 	if _dossier == "":
 		_dossier = "user://duel"
 	DirAccess.make_dir_recursive_absolute(_dossier)
 	get_window().size = Vector2i(LARGEUR, HAUTEUR)
-
 	_decor()
 	_cam = Camera3D.new()
 	_cam.fov = CAM_FOV
@@ -123,13 +143,28 @@ func _ready() -> void:
 		_cam.position = Vector3(0, CAM_HAUTEUR, CAM_RECUL)
 		_cam.look_at(Vector3(0, 1.0, -3.0), Vector3.UP)
 
-	_tireurs.append(_poser(&"milo", -ECART * 0.5))
-	_tireurs.append(_poser(&"ruby", ECART * 0.5))
+	# Les tireurs sont alignés et CENTRÉS : avec six, le premier et le
+	# dernier tomberaient hors cadre si l'on partait de zéro.
+	# ─── UN SEUL TIREUR, AU CENTRE, POUR JUGER SANS SE TROMPER ────────
+	#
+	# À six alignés, le recadrage sur l'un d'eux se calcule de tête et
+	# l'on se trompe : j'ai comparé pendant deux tours des vignettes qui ne
+	# montraient pas le héros que je croyais. Avec `--seul=`, le tireur est
+	# à l'origine, donc au centre exact de l'image — il n'y a plus rien à
+	# calculer, donc plus rien à rater.
+	var liste: Array[StringName] = HEROS
+	if _seul != "":
+		liste = [StringName(_seul)] as Array[StringName]
+	var demi := float(liste.size() - 1) * 0.5
+	for i in liste.size():
+		_tireurs.append(_poser(liste[i], (float(i) - demi) * ECART))
+	_ordre = liste
 	if _film:
-		print("Duel : pellicule synchronisée sur le coup, %d images par tireur."
-				% IMAGES_FILM)
+		print("Défilé : pellicule synchronisée sur le coup, %d images par arme, %d armes."
+				% [IMAGES_FILM, HEROS.size()])
 	else:
-		print("Duel Milo / Ruby — Milo 3 coups, pause, Ruby 5 coups, pause.")
+		print("Défilé des %d armes — chacune tire, puis une pause."
+				% HEROS.size())
 
 
 func _poser(h: StringName, x: float) -> Dictionary:
@@ -281,36 +316,45 @@ func _process_film() -> void:
 				_attente = 0
 				_etape = 1
 		1:
-			_tirer(0)
+			# ─── ON DÉCLENCHE, PUIS ON PHOTOGRAPHIE ────────────────────
+			#
+			# `_arme` désigne le tireur en cours. L'automate ne compte plus
+			# deux étapes figées mais tourne sur la liste : ajouter un
+			# héros à `HEROS` suffit désormais à l'inclure dans la
+			# pellicule, sans toucher à cette fonction.
+			if _macro:
+				_viser_couloir(_x_de(_arme))
+			_tirer(_arme)
 			_n = 0
 			_etape = 2
 		2:
 			_n += 1
-			_sonder("milo", _n)
-			_capture("%smilo_%02d" % ["macro_" if _macro else "", _n])
+			_sonder(String(_ordre[_arme]), _n)
+			_capture("%s%s_%02d" % ["macro_" if _macro else "",
+					_ordre[_arme], _n])
 			if _n >= IMAGES_FILM:
 				_n = 0
 				_etape = 3
 		3:
-			# Laisser retomber Milo avant de juger Ruby sur fond propre.
+			# LAISSER RETOMBER L'ARME PRÉCÉDENTE. Sans cette pause, la
+			# fumée de Bruno se retrouverait sur la première image de Nox,
+			# et l'on comparerait deux effets superposés.
 			_attente += 1
 			if _attente >= 10:
 				_attente = 0
-				_etape = 4
-		4:
-			if _macro:
-				_viser_couloir(ECART * 0.5)
-			_tirer(1)
-			_n = 0
-			_etape = 5
-		5:
-			_n += 1
-			_sonder("ruby", _n)
-			_capture("%sruby_%02d" % ["macro_" if _macro else "", _n])
-			if _n >= IMAGES_FILM:
-				print("Duel : pellicule dans %s"
-						% ProjectSettings.globalize_path(_dossier))
-				get_tree().quit(0)
+				_arme += 1
+				if _arme >= _ordre.size():
+					print("Défilé : pellicule dans %s"
+							% ProjectSettings.globalize_path(_dossier))
+					get_tree().quit(0)
+				else:
+					_etape = 1
+
+
+## Abscisse d'un tireur, pour que la vue rapprochée le suive.
+func _x_de(i: int) -> float:
+	var demi := float(_ordre.size() - 1) * 0.5
+	return (float(i) - demi) * ECART
 
 
 func _process(d: float) -> void:
@@ -335,18 +379,36 @@ func _process(d: float) -> void:
 	if _t < _prochain:
 		return
 	_t = 0.0
-	# Phase 0 : Milo tire trois fois. Phase 1 : pause. Phase 2 : Ruby tire
-	# cinq fois. Phase 3 : pause. Puis on recommence.
-	var qui := 0 if _tour % 4 == 0 else (1 if _tour % 4 == 2 else -1)
-	if qui < 0:
+	# ─── UNE ARME TIRE, PUIS UNE PAUSE, PUIS LA SUIVANTE ──────────────
+	#
+	# Les tours pairs font tirer, les impairs laissent le silence. La pause
+	# n'est pas du remplissage : c'est elle qui permet de juger le RYTHME.
+	# Sans elle, les six cadences se fondent en un crépitement continu et
+	# l'on ne distingue plus le « BOOOOM ...... BOOOOM » de Bruno du
+	# « pt-pt-pt-pt » de Nox — or c'est le premier axe d'identification de
+	# la planche.
+	if _tour % 2 == 1:
 		_prochain = 0.55
 		_tour += 1
 		return
+	var qui := (_tour / 2) % _tireurs.size()
 	var f: Dictionary = _tireurs[qui]
 	var a: Weapon = f["arme"]
 	a.fire(a.muzzle_position(), Vector3.FORWARD, Cfg.Team.PLAYER, 1, true)
 	_coups += 1
-	var vise := 3 if qui == 0 else 5
+	# ASSEZ DE COUPS POUR ENTENDRE LE MOTIF, PAS PLUS. Trois suffisent pour
+	# Bruno, dont chaque coup est un événement ; il en faut davantage pour
+	# lire la rafale de Nox ou l'alternance de Gus.
+	var vise := 3
+	match String(_ordre[qui]):
+		"nox":
+			vise = 7
+		"ruby":
+			vise = 5
+		"gus":
+			vise = 4
+		"bruno":
+			vise = 2
 	_prochain = 1.0 / maxf(a.data.fire_rate, 0.1)
 	if _coups >= vise:
 		_coups = 0
