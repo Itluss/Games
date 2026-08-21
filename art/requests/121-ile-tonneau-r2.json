@@ -1,0 +1,10 @@
+{
+  "_pourquoi": "REPRISE du lot n°1 : la seule occurrence du tonneau sur la planche fait 37 pixels et a produit un pot sombre. Il repart en mode TEXTE, palette de la planche dans le prompt — la famille blocs tient le style.",
+  "_hauteur_cible_m": 1.0,
+  "nom": "ile_tonneau",
+  "mode": "texte",
+  "famille": "blocs",
+  "prompt": "single wooden barrel, warm saturated light brown wood staves with visible vertical planks, two darker horizontal hoops, slightly bulging middle, flat top",
+  "polycount": 1800,
+  "texturer": true
+}

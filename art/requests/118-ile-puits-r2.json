@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "REPRISE du lot n°1 : le premier puits n'a livré que son toit. Cadrage élargi sur l'icône entière, prompt qui exige poteaux et base visibles SOUS le toit.",
+  "_hauteur_cible_m": 3.2,
+  "nom": "ile_puits",
+  "mode": "image",
+  "famille": "blocs",
+  "image": "art/references/decoupes/blocs/puits_r2.png",
+  "prompt": "complete well kiosk seen in full: a grey stone base ring at the bottom, FOUR wooden corner posts rising from it, and a turquoise tiled canopy roof on top. The base and posts are essential — the roof alone is wrong. Open sides between the posts.",
+  "polycount": 5200,
+  "texturer": true
+}

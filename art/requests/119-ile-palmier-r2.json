@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "REPRISE du lot n°1 : le premier palmier a perdu son tronc. Marges élargies aux pointes des palmes, prompt qui exige le tronc.",
+  "_hauteur_cible_m": 4.0,
+  "nom": "ile_palmier",
+  "mode": "image",
+  "famille": "blocs",
+  "image": "art/references/decoupes/blocs/palmier_r2.png",
+  "prompt": "complete cartoon palm tree: a TALL thick curved brown trunk taking half the height, topped by a crown of thick rounded green fronds. The trunk is essential — a crown alone is wrong.",
+  "polycount": 4200,
+  "texturer": true
+}

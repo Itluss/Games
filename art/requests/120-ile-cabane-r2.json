@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "REPRISE du lot n°1 : la première cabane n'a livré que son toit. Nouvelle découpe prise sur la CARTE (la seule vue où la cabane a des murs), prompt qui exige les murs sous le toit.",
+  "_hauteur_cible_m": 3.8,
+  "nom": "ile_cabane",
+  "mode": "image",
+  "famille": "blocs",
+  "image": "art/references/decoupes/blocs/cabane_r2.png",
+  "prompt": "complete small cabin building seen in full: wooden plank WALLS with a dark door opening, under a turquoise tiled gable roof. Walls below the roof are essential — a roof alone is wrong. Ignore the ground tiles around it.",
+  "polycount": 6500,
+  "texturer": true
+}

@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "REPRISE du lot n°1 : double 1×2 au premier essai. Même icône, prompt d'unicité renforcé.",
+  "_hauteur_cible_m": 2.0,
+  "nom": "ile_bloc_vert",
+  "mode": "image",
+  "famille": "blocs",
+  "image": "art/references/decoupes/blocs/bloc_vert_r2.png",
+  "prompt": "STRICTLY ONE cube: overall silhouette is a SINGLE cube with equal width, height and depth (1:1:1), flat top, beveled edges. The 2x2 seams on each face are surface carving of that one cube, NOT separate cubes — do not model two cubes, a wall segment, or a stack. Teal green stone color with mossy tint, lighter top faces.",
+  "polycount": 2600,
+  "texturer": true
+}

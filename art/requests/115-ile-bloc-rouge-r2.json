@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "REPRISE du lot n°1 : le premier ile_bloc_rouge est revenu en DOUBLE 1×2 — posé sur des cellules de 2 m, il déborderait d'un mètre dans les rues. Même icône de la planche, cadrage élargi, prompt qui martèle l'unicité.",
+  "_hauteur_cible_m": 2.0,
+  "nom": "ile_bloc_rouge",
+  "mode": "image",
+  "famille": "blocs",
+  "image": "art/references/decoupes/blocs/bloc_rouge_r2.png",
+  "prompt": "STRICTLY ONE cube: overall silhouette is a SINGLE cube with equal width, height and depth (1:1:1), flat top, beveled edges. The 2x2 seams on each face are surface carving of that one cube, NOT separate cubes — do not model two cubes, a wall segment, or a stack. Warm coral red brick color, lighter top faces.",
+  "polycount": 2600,
+  "texturer": true
+}
