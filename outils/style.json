@@ -37,6 +37,15 @@
       "negatif": "photorealistic, gritty, desaturated, muted colors, blurry, noisy, text, letters, watermark, logo, characters, people, animals, weapons, background scenery, terrain, ground plane, sand base, grass base, base plinth, display stand, multiple separate objects, cluttered composition, UI panels",
       "art_style": "realistic",
       "sujet_defaut": "chunky beveled toy block"
+    },
+    "mascotte": {
+      "_role": "Les 30 heros-mascottes du roster « 30 PREMIERS HEROS » — generes DEPUIS la planche heros30_generation (fond clair, sans texte), la planche heros30_bible faisant autorite sur noms, armes et classes.",
+      "_pourquoi_pas_la_famille_heros": "La famille heros date du lot A-pose : son negatif INTERDIT l'arme en main. Le roster mascottes suit le modele « un heros, une arme » — l'arme signature fait partie du personnage, comme sur la planche. Il lui faut donc sa propre famille.",
+      "style_forme": "stylized chibi game mascot figurine, tiny round body about two heads tall, oversized head, big glowing eyes, thick stubby limbs, holding its signature weapon, bold iconic silhouette readable from above, big simple shapes, very low detail density, one single character, centered, standing upright on flat ground",
+      "style_texture": "hand-painted stylized game texture, clean saturated flat colors, soft toy-like shading, matte finish, crisp edges, no text, no logos, no lettering",
+      "negatif": "photorealistic, realistic, gritty, grimy, desaturated, horror, blurry, noisy, hyper detailed, intricate filigree, thin fragile parts, text, letters, numbers, watermark, logo, multiple characters, crowd, duplicate, base, plinth, pedestal, ground slab, diorama",
+      "art_style": "realistic",
+      "sujet_defaut": "chibi game mascot with its signature weapon"
     }
   },
   "_note_art_style": "art_style est un champ de l'API Meshy pour le mode texte (valeurs usuelles : realistic, sculpture). Il ne decrit PAS ton jeu — le rendu stylise vient de style_forme, pas de ce champ.",

@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "PILOTE 1/3 du roster « 30 premiers héros » — le cas SOMBRE. Trois pilotes valident le pipeline (découpe heros30, famille mascotte, sujets ~200 px) avant de payer les 27 autres. Shade teste la lecture d'un corps sombre à capuche, désormais sur fond clair.",
+  "_hauteur_cible_m": 1.6,
+  "nom": "mascotte_shade",
+  "mode": "image",
+  "famille": "mascotte",
+  "image": "art/references/decoupes/heros30/shade.png",
+  "prompt": "small hooded reaper mascot: dark purple hood with small fin spikes, black face with glowing purple angry eyes, stubby body, holding a small purple-bladed scythe in one hand",
+  "polycount": 9000,
+  "texturer": true
+}

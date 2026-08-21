@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "PILOTE 3/3 — le cas SIMPLE : une goutte verte couronnée, sans membres. Le plancher de difficulté ; s'il échoue, le problème est le pipeline, pas le sujet.",
+  "_hauteur_cible_m": 1.3,
+  "nom": "mascotte_slime",
+  "mode": "image",
+  "famille": "mascotte",
+  "image": "art/references/decoupes/heros30/slime.png",
+  "prompt": "small green slime blob mascot: glossy rounded jelly body with two stubby arms, dark face patch with glowing green eyes, tiny golden crown on top, no legs",
+  "polycount": 6000,
+  "texturer": true
+}

@@ -1,0 +1,11 @@
+{
+  "_pourquoi": "PILOTE 2/3 — le cas COMPLEXE : chapeau, bandana, cache-œil, pistolet. C'est lui qui dit si les détails survivent à ~200 px.",
+  "_hauteur_cible_m": 1.6,
+  "nom": "mascotte_corsair",
+  "mode": "image",
+  "famille": "mascotte",
+  "image": "art/references/decoupes/heros30/corsair.png",
+  "prompt": "small pirate mascot: black tricorn hat with white skull emblem and gold trim, red bandana, black eyepatch, tan face with mustache, holding a wooden flintlock pistol in one hand",
+  "polycount": 9000,
+  "texturer": true
+}
