@@ -103,6 +103,7 @@ func _input(event: InputEvent) -> void:
 		elif t.index == _doigt_tir:
 			_doigt_tir = -1
 			_visee_tactile = Vector2.ZERO
+			_poignee_tir(Vector2.ZERO)
 			_marquer_tir(false)
 	elif event is InputEventScreenDrag and _doigt_tir >= 0:
 		# LE GLISSEMENT EST LA VISÉE — plus une raison de lâcher. L'ancienne
@@ -121,6 +122,19 @@ func _input(event: InputEvent) -> void:
 				# Revenu dans la zone morte : on rend la main à l'accrochage
 				# automatique, sans cesser de tirer.
 				_visee_tactile = Vector2.ZERO
+			_poignee_tir(v)
+
+
+## Position de la POIGNÉE du bouton-joystick de tir, en fraction du
+## rayon. On lui passe le vecteur BRUT du doigt : la poignée suit le
+## pouce dès le premier pixel — c'est le retour qui enseigne le geste —
+## même quand la direction de visée, elle, attend la sortie de la zone
+## morte.
+func _poignee_tir(v: Vector2) -> void:
+	if _fire_button == null or not is_instance_valid(_fire_button):
+		return
+	_fire_button.visee = v / (FIRE_SIZE * 0.5)
+	_fire_button.queue_redraw()
 
 
 ## Retour visuel de l'appui. Le style « pressé » d'un Button ne s'affiche
@@ -495,6 +509,11 @@ func _build_controls() -> void:
 	# gauche DIRIGE, le pouce droit TIRE, et le jeu accroche la cible.
 	_fire_button = UiKit.bouton_rond(FIRE_SIZE, "TIR", &"viseur",
 			UiKit.TIR_CLAIR, UiKit.TIR_SOMBRE)
+	# EN JOYSTICK, PAS EN PASTILLE. Le glisser-pour-viser existait mais
+	# rien ne l'annonçait : une image ronde se presse, elle ne se glisse
+	# pas. Dessiné comme le stick de gauche — socle à chevrons, poignée
+	# mobile — le bouton dit lui-même « oriente le tir ».
+	_fire_button.mode_joystick = true
 	_fire_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_fire_button.offset_left = -(FIRE_SIZE + MARGIN)
 	_fire_button.offset_top = -(FIRE_SIZE + MARGIN)
@@ -512,6 +531,7 @@ func _build_controls() -> void:
 		_marquer_tir(true))
 	_fire_button.button_up.connect(func():
 		_fire_held = false
+		_poignee_tir(Vector2.ZERO)
 		if _doigt_tir < 0:
 			_marquer_tir(false))
 	_root.add_child(_fire_button)

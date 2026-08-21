@@ -335,6 +335,15 @@ class BoutonRond extends Button:
 	var recharge: float = 1.0
 	## Secondes restantes, affichées à la place du libellé pendant l'attente.
 	var attente: float = 0.0
+	## MODE JOYSTICK — le bouton se dessine comme le stick de gauche :
+	## socle translucide à chevrons, et une POIGNÉE charnue qui suit le
+	## pouce. C'est le langage visuel qui dit « ça se glisse » : le bouton
+	## de tir dessiné en simple pastille cachait complètement la visée
+	## manuelle — rien n'invitait à glisser dessus.
+	var mode_joystick: bool = false
+	## Direction du pouce, en fraction du rayon ([-1, 1] par axe). ZERO :
+	## poignée au centre.
+	var visee: Vector2 = Vector2.ZERO
 
 	func _init() -> void:
 		flat = true
@@ -369,14 +378,46 @@ class BoutonRond extends Button:
 		var k := 0.94 if appuye else 1.0
 		r *= k
 
-		# Ombre, anneau blanc et corps éclairé : trois textures lissées au
-		# pixel. L'anneau blanc est ce qui détache le bouton de N'IMPORTE
-		# QUEL fond, ce que ne fait aucune couleur seule ; le corps porte le
-		# relief, calculé comme sur une sphère.
-		UiKit.poser_pastille(self, c, r, ton_clair, ton_sombre, appuye)
+		if mode_joystick:
+			# ─── SOCLE DE STICK, PAS PASTILLE ─────────────────────────
+			#
+			# Même vocabulaire que le joystick de gauche : disque
+			# translucide, anneau, quatre chevrons vers l'extérieur. Un
+			# joueur qui a compris le stick de déplacement comprend
+			# celui-ci sans notice.
+			draw_circle(c + Vector2(0, r * 0.06), r,
+					Color(0.03, 0.05, 0.12, 0.22))
+			draw_circle(c, r, Color(1, 1, 1, 0.14))
+			draw_arc(c, r - 3.0, 0.0, TAU, 56, Color(1, 1, 1, 0.62),
+					6.0, true)
+			for i in 4:
+				var a := TAU * float(i) / 4.0
+				var d := Vector2(cos(a), sin(a))
+				var n := Vector2(-d.y, d.x)
+				var pointe := c + d * (r - 10.0)
+				var base := c + d * (r - 22.0)
+				draw_colored_polygon(PackedVector2Array([
+						pointe, base + n * 8.0, base - n * 8.0]),
+						Color(1, 1, 1, 0.5))
+			# ─── LA POIGNÉE PORTE LE TIR ──────────────────────────────
+			#
+			# Elle suit le pouce (bornée au socle) et transporte l'icône
+			# de viseur : la direction du tir SE VOIT sur le bouton
+			# lui-même, avant même de regarder la ligne au sol.
+			var kr := r * 0.52
+			var kpos := c + visee.limit_length(1.0) * (r - kr * 0.72)
+			UiKit.poser_pastille(self, kpos, kr, ton_clair, ton_sombre,
+					appuye)
+			UiKit.icone(self, icone, kpos, kr * 0.55, UiKit.BLANC)
+		else:
+			# Ombre, anneau blanc et corps éclairé : trois textures lissées
+			# au pixel. L'anneau blanc est ce qui détache le bouton de
+			# N'IMPORTE QUEL fond, ce que ne fait aucune couleur seule ; le
+			# corps porte le relief, calculé comme sur une sphère.
+			UiKit.poser_pastille(self, c, r, ton_clair, ton_sombre, appuye)
 
-		var haut_icone := c - Vector2(0, r * (0.20 if libelle != "" else 0.0))
-		UiKit.icone(self, icone, haut_icone, r * 0.42, UiKit.BLANC)
+			var haut_icone := c - Vector2(0, r * (0.20 if libelle != "" else 0.0))
+			UiKit.icone(self, icone, haut_icone, r * 0.42, UiKit.BLANC)
 
 		# LA COURONNE DE RECHARGE, par-dessus le corps du bouton. Elle dit
 		# COMBIEN il reste, là où l'estompement du bouton ne disait que
@@ -399,7 +440,9 @@ class BoutonRond extends Button:
 					UiKit.BLANC)
 			return
 
-		if libelle == "":
+		# En mode joystick, la poignée porte déjà l'icône : un libellé fixe
+		# sous le socle serait recouvert dès que le pouce glisse vers le bas.
+		if libelle == "" or mode_joystick:
 			return
 		var f := UiKit.police()
 		# LE LIBELLÉ S'ADAPTE AU BOUTON, jamais l'inverse. Mesuré en image,

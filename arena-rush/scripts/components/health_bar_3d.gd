@@ -30,6 +30,11 @@ const COL_BASSE := Color("ff3b30")
 
 ## Rayon d'arrondi, en fraction de la hauteur de la barre.
 const ARRONDI := 0.5
+## Part du fond occupée par le remplissage. Il était à 0,88 de large et
+## 0,12 de haut pour un fond de 0,20 : plus du tiers de la barre était du
+## CADRE noir — à la caméra de jeu, la jauge se lisait « barre sombre ».
+const REMPLISSAGE_L := 0.94
+const REMPLISSAGE_H := 0.15
 ## Largeur de la texture d'arrondi, en pixels. Minuscule : elle n'a qu'un
 ## profil horizontal à décrire, l'interpolation linéaire fait le reste.
 const TEX_LARGE := 48
@@ -118,7 +123,7 @@ func build(width: float = 1.0, color: Color = Color("4cd964"),
 	add_child(_bg)
 
 	var fill_mesh := QuadMesh.new()
-	fill_mesh.size = Vector2(width * 0.88, width * 0.12)
+	fill_mesh.size = Vector2(width * REMPLISSAGE_L, width * REMPLISSAGE_H)
 	_fill = MeshInstance3D.new()
 	_fill.mesh = fill_mesh
 	_fill.material_override = _fill_mat
@@ -205,6 +210,26 @@ func _process(delta: float) -> void:
 	if _prochain_test <= 0.0:
 		_prochain_test = PERIODE_PORTEE
 		_regler_portee()
+	# ─── POURQUOI LA BARRE SORTAIT NOIRE ──────────────────────────────
+	#
+	# La plaque est ENFANT DU CORPS, et le corps TOURNE. Le décalage en X
+	# local qui ancre le remplissage à gauche pivotait donc avec le
+	# personnage : selon son orientation, le remplissage passait DERRIÈRE
+	# le fond — et le tri des transparents du rendu web, qui ignore
+	# render_priority, dessinait alors le fond sombre PAR-DESSUS la
+	# jauge. Une barre noire, au hasard des orientations.
+	#
+	# Deux gestes, chaque image : la plaque annule la rotation héritée
+	# (le décalage de jauge redevient un axe d'écran), et le remplissage
+	# est TIRÉ VERS LA CAMÉRA de dix centimètres — le tri par profondeur
+	# n'a plus aucun choix à faire.
+	global_basis = Basis.IDENTITY
+	if _fill != null and _fill.visible:
+		var cam := get_viewport().get_camera_3d()
+		if cam != null:
+			var vers_cam := (cam.global_position - global_position).normalized()
+			_fill.position = Vector3(_decalage_jauge(), 0.0, 0.0) \
+					+ vers_cam * 0.10
 	if _etoile == null or not is_instance_valid(_etoile):
 		return
 	# Un battement lent : l'étoile respire pour attirer l'œil sans tourner,
@@ -254,9 +279,10 @@ func set_ratio(value: float) -> void:
 	if _fill == null:
 		return
 	# On rétrécit depuis la gauche (et non depuis le centre) : c'est la
-	# lecture attendue d'une jauge.
+	# lecture attendue d'une jauge. Le décalage lui-même est posé par
+	# `_process`, qui le combine au rapprochement caméra.
 	_fill.scale.x = maxf(_ratio, 0.001)
-	_fill.position.x = -(_width * 0.88) * (1.0 - _ratio) * 0.5
+	_fill.position.x = _decalage_jauge()
 	# ─── ELLE SE LIT PAR LA VALEUR, PLUS PAR LA TEINTE DU HÉROS ────────
 	#
 	# Elle portait la couleur d'identité du personnage. C'était cohérent
@@ -277,6 +303,11 @@ func set_ratio(value: float) -> void:
 	else:
 		c = COL_MOYENNE.lerp(COL_BASSE, clampf((0.55 - _ratio) / 0.4, 0.0, 1.0))
 	_fill_mat.albedo_color = c
+
+
+## Décalage horizontal du remplissage pour l'ancrer à GAUCHE du fond.
+func _decalage_jauge() -> float:
+	return -(_width * REMPLISSAGE_L) * (1.0 - _ratio) * 0.5
 
 
 func set_bar_color(color: Color) -> void:
