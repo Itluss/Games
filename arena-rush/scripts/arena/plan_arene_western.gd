@@ -91,118 +91,138 @@ const H_CRETE := 2.9
 ## Crête moyenne — barre le tir tendu sans effacer complètement l'autre.
 const H_CRETE_M := 1.9
 
+# --- LA COMPOSITION ------------------------------------------------------
+#
+# ─── POURQUOI TOUT CE QUI SUIT EST ENGENDRÉ, ET NON ÉCRIT ──────────────
+#
+# La version précédente listait chaque pièce à la main, avec sa position au
+# décimètre et son angle à un degré près. Vue de dessus, elle donnait un
+# SEMIS : même densité partout, même taille partout, aucun repère, aucune
+# voie. On ne pouvait désigner aucun endroit de la carte, parce qu'aucun
+# endroit n'existait. Le retour a été franc et juste : « les éléments ont
+# été posés n'importe comment ».
+#
+# Trois règles la remplacent, et ce sont celles des arènes du genre :
+#
+#   1. UNE GRILLE. Toutes les positions sont des multiples d'un mètre, tous
+#      les angles des multiples de quarante-cinq degrés. Ce n'est pas de la
+#      rigidité : c'est ce qui fait qu'une carte se lit comme construite au
+#      lieu de semée. Les angles quelconques d'avant — 12°, -14°, 78° — ne
+#      donnaient pas de la variété, ils donnaient du désordre.
+#
+#   2. UNE SYMÉTRIE DE 180°. Chaque pièce posée dans une moitié reparaît,
+#      pivotée d'un demi-tour, dans l'autre. C'est la garantie d'équité
+#      d'un affrontement à réapparition permanente : aucun quartier n'est
+#      mieux servi qu'un autre, et personne ne peut apprendre « le bon
+#      coin ».
+#
+#   3. UNE SEULE MOITIÉ EST ÉCRITE. L'autre est CALCULÉE — voir `_miroir`.
+#      La symétrie cesse d'être une promesse qu'on tient à la main pour
+#      devenir une propriété du code, donc quelque chose qu'un banc peut
+#      vérifier. C'est aussi ce qui rend la carte modifiable : déplacer une
+#      pièce en déplace deux, et l'équilibre ne se perd jamais en route.
+#
+# ─── LES LIEUX, ET LEURS NOMS ──────────────────────────────────────────
+#
+#   LA PLACE      le centre, dégagé sur six mètres autour de la margelle,
+#                 avec quatre murs en moulinet. C'est le point le plus
+#                 exposé de la carte et il doit le rester : l'étoile y
+#                 tombe souvent, et la tenir doit coûter cher.
+#   LES BASTIONS  quatre crêtes en diagonale, les plus grosses masses de la
+#                 carte. Ce sont les REPÈRES : où qu'on soit, on en voit
+#                 un, et l'on sait de quel quartier on parle.
+#   LES QUATRE PORTES  aux quatre points cardinaux, la couronne extérieure
+#                 s'ouvre. Ce sont les entrées de la boucle, et les seuls
+#                 endroits d'où l'on voit le centre de loin.
+#   LA BOUCLE     l'anneau courable entre les crêtes du bord et la
+#                 clôture. On en fait le tour sans jamais buter.
+#   LES CORRALS   deux enclos de barrières opposés. Le seul couvert qui
+#                 arrête le corps sans cacher l'adversaire.
+
 # --- FORMATIONS ROCHEUSES ------------------------------------------------
 #
-# LES ÎLOTS DE GAMEPLAY, et désormais des CRÊTES et non des disques.
-#
 # `long` est la dimension dans l'axe, `large` en travers, `angle` en degrés
-# (0 = axe est-ouest). L'arène en pose une couronne extérieure dans les
-# coins et le long des bords, une couronne intérieure décalée en angle, et
-# deux petites crêtes près du centre pour qu'il ne soit pas une plaine.
+# (0 = axe est-ouest).
 #
-# AUCUN ANGLE N'EST RÉPÉTÉ D'UNE CRÊTE À L'AUTRE. C'est ce qui empêche la
-# carte de se lire comme une grille : deux crêtes parallèles font un
-# couloir, deux crêtes croisées font une poche à contourner.
-const FORMATIONS: Array[Dictionary] = [
-	# Couronne extérieure — les coins d'abord, c'est là que la maquette met
-	# ses plus grosses masses et c'est là que le carré arrondi ouvre de
-	# l'espace neuf.
-	{"pos": Vector2(-21.0, -22.0), "long": 8.5, "large": 3.8,
-		"angle": 12.0, "hauteur": H_CRETE},
-	{"pos": Vector2(2.0, -25.0), "long": 7.0, "large": 3.4,
-		"angle": 0.0, "hauteur": H_CRETE},
-	{"pos": Vector2(22.0, -22.0), "long": 10.0, "large": 4.4,
-		"angle": -14.0, "hauteur": H_CRETE},
-	{"pos": Vector2(30.0, -4.0), "long": 8.0, "large": 4.0,
-		"angle": 78.0, "hauteur": H_CRETE},
-	{"pos": Vector2(25.0, 18.0), "long": 9.5, "large": 4.6,
-		"angle": 20.0, "hauteur": H_CRETE},
-	{"pos": Vector2(5.0, 27.0), "long": 7.5, "large": 3.6,
-		"angle": -6.0, "hauteur": H_CRETE},
-	{"pos": Vector2(-20.0, 25.0), "long": 11.0, "large": 4.8,
-		"angle": 8.0, "hauteur": H_CRETE},
-	{"pos": Vector2(-30.0, 6.0), "long": 8.5, "large": 4.2,
-		"angle": 96.0, "hauteur": H_CRETE},
-	# Couronne intérieure — décalée en angle pour que les couloirs radiaux
-	# ne s'alignent jamais avec ceux de l'extérieur.
-	{"pos": Vector2(-13.0, -12.0), "long": 7.0, "large": 3.6,
-		"angle": 28.0, "hauteur": H_CRETE},
-	{"pos": Vector2(9.0, -14.0), "long": 6.0, "large": 3.2,
-		"angle": -22.0, "hauteur": H_CRETE},
-	{"pos": Vector2(16.0, 6.0), "long": 7.5, "large": 3.8,
-		"angle": 62.0, "hauteur": H_CRETE},
-	{"pos": Vector2(-4.0, 16.0), "long": 6.5, "large": 3.4,
-		"angle": -12.0, "hauteur": H_CRETE},
-	{"pos": Vector2(-16.0, 4.0), "long": 6.0, "large": 3.2,
-		"angle": 74.0, "hauteur": H_CRETE},
-	# Deux crêtes MOYENNES près du centre. Elles ne cachent pas un joueur
-	# debout — on voit sa tête — mais elles cassent le tir tendu et donnent
-	# de quoi prendre un angle. Le centre doit rester le point le plus
-	# exposé de la carte, pas une plaine nue.
-	{"pos": Vector2(7.5, 9.5), "long": 4.5, "large": 2.6,
-		"angle": 40.0, "hauteur": H_CRETE_M},
-	{"pos": Vector2(-8.1, -6.6), "long": 4.5, "large": 2.6,
-		"angle": -50.0, "hauteur": H_CRETE_M},
-	# ─── HUIT CRÊTES MOYENNES DE PLUS ──────────────────────────────────
-	#
-	# LEURS COORDONNÉES SONT LE RÉSULTAT D'UN RELAXEUR, PAS D'UN COUP D'ŒIL.
-	# Posées à la main, sept masses sur vingt-trois n'avaient plus l'anneau
-	# libre exigé — quatre d'entre elles parce que leur anneau sortait de la
-	# clôture, donc qu'on ne pouvait plus passer entre elles et la barrière.
-	# Un petit programme les a écartées par montée de colline, en
-	# n'acceptant un pas que s'il améliore vraiment l'anneau. Sa première
-	# version ne bougeait rien : elle refusait tout pas qui ne tenait pas
-	# dans une enceinte rétrécie, or les quatre masses coincées échouaient
-	# déjà ce test là où elles étaient.
-	#
-	# La consigne est explicite : « privilégier davantage de formations
-	# moyennes plutôt que quelques masses géantes ». Celles-ci bouchent
-	# les trous relevés par la mesure — le pire était à dix mètres de tout
-	# couvert de duel, dans le coin sud-ouest — sans ajouter une seule
-	# masse qui mange l'écran. Hauteur moyenne : on voit la tête de
-	# l'adversaire par-dessus, donc on ne le perd pas, mais le tir tendu
-	# est coupé.
-	{"pos": Vector2(-24.2, -28.9), "long": 5.5, "large": 3.0,
-		"angle": 25.0, "hauteur": H_CRETE_M},
-	{"pos": Vector2(12.0, -30.0), "long": 5.0, "large": 2.8,
-		"angle": -35.0, "hauteur": H_CRETE_M},
-	{"pos": Vector2(30.6, -19.0), "long": 5.5, "large": 3.0,
-		"angle": 100.0, "hauteur": H_CRETE_M},
-	{"pos": Vector2(15.7, 30.3), "long": 5.5, "large": 3.0,
-		"angle": 15.0, "hauteur": H_CRETE_M},
-	{"pos": Vector2(-30.6, -14.5), "long": 5.0, "large": 2.8,
-		"angle": 70.0, "hauteur": H_CRETE_M},
-	{"pos": Vector2(-27.8, 28.1), "long": 5.5, "large": 3.0,
+# LES BASTIONS SONT DEUX FOIS PLUS GROS QUE LE RESTE, et c'est délibéré.
+# Une carte où tout a la même taille n'a pas de repère : l'œil n'accroche
+# nulle part et l'on se perd dans son propre terrain. Il faut une masse
+# dominante par quartier.
+const _FORMATIONS_MOITIE: Array[Dictionary] = [
+	# LES BASTIONS — les quatre repères, en diagonale.
+	{"pos": Vector2(16.0, 16.0), "long": 11.0, "large": 4.6,
+		"angle": 45.0, "hauteur": H_CRETE},
+	{"pos": Vector2(16.0, -16.0), "long": 11.0, "large": 4.6,
+		"angle": 135.0, "hauteur": H_CRETE},
+	# LES ÉPAULES DE LA BOUCLE — elles hérissent le bord SAUF aux quatre
+	# points cardinaux, qui restent ouverts : ce sont les portes.
+	{"pos": Vector2(30.0, 20.0), "long": 9.0, "large": 3.6,
+		"angle": 90.0, "hauteur": H_CRETE_M},
+	{"pos": Vector2(20.0, 30.0), "long": 9.0, "large": 3.6,
+		"angle": 0.0, "hauteur": H_CRETE_M},
+	{"pos": Vector2(30.0, -20.0), "long": 9.0, "large": 3.6,
+		"angle": 90.0, "hauteur": H_CRETE_M},
+	{"pos": Vector2(-20.0, 30.0), "long": 9.0, "large": 3.6,
+		"angle": 0.0, "hauteur": H_CRETE_M},
+	# DEUX CRÊTES D'APPROCHE — elles cassent la vue depuis les portes vers
+	# la place, sans jamais la fermer.
+	{"pos": Vector2(9.0, 24.0), "long": 7.0, "large": 3.2,
 		"angle": 45.0, "hauteur": H_CRETE_M},
-	{"pos": Vector2(22.4, -4.8), "long": 5.0, "large": 2.8,
-		"angle": 130.0, "hauteur": H_CRETE_M},
-	{"pos": Vector2(-20.0, -3.9), "long": 5.0, "large": 2.8,
-		"angle": 20.0, "hauteur": H_CRETE_M},
+	{"pos": Vector2(24.0, -9.0), "long": 7.0, "large": 3.2,
+		"angle": 45.0, "hauteur": H_CRETE_M},
+	# LES POCHES DIAGONALES EXTÉRIEURES. Ajoutées après mesure : sans
+	# elles, dix-huit pour cent des poses de caméra ne montraient pas deux
+	# couverts de duel, là où la règle en veut deux à quatre. Les grands
+	# vides étaient précisément ces quatre triangles entre un bastion et la
+	# clôture.
+	# ORIENTÉES LE LONG DE LA DIAGONALE, PAS EN TRAVERS. Posées à 135° —
+	# donc perpendiculaires à la diagonale — elles barraient la poche : le
+	# banc a mesuré un anneau libre à 65 % là où il en faut 75, coincées
+	# qu'elles étaient entre le bastion et les deux crêtes d'épaule. Dans
+	# l'axe, elles laissent passer des deux côtés et gardent leur rôle de
+	# couvert.
+	{"pos": Vector2(25.0, 25.0), "long": 6.0, "large": 3.0,
+		"angle": 45.0, "hauteur": H_CRETE_M},
+	{"pos": Vector2(25.0, -25.0), "long": 6.0, "large": 3.0,
+		"angle": 135.0, "hauteur": H_CRETE_M},
 ]
 
 # --- MURS DE PIERRE BAS --------------------------------------------------
 #
-# COUVERT MOYEN, ET SURTOUT BRISEUR DE LIGNE DE TIR. La maquette les montre
-# DROITS et courts, posés en travers des ouvertures — pas en arcs. Un mur
-# droit de six à huit mètres ne fait pas un corridor tant qu'on peut passer
-# des deux côtés ; c'est la longueur qui crée le corridor, pas la forme.
-const MURS: Array[Dictionary] = [
-	{"pos": Vector2(-9.5, 2.0), "angle": 100.0, "long": 7.0},
-	{"pos": Vector2(8.0, -2.0), "angle": 80.0, "long": 6.0},
-	{"pos": Vector2(-24.0, 0.0), "angle": 5.0, "long": 8.0},
-	{"pos": Vector2(12.5, 13.5), "angle": 55.0, "long": 7.0},
-	{"pos": Vector2(-2.0, 9.5), "angle": 0.0, "long": 6.0},
-	{"pos": Vector2(-14.5, -18.0), "angle": 40.0, "long": 6.5},
-	{"pos": Vector2(18.5, -8.0), "angle": 120.0, "long": 6.0},
-	{"pos": Vector2(-8.5, 30.0), "angle": 10.0, "long": 7.0},
-	{"pos": Vector2(28.0, -14.0), "angle": 60.0, "long": 6.0},
-	{"pos": Vector2(-28.5, -9.0), "angle": 85.0, "long": 6.5},
-	{"pos": Vector2(17.0, 28.5), "angle": 165.0, "long": 6.5},
-	{"pos": Vector2(-1.0, -19.0), "angle": 95.0, "long": 5.5},
-	{"pos": Vector2(-19.5, 30.5), "angle": 70.0, "long": 6.0},
-	{"pos": Vector2(9.5, -25.5), "angle": 25.0, "long": 6.0},
-	{"pos": Vector2(31.5, 9.0), "angle": 110.0, "long": 6.0},
-	{"pos": Vector2(-33.0, 24.0), "angle": 30.0, "long": 5.5},
+# COUVERT MOYEN, ET SURTOUT BRISEUR DE LIGNE DE TIR. Droits et courts,
+# posés en travers des ouvertures. Un mur droit de six à sept mètres ne
+# fait pas un corridor tant qu'on peut passer des deux côtés.
+const _MURS_MOITIE: Array[Dictionary] = [
+	# LE MOULINET DE LA PLACE. Quatre murs décalés en rotation : on est
+	# toujours couvert d'un côté et exposé de l'autre, et changer de côté
+	# demande de bouger. C'est ce qui fait qu'on ne campe pas au centre.
+	{"pos": Vector2(7.0, 2.0), "angle": 0.0, "long": 7.0},
+	{"pos": Vector2(2.0, -7.0), "angle": 90.0, "long": 7.0},
+	# LES PORTES DES VOIES — un mur en travers de chaque voie cardinale, à
+	# mi-chemin. On voit le centre depuis la porte, mais pas en ligne
+	# droite : il faut s'engager.
+	{"pos": Vector2(5.0, -17.0), "angle": 90.0, "long": 6.0},
+	{"pos": Vector2(17.0, 5.0), "angle": 0.0, "long": 6.0},
+	# LA COURONNE MÉDIANE — entre la place et les bastions, c'était une
+	# plaine. Trois murs en biais y cassent la vue sans créer de couloir :
+	# posés à quarante-cinq degrés, ils ne sont parallèles ni aux voies
+	# cardinales ni aux diagonales, donc ils ne prolongent aucune ligne.
+	{"pos": Vector2(-12.0, 9.0), "angle": 45.0, "long": 6.0},
+	{"pos": Vector2(9.0, 12.0), "angle": 135.0, "long": 6.0},
+	# À 135° ET NON À 45°. Posé à 45°, ce mur était COLINÉAIRE au bastion
+	# voisin : il le prolongeait au lieu de le flanquer, et les deux
+	# ensemble formaient une barrière que le banc a mesurée contournable à
+	# 67 % seulement, pour un seuil de 75. Perpendiculaire, il couvre la
+	# même approche sans fermer le tour.
+	{"pos": Vector2(-20.0, -10.0), "angle": 135.0, "long": 6.0},
+	# LES JOUES DES PORTES. Les quatre ouvertures cardinales restent
+	# franches, mais bordées : sans ces murets, on tirait d'une porte
+	# jusqu'à la place sans rien pour se couvrir en chemin, et la porte
+	# devenait un poste de tir au lieu d'une entrée.
+	{"pos": Vector2(6.0, -27.0), "angle": 90.0, "long": 5.0},
+	{"pos": Vector2(-6.0, -27.0), "angle": 90.0, "long": 5.0},
+	{"pos": Vector2(27.0, 6.0), "angle": 0.0, "long": 5.0},
+	{"pos": Vector2(27.0, -6.0), "angle": 0.0, "long": 5.0},
 ]
 
 # --- MARGELLE DU CENTRE --------------------------------------------------
@@ -220,210 +240,183 @@ const ARCS_CENTRE: Array[Dictionary] = [
 
 # --- EMPILEMENTS ---------------------------------------------------------
 #
-# LE COUVERT QUI MANQUAIT. Une caisse seule fait quatre-vingt-dix
-# centimètres : on la voit à peine et on ne s'y bat pas. Empilées par deux
-# ou trois, les mêmes caisses font deux mètres, se voient de loin sur un
-# téléphone, et donnent un vrai duel — c'est exactement ce que montre la
-# maquette, et c'est le niveau de couvert qui manquait entre le tonneau et
-# la falaise.
-#
-# `etages` dit la hauteur, `type` le modèle. Chaque pile est posée PRÈS
-# d'une crête ou d'un mur : la maquette ne pose presque jamais un couvert
-# tout seul au milieu du sable.
-const PILES: Array[Dictionary] = [
-		# ÉCARTÉE APRÈS MESURE : à (-16,5 · -8) elle tombait pile sur l'anneau
-	# de dégagement de la crête voisine, qui n'était plus contournable
-	# qu'aux trois quarts — juste au seuil.
-	{"pos": Vector2(-16.1, -6.7), "type": &"caisse", "etages": 3, "angle": 15.0},
-	{"pos": Vector2(4.5, -8.5), "type": &"botte", "etages": 2, "angle": 40.0},
-	{"pos": Vector2(19.5, -12.0), "type": &"caisse", "etages": 3, "angle": -25.0},
-	{"pos": Vector2(26.5, 2.0), "type": &"botte", "etages": 2, "angle": 70.0},
-	{"pos": Vector2(13.0, 20.0), "type": &"caisse", "etages": 3, "angle": 10.0},
-	{"pos": Vector2(-2.0, 22.0), "type": &"botte", "etages": 2, "angle": -35.0},
-	{"pos": Vector2(-24.5, 15.0), "type": &"caisse", "etages": 3, "angle": 55.0},
-	{"pos": Vector2(-11.0, -25.5), "type": &"botte", "etages": 2, "angle": 20.0},
-	{"pos": Vector2(10.5, 3.5), "type": &"caisse", "etages": 2, "angle": -60.0},
-	{"pos": Vector2(-6.5, -16.0), "type": &"caisse", "etages": 2, "angle": 85.0},
-	{"pos": Vector2(30.8, 24.2), "type": &"botte", "etages": 2, "angle": 30.0},
-	{"pos": Vector2(-29.0, -19.6), "type": &"caisse", "etages": 2, "angle": -15.0},
-	{"pos": Vector2(21.5, -30.0), "type": &"botte", "etages": 2, "angle": 60.0},
-	{"pos": Vector2(-20.6, 30.6), "type": &"caisse", "etages": 2, "angle": -40.0},
-	{"pos": Vector2(-4.5, -11.5), "type": &"botte", "etages": 2, "angle": 25.0},
-	{"pos": Vector2(17.9, 14.0), "type": &"caisse", "etages": 3, "angle": -20.0},
-	{"pos": Vector2(-15.2, 19.3), "type": &"botte", "etages": 2, "angle": 65.0},
-	{"pos": Vector2(6.1, -18.1), "type": &"caisse", "etages": 2, "angle": 45.0},
-	{"pos": Vector2(-31.6, 20.1), "type": &"botte", "etages": 2, "angle": -10.0},
-	{"pos": Vector2(26.1, -27.6), "type": &"caisse", "etages": 3, "angle": 35.0},
+# Les POCHES : du couvert plein, haut, en dehors des voies. C'est là qu'on
+# se replie, et c'est ce qui donne à chaque quartier de quoi se battre
+# ailleurs qu'au centre.
+const _PILES_MOITIE: Array[Dictionary] = [
+	{"pos": Vector2(23.0, 6.0), "type": &"caisse", "etages": 3, "angle": 0.0},
+	{"pos": Vector2(6.0, 23.0), "type": &"botte", "etages": 2, "angle": 90.0},
+	{"pos": Vector2(23.0, -6.0), "type": &"botte", "etages": 2, "angle": 0.0},
+	{"pos": Vector2(-6.0, 23.0), "type": &"caisse", "etages": 3, "angle": 90.0},
+	# Les deux qui flanquent la voie est-ouest, juste avant la place.
+	{"pos": Vector2(11.0, 0.0), "type": &"caisse", "etages": 2, "angle": 0.0},
+	{"pos": Vector2(15.0, -20.0), "type": &"botte", "etages": 2, "angle": 45.0},
+	{"pos": Vector2(-20.0, -15.0), "type": &"caisse", "etages": 3, "angle": 0.0},
+	{"pos": Vector2(0.0, 11.0), "type": &"botte", "etages": 2, "angle": 90.0},
+	{"pos": Vector2(-27.0, 20.0), "type": &"caisse", "etages": 2, "angle": 45.0},
+	{"pos": Vector2(-3.0, -15.0), "type": &"botte", "etages": 2, "angle": 0.0},
 ]
 
 # --- BARRIÈRES DE BOIS ---------------------------------------------------
 #
-# La clôture périphérique est bâtie à part. Celles-ci sont les refends
-# INTÉRIEURS : de courts segments qui découpent les grandes ouvertures sans
-# jamais fermer un passage. Elles arrêtent le corps mais laissent VOIR au
-# travers — le seul couvert de la carte qu'on peut tenir sans perdre
-# l'adversaire de vue.
-const BARRIERES: Array[Dictionary] = [
-	{"pos": Vector2(-19.0, -15.5), "angle": 35.0, "long": 6.0},
-	{"pos": Vector2(8.5, -20.0), "angle": 110.0, "long": 5.5},
-	{"pos": Vector2(25.5, 11.0), "angle": 70.0, "long": 6.5},
-	{"pos": Vector2(-8.0, 24.5), "angle": 15.0, "long": 6.0},
-	{"pos": Vector2(-27.5, 21.0), "angle": 125.0, "long": 5.5},
-	{"pos": Vector2(20.0, -31.0), "angle": 160.0, "long": 6.0},
-	{"pos": Vector2(-3.5, 4.0), "angle": 130.0, "long": 5.0},
-	{"pos": Vector2(14.5, -4.0), "angle": 20.0, "long": 5.5},
-	{"pos": Vector2(-21.5, 8.5), "angle": 150.0, "long": 5.5},
-	{"pos": Vector2(3.0, 15.5), "angle": 75.0, "long": 5.0},
-	{"pos": Vector2(-31.0, -25.0), "angle": 45.0, "long": 6.0},
-	{"pos": Vector2(31.5, 30.0), "angle": 135.0, "long": 6.0},
+# LES CORRALS. Trois segments par enclos, ouverts d'un côté : ils arrêtent
+# le corps mais laissent VOIR au travers — le seul couvert de la carte
+# qu'on peut tenir sans perdre l'adversaire de vue.
+const _BARRIERES_MOITIE: Array[Dictionary] = [
+	{"pos": Vector2(-25.0, -9.0), "angle": 0.0, "long": 7.0},
+	{"pos": Vector2(-28.0, -5.0), "angle": 90.0, "long": 6.0},
+	{"pos": Vector2(-21.0, -5.0), "angle": 90.0, "long": 6.0},
 ]
 
 # --- CHARIOTS ------------------------------------------------------------
 #
-# Trois, pas plus. C'est la silhouette la plus reconnaissable de la
-# planche — donc un repère d'orientation — et elle perdrait ce rôle
-# répétée dix fois.
-const CHARIOTS: Array[Dictionary] = [
-	{"pos": Vector2(-27.5, -6.0), "angle": 20.0},
-	{"pos": Vector2(2.5, 18.5), "angle": 100.0},
-	{"pos": Vector2(27.0, 27.5), "angle": 200.0},
+# Deux, pas plus. C'est la silhouette la plus reconnaissable du décor —
+# donc un repère d'orientation — et elle perdrait ce rôle répétée dix fois.
+# Un par voie nord-sud, à l'entrée de la place.
+const _CHARIOTS_MOITIE: Array[Dictionary] = [
+	{"pos": Vector2(0.0, -21.0), "angle": 0.0},
 ]
 
 # --- PETIT COUVERT -------------------------------------------------------
 #
 # Tonneaux et caisses isolés. Ils ne bloquent pas la course : ils cassent
 # la ligne de tir et donnent où se jeter. Ils ne comptent PAS comme couvert
-# de duel — la mesure les sépare exprès, parce que les confondre est
-# exactement ce qui avait fait croire la V1 dense.
-const PETITS: Array[Dictionary] = [
-	{"pos": Vector2(-6.5, -3.0), "type": &"caisse"},
-	{"pos": Vector2(5.0, -5.0), "type": &"tonneau"},
-	{"pos": Vector2(2.5, 6.5), "type": &"botte"},
-	{"pos": Vector2(-7.5, 7.0), "type": &"caisse"},
-	{"pos": Vector2(-19.0, -1.5), "type": &"botte"},
-	{"pos": Vector2(20.5, 1.5), "type": &"tonneau"},
-	{"pos": Vector2(-3.0, -22.0), "type": &"caisse"},
-	{"pos": Vector2(-0.5, 25.5), "type": &"tonneau"},
-	{"pos": Vector2(-23.0, -26.0), "type": &"botte"},
-	{"pos": Vector2(15.0, -26.5), "type": &"caisse"},
-	{"pos": Vector2(32.0, -10.0), "type": &"tonneau"},
-	# ÉCARTÉE APRÈS MESURE : l'empilement voisin, déplacé par le relaxeur,
-	# est venu se poser dessus.
-	{"pos": Vector2(-33.5, 16.5), "type": &"botte"},
-	{"pos": Vector2(9.0, 31.0), "type": &"caisse"},
-	{"pos": Vector2(-14.0, -31.5), "type": &"tonneau"},
-	{"pos": Vector2(29.5, -25.0), "type": &"botte"},
-	{"pos": Vector2(-26.5, -13.0), "type": &"caisse"},
-	{"pos": Vector2(23.5, 32.0), "type": &"tonneau"},
-	{"pos": Vector2(-6.5, 33.0), "type": &"botte"},
-	{"pos": Vector2(18.0, 15.5), "type": &"tonneau"},
-	{"pos": Vector2(-17.5, 19.0), "type": &"caisse"},
+# de duel — la mesure les sépare exprès.
+#
+# ILS SE POSENT CONTRE QUELQUE CHOSE, jamais au milieu du vide. Un tonneau
+# seul en pleine plaine est le signe même de l'objet posé au hasard ; le
+# même tonneau au pied d'un mur raconte qu'on l'y a rangé.
+const _PETITS_MOITIE: Array[Dictionary] = [
+	{"pos": Vector2(9.0, 4.0), "type": &"tonneau"},
+	{"pos": Vector2(4.0, -9.0), "type": &"caisse"},
+	{"pos": Vector2(20.0, 6.0), "type": &"tonneau"},
+	{"pos": Vector2(6.0, 20.0), "type": &"botte"},
+	{"pos": Vector2(3.0, -18.0), "type": &"caisse"},
+	{"pos": Vector2(18.0, 3.0), "type": &"tonneau"},
+	{"pos": Vector2(-23.0, -11.0), "type": &"botte"},
+	# ÉCARTÉE DU BASTION : à (13 · 13) la caisse tombait sur la pointe de
+	# la crête diagonale et bouchait le seul côté par lequel on en faisait
+	# le tour.
+	{"pos": Vector2(12.0, 4.0), "type": &"caisse"},
 ]
 
 # --- VÉGÉTATION ----------------------------------------------------------
 #
 # AUCUN RÔLE DE JEU, et c'est la règle : un cactus ne doit jamais arrêter
-# une poursuite. Mais la maquette en met PARTOUT, en touffes, et assez
-# hauts pour se lire — c'est une bonne part de ce qui remplit son écran.
+# une poursuite. Elle habille les flancs des crêtes et la clôture, JAMAIS
+# les lignes de circulation.
 #
-# On en pose donc trois fois plus qu'en V1, en touffes contre les crêtes et
-# le long de la clôture, JAMAIS dans les lignes de circulation. La consigne
-# est claire : « davantage de gameplay, pas davantage de bruit visuel » —
-# aussi la végétation ne bouche jamais un passage, elle habille les flancs.
-const VEGETATION: Array[Dictionary] = [
-	{"pos": Vector2(-25.0, -19.0), "type": &"cactus"},
-	{"pos": Vector2(-16.5, -25.0), "type": &"cactus"},
-	{"pos": Vector2(6.5, -21.0), "type": &"buisson"},
-	{"pos": Vector2(-1.0, -29.5), "type": &"cactus"},
-	{"pos": Vector2(17.0, -18.5), "type": &"cactus"},
-	{"pos": Vector2(27.5, -26.0), "type": &"buisson"},
-	{"pos": Vector2(33.5, -6.0), "type": &"cactus"},
-	{"pos": Vector2(26.0, -1.5), "type": &"cactus"},
-	{"pos": Vector2(30.0, 12.0), "type": &"buisson"},
-	{"pos": Vector2(20.5, 22.5), "type": &"cactus"},
-	{"pos": Vector2(29.5, 31.5), "type": &"cactus"},
-	{"pos": Vector2(10.0, 24.5), "type": &"buisson"},
-	{"pos": Vector2(0.5, 31.5), "type": &"cactus"},
-	{"pos": Vector2(-13.5, 27.5), "type": &"cactus"},
-	{"pos": Vector2(-24.0, 29.5), "type": &"buisson"},
-	{"pos": Vector2(-31.5, 12.5), "type": &"cactus"},
-	{"pos": Vector2(-33.5, 1.0), "type": &"cactus"},
-	{"pos": Vector2(-26.0, 6.5), "type": &"buisson"},
-	{"pos": Vector2(-18.5, 9.5), "type": &"cactus"},
-	{"pos": Vector2(-11.5, -16.5), "type": &"cactus"},
-	{"pos": Vector2(12.5, -10.5), "type": &"buisson"},
-	{"pos": Vector2(19.0, 9.5), "type": &"cactus"},
-	{"pos": Vector2(-6.5, 18.5), "type": &"cactus"},
-	{"pos": Vector2(8.5, 13.0), "type": &"buisson"},
-	{"pos": Vector2(-13.0, -3.0), "type": &"cactus"},
-	{"pos": Vector2(14.0, 1.0), "type": &"buisson"},
-	{"pos": Vector2(-4.5, -12.5), "type": &"cactus"},
-	# ÉCARTÉ APRÈS MESURE : le relaxeur a fait glisser la crête moyenne
-	# voisine jusque sur lui, et le cactus poussait dans le rocher.
-	{"pos": Vector2(25.0, -9.0), "type": &"cactus"},
-	{"pos": Vector2(-21.0, 18.5), "type": &"buisson"},
-	{"pos": Vector2(5.5, 20.0), "type": &"cactus"},
-	{"pos": Vector2(-29.0, -13.5), "type": &"cactus"},
-	{"pos": Vector2(24.5, -16.0), "type": &"buisson"},
-	{"pos": Vector2(-9.5, -30.0), "type": &"cactus"},
-	{"pos": Vector2(4.0, -33.0), "type": &"cactus"},
-	{"pos": Vector2(19.5, -33.0), "type": &"buisson"},
-	{"pos": Vector2(33.0, -30.0), "type": &"cactus"},
-	{"pos": Vector2(34.5, 16.0), "type": &"cactus"},
-	{"pos": Vector2(25.0, 33.0), "type": &"buisson"},
-	{"pos": Vector2(9.5, 34.0), "type": &"cactus"},
-	{"pos": Vector2(-6.0, 30.0), "type": &"cactus"},
-	{"pos": Vector2(-24.0, 33.5), "type": &"buisson"},
-	{"pos": Vector2(-34.0, 26.0), "type": &"cactus"},
-	{"pos": Vector2(-34.5, -20.0), "type": &"cactus"},
-	{"pos": Vector2(-21.0, -33.0), "type": &"buisson"},
-	{"pos": Vector2(2.5, 3.0), "type": &"cactus"},
-	{"pos": Vector2(-3.5, -3.5), "type": &"buisson"},
-	{"pos": Vector2(16.5, -16.5), "type": &"cactus"},
-	{"pos": Vector2(-25.0, 4.5), "type": &"cactus"},
+# ELLE EST SYMÉTRIQUE ELLE AUSSI, alors qu'elle n'a aucune conséquence sur
+# l'équité. C'est un choix de LECTURE : une carte dont le décor est
+# symétrique et le gameplay symétrique se lit comme un lieu construit ;
+# mélanger les deux redonne l'impression de semis qu'on vient de retirer.
+const _VEGETATION_MOITIE: Array[Dictionary] = [
+	{"pos": Vector2(33.0, 8.0), "type": &"cactus"},
+	{"pos": Vector2(8.0, 33.0), "type": &"cactus"},
+	{"pos": Vector2(33.0, -8.0), "type": &"cactus"},
+	{"pos": Vector2(-8.0, 33.0), "type": &"cactus"},
+	{"pos": Vector2(27.0, 27.0), "type": &"cactus"},
+	{"pos": Vector2(27.0, -27.0), "type": &"cactus"},
+	{"pos": Vector2(21.0, 13.0), "type": &"buisson"},
+	{"pos": Vector2(13.0, 21.0), "type": &"buisson"},
+	{"pos": Vector2(21.0, -13.0), "type": &"buisson"},
+	{"pos": Vector2(-13.0, 21.0), "type": &"buisson"},
+	{"pos": Vector2(30.0, 2.0), "type": &"buisson"},
+	{"pos": Vector2(2.0, 30.0), "type": &"buisson"},
+	{"pos": Vector2(12.0, 8.0), "type": &"buisson"},
+	{"pos": Vector2(8.0, -12.0), "type": &"buisson"},
 ]
 
 # --- APPARITIONS ---------------------------------------------------------
 #
-# DIX POINTS, TOUS SUR LA PÉRIPHÉRIE.
+# DIX POINTS, TOUS SUR LA PÉRIPHÉRIE, et symétriques deux à deux comme le
+# reste : quatre aux portes cardinales, quatre dans les poches diagonales,
+# deux sur les flancs nord et sud.
 #
-# AUCUN N'A DE LIGNE DE TIR SUR LE CENTRE, et c'est vérifié par le banc :
-# chacun est posé de sorte qu'une crête ou un mur s'interpose. Naître à
-# découvert face au point le plus fréquenté de la carte, c'est naître mort
-# — et sur une carte à réapparition permanente, ce défaut se paie dix fois
-# par minute.
-#
-# L'ordre ALTERNE d'un bord à l'autre plutôt que de tourner : deux joueurs
-# servis à la suite se retrouvent à l'opposé, jamais côte à côte.
-const APPARITIONS: Array[Vector2] = [
-	Vector2(-5.0, -32.5),
-	Vector2(6.0, 32.5),
-	Vector2(-32.5, -3.0),
-	Vector2(32.5, 4.0),
-	Vector2(-28.0, -27.0),
-	# DÉPLACÉE APRÈS MESURE : à (29 · 26) elle naissait à quatre-vingts
-	# centimètres du chariot, donc coincée contre lui.
-	Vector2(32.5, 22.0),
-	# DÉPLACÉE APRÈS MESURE : la pile voisine, écartée par le relaxeur,
-	# est venue se poser à soixante centimètres.
-	Vector2(29.0, -30.0),
-	# DÉPLACÉE APRÈS MESURE : le relaxeur a fait glisser la crête moyenne du
-	# coin sud-ouest jusqu'à (-27,8 · 28,1), pile sur elle. Une apparition
-	# ne se défend pas contre un déplacement de décor : c'est à elle de
-	# céder la place.
-	Vector2(-34.0, 13.0),
-	Vector2(15.0, -32.5),
-	# DÉPLACÉE APRÈS MESURE : elle n'était qu'à 11,7 m de sa voisine du
-	# coin sud-ouest, sous le seuil de douze mètres.
-	Vector2(-13.0, 32.5),
+# AUCUN N'A DE LIGNE DE TIR SUR LE CENTRE : les crêtes d'approche et les
+# murs de porte s'interposent. Naître à découvert face au point le plus
+# fréquenté de la carte, c'est naître mort — et sur une carte à
+# réapparition permanente, ce défaut se paie dix fois par minute.
+const _APPARITIONS_MOITIE: Array[Vector2] = [
+	# CINQ POINTS RÉGULIÈREMENT ESPACÉS SUR L'ANNEAU, à trente mètres du
+	# centre et trente-six degrés l'un de l'autre. Leurs cinq jumeaux par
+	# demi-tour complètent le tour.
+	#
+	# LA RÉGULARITÉ EST LE RÉGLAGE, pas une coquetterie. Posés à la main,
+	# deux d'entre eux se retrouvaient à dix mètres : deux joueurs servis
+	# coup sur coup se voyaient avant d'avoir fait trois pas. Sur un cercle
+	# de trente mètres, dix points également répartis sont à dix-huit
+	# mètres les uns des autres — le problème disparaît par construction.
+	#
+	# Les angles choisis — 18°, 54°, 90°, 126°, 162° — évitent les
+	# diagonales, où sont les bastions, et gardent le point cardinal nord
+	# libre : c'est la porte.
+	Vector2(29.0, 9.0),
+	Vector2(18.0, 24.0),
+	Vector2(0.0, 30.0),
+	Vector2(-18.0, 24.0),
+	Vector2(-29.0, 9.0),
 ]
 
+# --- LE MIROIR -----------------------------------------------------------
 
-## L'ENCEINTE EST-ELLE FRANCHIE ?
-##
-## Carré aux angles arrondis : on replie le point dans le premier quadrant,
-## puis on ne teste l'arrondi que dans le coin. `marge` rétrécit l'enceinte
-## — c'est ainsi qu'on demande « à l'intérieur, mais pas collé au bord ».
+## Les tableaux complets, engendrés une fois au chargement de la classe.
+static var FORMATIONS: Array[Dictionary] = []
+static var MURS: Array[Dictionary] = []
+static var PILES: Array[Dictionary] = []
+static var BARRIERES: Array[Dictionary] = []
+static var CHARIOTS: Array[Dictionary] = []
+static var PETITS: Array[Dictionary] = []
+static var VEGETATION: Array[Dictionary] = []
+static var APPARITIONS: Array[Vector2] = []
+
+
+## POURQUOI UN DEMI-TOUR ET NON UN MIROIR D'AXE. Une symétrie d'axe rend
+## deux moitiés qui se font FACE : les deux camps voient la même chose au
+## même endroit, et la carte prend un « haut » et un « bas ». Le demi-tour,
+## lui, rend une carte qui a la même allure quel que soit le côté d'où on
+## l'aborde — c'est ce qu'il faut pour un affrontement sans camps.
+static func _static_init() -> void:
+	for e in _FORMATIONS_MOITIE:
+		FORMATIONS.append(e)
+		FORMATIONS.append(_tourner(e))
+	for e in _MURS_MOITIE:
+		MURS.append(e)
+		MURS.append(_tourner(e))
+	for e in _PILES_MOITIE:
+		PILES.append(e)
+		PILES.append(_tourner(e))
+	for e in _BARRIERES_MOITIE:
+		BARRIERES.append(e)
+		BARRIERES.append(_tourner(e))
+	for e in _CHARIOTS_MOITIE:
+		CHARIOTS.append(e)
+		CHARIOTS.append(_tourner(e))
+	for e in _PETITS_MOITIE:
+		PETITS.append(e)
+		PETITS.append(_tourner(e))
+	for e in _VEGETATION_MOITIE:
+		VEGETATION.append(e)
+		VEGETATION.append(_tourner(e))
+	for p: Vector2 in _APPARITIONS_MOITIE:
+		APPARITIONS.append(p)
+		APPARITIONS.append(-p)
+
+
+## Un demi-tour autour du centre : la position s'inverse, et l'angle prend
+## cent quatre-vingts degrés. Sur une pièce symétrique par rapport à son
+## propre axe — un mur, une crête — l'angle pourrait rester tel quel ; on
+## l'ajoute quand même, parce que les pièces qui ne le sont pas (le
+## chariot, dont l'avant et l'arrière diffèrent) doivent tourner pour de
+## bon, et qu'une règle unique vaut mieux qu'une exception à retenir.
+static func _tourner(e: Dictionary) -> Dictionary:
+	var d := e.duplicate()
+	d["pos"] = -(e["pos"] as Vector2)
+	if e.has("angle"):
+		d["angle"] = fmod(float(e["angle"]) + 180.0, 360.0)
+	return d
+
+
 static func dans_enceinte(p: Vector2, marge := 0.0) -> bool:
 	var b := BORD - marge
 	var c: float = minf(CONGE, b)

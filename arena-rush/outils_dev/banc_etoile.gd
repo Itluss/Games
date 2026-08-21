@@ -438,6 +438,16 @@ func _test6_drop_contre_obstacle() -> void:
 	EtoileDirector.tenter_ramassage(a.peer_id)
 	await get_tree().process_frame
 	a.global_position = Vector3(bouche.x, a.global_position.y, bouche.z)
+	# MÊME PARADE QU'AU TEST 2 : on rend sa vie au porteur avant de le
+	# frapper. Le banc joue une vraie partie, et ce test arrive après
+	# plusieurs morts ; frapper quelqu'un de déjà mort ne déclenche rien et
+	# le test accuse la règle d'un défaut qui n'est pas le sien.
+	a.health.current_health = a.health.max_health
+	a.health.is_dead = false
+	a.is_eliminated = false
+	await get_tree().process_frame
+	EtoileDirector.tenter_ramassage(a.peer_id)
+	await get_tree().process_frame
 	a.server_take_damage(9999.0, a.global_position, b.peer_id,
 			Cfg.Team.PLAYER)
 	await get_tree().process_frame
@@ -461,9 +471,23 @@ func _test6_drop_contre_obstacle() -> void:
 	# On ne devrait jamais y être, mais une projection, un rebond ou un
 	# futur pouvoir de déplacement peuvent y mener. L'étoile ne doit pas
 	# suivre.
+	# ON TESTE LA PAIRE ICI AUSSI. Cette ligne interrogeait `_corriger`
+	# seul, et elle est tombée dès que le plan de la carte a changé : le
+	# point tiré vers le centre atterrit désormais sur une crête
+	# diagonale, et la recherche d'espace libre n'a rien trouvé dans son
+	# rayon. Ce n'est pas un défaut — c'est exactement le cas pour lequel
+	# `_pose_de_repli` a été écrit. Ce qui doit être vrai, c'est que le
+	# SYSTÈME rende une position jouable, pas qu'une étape particulière
+	# réussisse toujours.
 	var loin := Vector3(90.0, 0.0, 70.0)
 	var ramene: Vector3 = EtoileDirector._corriger(loin)
-	_ligne(ramene != Vector3.INF and arene.call(&"dans_terrain", ramene, 0.0),
-			"un point très hors-jeu est ramené dans l'arène",
-			"%.1f, %.1f" % [ramene.x, ramene.z] if ramene != Vector3.INF
+	var repli := ramene == Vector3.INF
+	if repli:
+		ramene = EtoileDirector._pose_de_repli(loin)
+	var bon: bool = ramene != Vector3.INF \
+			and bool(arene.call(&"dans_terrain", ramene, 0.0)) \
+			and bool(arene.call(&"position_libre", ramene, 1.4))
+	_ligne(bon, "un point très hors-jeu est ramené dans l'arène",
+			"%s → %.1f, %.1f" % ["par repli" if repli else "par dégagement",
+					ramene.x, ramene.z] if ramene != Vector3.INF
 					else "aucune position")

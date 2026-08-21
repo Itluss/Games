@@ -2093,15 +2093,42 @@ const W_SABLE := Color("a87b3f")
 ## cent et le sol devenait un damier de cuisine, qui tirait l'oeil au lieu
 ## de le laisser tranquille. Ce qu'on veut, c'est un sol qui ne soit pas
 ## plat — pas un sol qui se remarque.
-const W_DALLES := [Color("cf9c58"), Color("c6934f"),
-		Color("bd8a48"), Color("b48141")]
+## ─── ASSOMBRIES POUR QUE LE DÉCOR SE DÉTACHE ───────────────────────────
+##
+## Elles valaient cf9c58 à b48141 : un sable clair, très lumineux, presque
+## de la même valeur que tout ce qui est posé dessus. Résultat, une image
+## monochrome où rien n'accroche l'œil — le sol tirait autant l'attention
+## que les couvertures.
+##
+## Le sol est l'élément qu'on regarde le MOINS : il doit être le plus
+## sourd. Un cran plus bas et un peu moins saturé, il redevient un fond, et
+## l'adobe des murets, le rouge des mesas et le vert des cactus ressortent
+## sans qu'on ait touché à aucun d'eux.
+const W_DALLES := [Color("b3844a"), Color("aa7c43"),
+		Color("a1733d"), Color("986b37")]
 const W_ROCHE := Color("c0603c")
 const W_ROCHE_SOMMET := Color("d87a52")
-## Les trois valeurs de la pierre des murets, prises sur la planche : un
-## crème clair, un moyen, un plus chaud. Trois teintes SEULEMENT — chaque
-## teinte crée son propre matériau à la fusion, et une pierre par teinte
-## rendrait la fusion inutile.
-const W_MURET := [Color("d3c7ae"), Color("bcae92"), Color("a2947a")]
+## ─── LA PIERRE DES MURETS : PLUS SOMBRE QUE LE SABLE, PAS PLUS CLAIRE ──
+##
+## PREMIÈRE VERSION, ET LA RAISON DE SON ÉCHEC. Les murets étaient en crème
+## — d3c7ae, bcae92, a2947a — c'est-à-dire PLUS CLAIRS que le sol qu'ils
+## occupent (b48141 à cf9c58) et beaucoup moins saturés. À la caméra de
+## jeu, ils ne se lisaient plus comme de la pierre mais comme des blocs
+## blancs sans texture, posés sur du sable : le signal « géométrie de
+## chantier » le plus fort de toute l'image, avant même la question du
+## plan.
+##
+## L'ERREUR ÉTAIT DE VALEUR, PAS DE TEINTE. Dans les arènes qui servent de
+## référence, le SOL est l'élément le plus clair et le plus plat ; les
+## obstacles sont plus sombres et plus saturés, de sorte que leur
+## silhouette se détache sans avoir besoin d'un contour. En inversant ce
+## rapport, on obtient exactement l'inverse : des masses pâles qui flottent
+## et un sol qui paraît sale.
+##
+## Ces trois valeurs sont donc un adobe cuit par le soleil, dans la même
+## famille chaude que les mesas (c0603c), et rangées du plus clair au plus
+## sombre : elles servent d'ASSISES, voir `_pierres`.
+const W_MURET := [Color("b0703f"), Color("95562f"), Color("7a4426")]
 const W_BOIS := Color("9c6334")
 const W_FOIN := Color("e0b352")
 const W_CACTUS := Color("5f9c4a")
@@ -2361,16 +2388,43 @@ func _pierres(p: Vector2, rot: float, seg: float,
 			var u := (float(k) + 0.5 + decal) / 2.0 - 0.5
 			if absf(u) > 0.5:
 				continue
-			var lp := seg * 0.5 * rng.randf_range(0.86, 0.98)
+			# ─── LA COULEUR SUIT L'ASSISE, ELLE N'EST PAS TIRÉE AU SORT ──
+			#
+			# Chaque pierre prenait sa teinte au hasard parmi les trois :
+			# de loin, cela donnait un moucheté sans logique — du confetti,
+			# pas de la maçonnerie. Un vrai muret s'assombrit vers le bas,
+			# parce que le pied prend l'ombre et l'humidité. On range donc
+			# les teintes par ÉTAGE : la base sombre, le couronnement
+			# clair. La lecture horizontale qui en résulte est ce qui fait
+			# « construit » plutôt que « posé ».
+			var teinte: Color = W_MURET[2] if etage == 0 else W_MURET[0]
+			# Une pierre sur quatre prend la valeur médiane : sans elle,
+			# deux bandes parfaitement unies feraient carton découpé.
+			if rng.randf() < 0.25:
+				teinte = W_MURET[1]
+			var lp := seg * 0.5 * rng.randf_range(0.95, 1.0)
 			var pierre := BoxMesh.new()
-			pierre.size = Vector3(lp, hp * rng.randf_range(0.94, 1.0),
-					prof * rng.randf_range(0.90, 1.0))
+			pierre.size = Vector3(lp, hp * rng.randf_range(0.97, 1.0),
+					prof * rng.randf_range(0.96, 1.0))
 			var t := base
-			t.basis = t.basis.rotated(Vector3.UP, rng.randf_range(-0.07, 0.07))
+			# ─── LE DÉSORDRE SE RESSERRE : ±1,1° AU LIEU DE ±4° ────────
+			#
+			# Chaque pierre pivotait de quatre degrés au hasard et variait
+			# de quatorze pour cent en longueur. L'intention était bonne —
+			# un mur bâti à la main n'est pas au cordeau — mais l'effet
+			# cumulé faisait ONDULER des murs que le plan pose pourtant
+			# parfaitement droits. Vu de la caméra de jeu, cela ne se
+			# lisait pas comme « fait main » mais comme « posé n'importe
+			# comment », ce qui est exactement le reproche entendu.
+			#
+			# Un degré d'écart suffit à casser la régularité mécanique. La
+			# différence entre les deux réglages, c'est celle entre un mur
+			# et un éboulis aligné.
+			t.basis = t.basis.rotated(Vector3.UP, rng.randf_range(-0.02, 0.02))
 			t.origin += base.basis * Vector3(
-					u * seg, 0.0, rng.randf_range(-0.05, 0.05))
+					u * seg, 0.0, rng.randf_range(-0.02, 0.02))
 			t.origin.y = y0 + pierre.size.y * 0.5
-			_fondre(pierre, t, W_MURET[rng.randi_range(0, 2)])
+			_fondre(pierre, t, teinte)
 	# Éboulis au pied : la planche en pose toujours quelques-uns, et ils
 	# cachent la ligne où le mur rencontre le sable.
 	if rng.randf() < 0.45:
