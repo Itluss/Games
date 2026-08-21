@@ -92,6 +92,13 @@ const HAUT_DU_CORPS := [
 ## Durée du fondu du haut du corps vers la posture de tir.
 const FONDU_BUSTE := 0.14
 const A_MORT := "mort"
+## Clip de ROULADE, livré avec le rig Corsair — joué sur l'esquive.
+const A_ROULADE := "roulade"
+## Durée VISUELLE de la roulade. L'esquive du gameplay dure 0,16 s ; y
+## comprimer un tour complet donnerait une toupie illisible. Le corps
+## finit donc sa culbute pendant la glissade d'arrivée — le déplacement,
+## lui, reste strictement celui du gameplay.
+const ROULADE_DUREE := 0.42
 
 ## Durée du fondu entre deux clips. Assez court pour rester réactif,
 ## assez long pour qu'on ne voie pas le personnage se téléporter d'une
@@ -166,6 +173,11 @@ var _posture: String = "repos"
 ## Verrou du banc de rendu : empêche la machine à états de rechoisir.
 var _clip_verrouille: bool = false
 var _court: bool = false
+## Temps restant de roulade. Pendant qu'il court, la machine à états ne
+## rechoisit pas de clip, et les modèles sans squelette culbutent par
+## `_roulade_angle`.
+var _roulade_t: float = 0.0
+var _roulade_angle: float = 0.0
 var _attack_t: float = 0.0
 var _hit_t: float = 0.0
 var _dead: bool = false
@@ -522,6 +534,27 @@ func recul_de_tir(profil: ProfilTir, canon: int) -> void:
 	_recul_t = 1.0
 
 
+## ROULADE D'ESQUIVE — la vignette « roulade » de la planche Corsair.
+##
+## Deux voies, même geste : les modèles riggés jouent le clip Roll_Dodge
+## de la bibliothèque, remis à l'échelle de la fenêtre visuelle ; les
+## modèles SANS squelette — les mascottes des bots — font une culbute
+## procédurale, un tour complet du corps vers l'avant. Un bot qui
+## esquive sans rouler pendant que le joueur roule trahirait le truc.
+func roulade() -> void:
+	if _dead:
+		return
+	_roulade_t = ROULADE_DUREE
+	if _arbre != null and _anim != null and _anim.has_animation(A_ROULADE):
+		var clip := _anim.get_animation(A_ROULADE)
+		clip.loop_mode = Animation.LOOP_NONE
+		_posture = A_ROULADE
+		_n_base.animation = A_ROULADE
+		_melange = 0.0
+		_appliquer_melange(0.0)
+		_anim.speed_scale = clip.length / ROULADE_DUREE
+
+
 ## Place l'arme dans la main : POSITION de l'os, ORIENTATION du corps.
 ##
 ## DEUX DÉFAUTS DISTINCTS, corrigés ici, et il a fallu les mesurer pour
@@ -771,6 +804,23 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 		_court = true
 
 	var tire := _vise_cible > 0.5
+	if _roulade_t > 0.0:
+		_roulade_t -= delta
+		if _anim == null or _arbre == null \
+				or not _anim.has_animation(A_ROULADE):
+			# Culbute procédurale : un tour complet vers l'avant, ajouté
+			# plus bas à l'assiette du corps.
+			_roulade_angle = TAU * clampf(1.0 - _roulade_t / ROULADE_DUREE,
+					0.0, 1.0)
+		if _roulade_t <= 0.0:
+			_roulade_angle = 0.0
+			if _anim:
+				_anim.speed_scale = 1.0
+			_clip = ""
+		else:
+			# Pas de re-choix de clip pendant la culbute.
+			_appliquer_lean_roulade(delta)
+			return
 	if _clip_verrouille:
 		pass
 	elif _arbre:
@@ -908,6 +958,17 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	_rig.scale = _squash
 
 
+## Assiette du corps PENDANT la roulade : la culbute remplace le penché.
+func _appliquer_lean_roulade(delta: float) -> void:
+	_lean = _lean.lerp(Vector2.ZERO, 1.0 - exp(-delta / 0.09))
+	_rig.rotation.x = -_roulade_angle
+	_rig.rotation.z = 0.0
+	_rig.rotation.y = 0.0
+	_rig.position.z = 0.0
+	_squash = _squash.lerp(_squash_target, 1.0 - exp(-delta / 0.055))
+	_rig.scale = _squash
+
+
 func _offset(part: String, delta_pos: Vector3) -> void:
 	var node: MeshInstance3D = _parts.get(part)
 	if node == null:
@@ -925,6 +986,8 @@ func revive() -> void:
 		_rig.position = Vector3.ZERO
 	_squash = Vector3.ONE
 	_squash_target = Vector3.ONE
+	_roulade_t = 0.0
+	_roulade_angle = 0.0
 	_clip = ""
 	_court = false
 	_melange = 0.0

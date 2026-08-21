@@ -395,6 +395,11 @@ func _simulate(delta: float) -> void:
 		# Étirement dans l'axe de l'esquive : sans déformation, une
 		# accélération brutale ne se lit pas, elle se subit.
 		visual.punch(Vector3(0.78, 0.9, 1.35), 0.18)
+		# LA ROULADE DE LA PLANCHE CORSAIR, sur le bouton qui existait
+		# déjà : l'esquive. Clip Roll_Dodge pour les modèles riggés,
+		# culbute procédurale pour les autres — le gameplay (durée,
+		# vitesse) ne bouge pas d'un cheveu.
+		visual.roulade()
 
 	var flat := Vector3(velocity.x, 0.0, velocity.z)
 	var before := flat
