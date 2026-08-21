@@ -1,0 +1,8 @@
+{
+  "_pourquoi": "RIG DE LA PREMIÈRE MASCOTTE JOUABLE — et TEST du riggeur sur les proportions chibi. Corsair fait deux têtes de haut, porte un chapeau énorme et un pistolet fondu dans la main : c'est le cas limite. S'il passe, tout le roster passe ; s'il échoue, la couche procédurale de Godot reste le plan A. Les actions suivent la planche d'animations Corsair : course, roulade (esquive), garde et course-tir (attaque en mouvement), idle, mort.",
+  "_planche": "art/references/planches/ — planche d'animations Corsair fournie le 21/08, sert de cahier des charges : les clips sont choisis au catalogue pour correspondre à ses vignettes.",
+  "nom": "mascotte_corsair",
+  "tache": "01a02639-36d6-7baf-8410-fc7e0fce524e",
+  "hauteur": 1.6,
+  "actions": "repos,course,course_tir,garde,mort,roulade"
+}

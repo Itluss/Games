@@ -69,6 +69,10 @@ ROLES = {
     "garde": (89, "Combat_Stance"),
     "mort": (8, "Dead"),
     "touche": (178, "Hit_Reaction"),
+    # La ROULADE de la planche Corsair. Deux candidats au catalogue : la
+    # roulade simple et la roulade-tir — on prend la simple, l'esquive du
+    # jeu n'interrompt pas le tir et une roulade qui tire mentirait.
+    "roulade": (158, "Roll_Dodge"),
 }
 
 
