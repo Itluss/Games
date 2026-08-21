@@ -48,9 +48,15 @@ class_name ArenaCamera
 ## Le champ reste à 58° : le rétrécir aurait rapproché l'image sans
 ## rapprocher la caméra, en aplatissant la perspective (effet téléobjectif)
 ## et en donnant ce cadrage à l'étroit qu'il faut éviter.
-@export var height: float = 10.4
+## REMONTÉE DE 10,4 À 11,7 APRÈS LE VERROUILLAGE. L'avance sur la visée
+## offrait de fait 3,4 m de vision vers l'avant ; supprimée, le cadre
+## s'est resserré et la carte à rues demande d'anticiper — « la caméra
+## est un peu proche » est arrivé dans l'heure. On rend 12 % de recul
+## (13,1 → 14,8 m de distance réelle, −10 % de taille apparente), à
+## rapport hauteur/recul constant : l'angle de plongée reste à 52°.
+@export var height: float = 11.7
 ## Recul derrière la cible.
-@export var distance: float = 8.0
+@export var distance: float = 9.0
 ## Vitesse de rattrapage. Assez élevée pour ne jamais « traîner », assez
 ## basse pour amortir les à-coups.
 @export var smoothing: float = 7.5
@@ -72,8 +78,8 @@ class_name ArenaCamera
 
 ## Réglage nominal, mémorisé au démarrage. `adapt_to_zone` s'en écarte au
 ## lieu d'écrire des valeurs en dur.
-var _hauteur_nominale := 10.4
-var _recul_nominal := 8.0
+var _hauteur_nominale := 11.7
+var _recul_nominal := 9.0
 
 ## Hauteur de l'œil visé sur le joueur : la ligne de vue part de sa
 ## poitrine, pas de ses pieds, sinon le moindre muret la coupe.

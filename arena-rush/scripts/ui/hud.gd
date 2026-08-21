@@ -69,7 +69,6 @@ var _dash_button: UiKit.BoutonRond
 ## d'écran ; le nom, lui, le rendait invisible à la relecture.
 var _announce: UiKit.Banniere
 var _countdown: Label
-var _health_bar: UiKit.BarreVie
 var _slot_panels: Array[UiKit.CarteArme] = []
 var _minicarte: Minicarte
 var _fps_label: Label
@@ -477,11 +476,12 @@ func _build_bottom() -> void:
 	slots.add_child(carte)
 	_slot_panels.append(carte)
 
-	_health_bar = UiKit.BarreVie.new()
-	_health_bar.custom_minimum_size = Vector2(LARGEUR_BAS, 34)
-	_health_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_health_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.add_child(_health_bar)
+	# ─── PLUS DE BARRE DE VIE EN BAS ──────────────────────────────────
+	#
+	# Elle doublait la plaque au-dessus du personnage, et obligeait à
+	# lire sa vie AILLEURS que là où on regarde — le combat. Le joueur
+	# local porte désormais sa barre au-dessus de la tête, comme les neuf
+	# autres : une seule règle de lecture pour tout le monde.
 
 
 func _build_controls() -> void:
@@ -723,10 +723,11 @@ func _process(delta: float) -> void:
 			_dash_button.attente = (1.0 - pret) * Player.DASH_COOLDOWN
 			_dash_button.queue_redraw()
 
-func _on_health_changed(current: float, maximum: float) -> void:
-	# La barre se dessine elle-même, teinte comprise : le HUD lui donne des
-	# chiffres, pas des pixels.
-	_health_bar.regler(current, maximum)
+func _on_health_changed(_current: float, _maximum: float) -> void:
+	# La vie du joueur local se lit sur SA plaque, au-dessus de sa tête —
+	# le HUD n'affiche plus de jauge en bas. Le branchement reste : d'autres
+	# retours (flash d'écran, sons de vie basse) pourront s'y greffer.
+	pass
 
 func _on_inventory_changed(slots: Array, active: int) -> void:
 	for i in _slot_panels.size():

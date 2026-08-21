@@ -278,10 +278,11 @@ func _ready() -> void:
 	# Reconnaître QUI l'on vise reste possible par la silhouette, par la
 	# minicarte et par le classement.
 	health_bar.build(1.1)
-	# La plaque du joueur local passe en mode DISCRET plutôt que d'être
-	# éteinte : son nom et sa vie sont déjà dans le HUD du bas, mais
-	# l'étoile, elle, doit se voir sur lui aussi.
-	health_bar.mode_discret(is_me)
+	# LE JOUEUR LOCAL PORTE SA BARRE COMME TOUT LE MONDE. Elle vivait en
+	# bas de l'écran — une lecture à faire AILLEURS que là où on regarde,
+	# le combat. Une seule règle pour les dix combattants : la vie se lit
+	# au-dessus de la tête. Le mode discret de la plaque subsiste, mais
+	# plus personne ne l'active.
 
 	# INDICATEURS DE VISÉE — joueur local seulement. Une visée assistée
 	# qu'on ne voit pas donne l'impression que le personnage décide seul.
