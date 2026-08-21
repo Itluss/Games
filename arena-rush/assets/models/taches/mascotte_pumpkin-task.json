@@ -1,0 +1,39 @@
+{
+  "id": "01a0265e-c815-78f6-a4e2-9039fcfff66a",
+  "type": "image-to-3d",
+  "name": "",
+  "art_style": "",
+  "object_prompt": "",
+  "style_prompt": "",
+  "negative_prompt": "",
+  "texture_prompt": "small jack-o-lantern mascot: orange pumpkin body with carved triangle eyes and jagged smile glowing warm yellow, green stem on top, stubby feet, hand-painted stylized game texture, clean saturated flat colors, soft toy-like shading, matte finish, crisp edges, no text, no logos, no lettering",
+  "texture_image_url": "",
+  "text_style_prompt": "",
+  "image_style_url": "",
+  "status": "SUCCEEDED",
+  "created_at": 1787350142187,
+  "progress": 100,
+  "started_at": 1787350142192,
+  "finished_at": 1787350251349,
+  "expires_at": 1787609451349,
+  "task_error": null,
+  "model_url": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/model.glb?Expires=1787609451&Signature=Ttk1-58cFXOVsDDMXklYWtioymvxuB6Xz56d4EQDeg4NizD~Tei2Gmq6L6AIpHVGCbQNx5DggCYfqDF5K1W~pD-wxB433wa4~cH1GIfvqT9sPLWVjXbj1Ah8q~3R5EwKfgx8-lFg3SIStshxW-Yh0fxf3lUkX1244nv8ZHIiEqIDuDFvZNSJEHQgkYx8GApYr9UKy7w~RtFZPV2WmOwgJOEqoqoUXxtOoYwPfMq3SsFyjoegkKvNwlELXolm-HPf5Cz0csvbWUsb~jDgscxDacmn4Yj7oMYs3dN3yhbjMeeJBIqNqknJefzjQOhE-RAlrcia4-YTIAx5HcRgL27qbA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+  "model_urls": {
+    "glb": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/model.glb?Expires=1787609451&Signature=Ttk1-58cFXOVsDDMXklYWtioymvxuB6Xz56d4EQDeg4NizD~Tei2Gmq6L6AIpHVGCbQNx5DggCYfqDF5K1W~pD-wxB433wa4~cH1GIfvqT9sPLWVjXbj1Ah8q~3R5EwKfgx8-lFg3SIStshxW-Yh0fxf3lUkX1244nv8ZHIiEqIDuDFvZNSJEHQgkYx8GApYr9UKy7w~RtFZPV2WmOwgJOEqoqoUXxtOoYwPfMq3SsFyjoegkKvNwlELXolm-HPf5Cz0csvbWUsb~jDgscxDacmn4Yj7oMYs3dN3yhbjMeeJBIqNqknJefzjQOhE-RAlrcia4-YTIAx5HcRgL27qbA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "fbx": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/model.fbx?Expires=1787609451&Signature=ODdHSi3C~~fG0Of-gQLVjj38aWiA~yFElhxAXaDavQc4Su1XC2MYDuL0DgBn9ZuZ6FCrDR6LU66766QVxENr3lo-kurp1im0oB9Zj9H1wBw-lvob6z0DzJsnaQ3uzAJ5GNOUp9Ay05BbAW2EfCMiHchUtJV3YSWag0iCmn8M26Hx2U~doFOu9d80Bdwl3DW0Y-WG6rf-J-UUTyffd3tYQWGfWQ3O2Fg1N42GZQ3RDxa6HQP2RDC5XXB33L21ORjzVJOHkQ9f79g1hPzL6EsVlhm1k4BSby28~gonPpwarTMMw8RGfiOx2bnBDwd7vczM2vSjzKsuFiGbxPlCVpOGOw__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "usdz": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/model.usdz?Expires=1787609451&Signature=CfMPBKizKyoZs3ppGqEnXeF5yxvLCB6hLx2r4EmsCjY1nziZwQGqPcKLdOCycP8sODqTOPkfAUdkTl1MFCypmd7grm2O7QPPJpSOxGE9-FCLSa8iQJn5n3YFEgYIc3GYe7zFBGUPg3zFzESmRKKWPD8lSWJWaGDTUjEF8SMZqeSsfG21wTbuHIs~skcbJOlmhaqGQ90-Xz1kG5bJ07ognZfc1JmNiRTrpZuM1Cdbkxu342H~H0bSBOV-Fnmfx~VcFi1bTUqf5Q2uCj5ehpXUxg7YkRxF5vG1GfGG830Tq6NdECo77o13yzGIE-gjLnQTaH8Fy~lkxg9mFP74W5vxqA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "obj": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/model.obj?Expires=1787609451&Signature=ko4THpZWpffarIsUztcmpLfdXAbGiR~0NvnqYG6GcewFFnG2iyAjg8DomfKv6fDTKBkjG2S9fh1rFZT5Cb4tVQ8yEc-mhI314yX0VPriZTEginExl8QfGJt88hZV93Fe~gNhwKsmYpSEMTVaR93F67-rqqKZoAlsQJXmCPfBrjLZEOC1UJ1BzePOlZuPF9uG8QLt1MwEil~MMUqqxcorlRqEQQ3X3QugEeHrHq1bimbLgAMD0Jxd7HI4Lp2bfdq0FkYiDKNVba1k63AP6VA6bPHOS-Xle6M6Un31GVTJq-EIHZanR8iJ0e3sVmTrb6XPpBxZoWjUMndNFq48choLVg__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "mtl": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/model.mtl?Expires=1787609451&Signature=Jd5QsDJkjEUCs7~NIwJ9xDQMzAozelLCpqZnLROEIwkaeY8RHwP-treelt1oSZr-fCWEB0tt-gkwDFx9AvAjH-c53eTBuuBecLBZ9O4jFNofG~bOApSgDo3HipZtpmS1R42aoJTKJGRKJOw1DuiBuzz2-1D-qwdM~5CZtrDr6AYpDgdgpQmzXM-UcOB7tc2R-JfNjoUmcl2vba6e6Yd4-jFOXbZEorEuOma~mJf-062BNSFASneyVAOIX3vNwAx6XZOGQyLmxaGdNinav4QL3G66U5BV9tszI5EEXb4gYxowrKqSTQ~ZEK5iqEGKYkk8-~m4Wcp4lOlQ4MNCSJtkSw__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "stl": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/model.stl?Expires=1787609451&Signature=nVLPde0WlLSSRiTx3hzz5Vd4U3vPqTRMGwuDyvceO8Y4kzv3qTHAH56Gtex6Oe4DiZqYGpJ3jc9tlBlZa6gIyY4qJmHPgUoKXNTJ4tQPWoFjzwanEiSUTZm-5YVlnwQuhJUu1jhNawLkRQde7qWZEwsboVICogWbOFkqLONmnmMbz1da7nACDXlnTZ31w1Hx711E~LFBP19oK6W5RBHR7dKPQPWcbuob8BtajMmbvcTd46Zr-9w3zZrvulBOn9vIMc97NFD7dCJy6MAxG3BXKD90B78DwkwYUneH5PwAxU1NxvBH3NuBNHMmWH5SYfkuoUykbZpx4u6bF7wQeKXeWQ__&Key-Pair-Id=K1VGYTHIYLM9UM"
+  },
+  "thumbnail_url": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/preview.png?Expires=1787609451&Signature=ASzCl0jVBEOZalitGISN-zuCbLSsoWdQXSEDoqz-2QGvn65l07erThSkf7vG0KIVRuqE-aFQvkYnVm9gq27Eb-0crTA4azql7sqCHP5PwV3PlnLJCHnTYC81zI0UnUO9q5lpkJPHR2ueiyVhdswhbEpjIHPcVgrHXQWAbvVOYdc8MkrR-KWVwT~pw4oAaD500PfNV8wY-YrsCyNnWmwYOopixAQJwZ6qdue65y3mUSBTCaoXe8W6MWjSc8027pkUWV~ybbr2qqbFran3TLvevKWilCcruitTI0-7-kyfOKAjQbxTiDr0IouQSiEu8NTqiqv-WUnITP7up3r2JOggDA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+  "texture_urls": [
+    {
+      "base_color": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/texture_0.png?Expires=1787609451&Signature=I2FKd8IprFllFjQMNWd3T~BGvRbUSdFR8kolV9gsU1P9WhejwKF6oTo97UwLFnYGFDVC2U26Wj8rMbu7Em7JmX6O69NtUcuU7sMMptDcNz9LABb6QZH8EnpH5Q9BlvK7D1tEPIQnkQDT2wO5X3Oq2hE1vs8N1qbeM83~qfnRDe~VRyexkiseZ64c0Ce8gU7Kt1qG-5cIcuNM17jXDtlw1q0XAOCPVCsRVsQJttJ2bgRdfcSyGbOZMpzouGWaqtnq9Ft9acpfnE5pp1N~sG5g3OXdRrqvxjeEg6a7hTns8NX-bcjiW96TK-gz32qmPUwKQFjgqEZAMj07WJmNDfpc9g__&Key-Pair-Id=K1VGYTHIYLM9UM",
+      "metallic": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/texture_0_metallic.png?Expires=1787609451&Signature=SRfx0H0uTNypX05ZC8aFSHADjJbnC1FLSVFbK7ZINls0cOUTtaXFmsAhpF7Nrqp9wnZQSMhV6~YLW1LbrnLGanFBlQUv706W3o65J7mRYLAtiGi-AMxJ57TVL-gcleDr72aVUcOxAM3EhjptYQBszq8WIysBpBnE6RcwjxGwskeD9ZsRGy3T0w5LxERA369HMbsSVWsjF9oZ6oQ-OGc9ijsGHlcnJXkeHeAx0WiR6WFjGH5SKF3i8g5fLcyLDUNfT~YEhPPug54avQtkmaRRTFsPFyU1FIDxmSm-Af6Ipa4YMErsryk9oefp4Pnt~gZ7AcdjZZ1lzRZ8VHg-vM7wZQ__&Key-Pair-Id=K1VGYTHIYLM9UM",
+      "roughness": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/texture_0_roughness.png?Expires=1787609451&Signature=B5wFEbaLAWWTxgNtLOBicD5pdQN2rHyA4psxYBa3e5dO~3qorxPnNg2msfgBOCyK9fTNAoAKFIhwHHHcwiCc1eG2Ha9jwU7iQANjvXoQe6vudH1lk5SU9LShBGEepaGWCyxGXxO3NOXHaLvsk0SlmmaxhqJOdyoGoqWrVVTg~FUbL6BZ5Zlr16Ly9wPh2~IqFag42drNvqwvge7v-dZCoz2c80wKeJOOrVV4Nv~mFx1vaTu5bH8iO1QZTPOZSNdegTrlmJzuAop9hPp5AsnvE02o5pOWXSWqVzbCLy2xeQKwXgTTgBNJ~WEY4uaySt02aBE1YiByHmCfvRhXkEmLVA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+      "normal": "https://assets.meshy.ai/2068a0d1-203a-4846-89d5-d2db3e82f646/tasks/01a0265e-c815-78f6-a4e2-9039fcfff66a/output/texture_0_normal.png?Expires=1787609451&Signature=ByeTk3jpH-Xzqe9DCIQnVg6ekDX9mv4VX8qd0CFiJocnlTFzLbV1NukIHqemzU4owFoZ1WqWXM19JCRAT8gS68uGX71LomOHc7aXiF3Jg~2FcWl8stQmvdtp2HgdmJ4RlBGaf0geCQqLmwsH-dd0w5Q3itC~-C9Wqnnll27a3xoZuXTJAQ3B5dmOmksJAGn7~HpcDsAGZXvzIIkZpyOk3KHWxNMVfy5~EgwgqjqbortRwjDm3Viqd2ig~ReQ2O86w7P9CXYgDOIlerJ15RmAZ2NW6avSU9Yjt2zXsuQ~xdvIEYmu9pqZ0iQH1EFHl0dZYl3YNq9sJAsJu23VRvR4Gg__&Key-Pair-Id=K1VGYTHIYLM9UM"
+    }
+  ],
+  "consumed_credits": 30
+}
