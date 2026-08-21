@@ -95,6 +95,9 @@ jobs:
           # EN PROFIL TÉLÉPHONE. C'est la seule plateforme où le rendu
           # lâche au-delà d'un certain nombre d'instances visibles, et donc
           # la seule où le plafond de maillages a un sens.
+          - nom: Arène aux blocs
+            scene: res://outils_dev/banc_blocs.tscn
+            rendu: false
           - nom: Stabilité de la scène
             args: --mobile
             scene: res://outils_dev/sonde_violet.tscn

@@ -31,7 +31,7 @@ BARRIERES=(
 	"Boucle persistante|test_arene_persistante|1|"
 	"Étoile Wanted|banc_etoile|1|"
 	"Armes|banc_armes|0|"
-	"Western|banc_western|0|"
+	"Blocs|banc_blocs|0|"
 )
 
 # ── UN LANCEUR QUI NE PEUT PAS LANCER DOIT LE DIRE ─────────────────────
