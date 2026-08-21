@@ -1,3 +1,6 @@
 # Godot 4 : cache d'import et fichiers générés localement.
 .godot/
 *.translation
+
+# Planche de comparaison des décors : régénérée par outils/alleger_decors.py --planche
+outils_dev/variantes/

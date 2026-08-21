@@ -34,6 +34,21 @@ BARRIERES=(
 	"Western|banc_western|0|"
 )
 
+# ── UN LANCEUR QUI NE PEUT PAS LANCER DOIT LE DIRE ─────────────────────
+#
+# Exécuté depuis le mauvais dossier, ce script ne trouvait pas
+# `barriere.sh`, chaque barrière rendait une sortie VIDE, aucune ne
+# contenait « ::error », et il annonçait fièrement « 0 barrière en échec
+# sur 12 ». Un feu vert obtenu en ne mesurant rien est pire qu'un rouge.
+# On se replace donc à la racine du dépôt, et on refuse de continuer si
+# l'outil appelé n'est pas là.
+RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$RACINE" || exit 2
+if [ ! -x arena-rush/outils_dev/barriere.sh ]; then
+	echo "::error::barriere.sh introuvable depuis $RACINE — rien n'a été mesuré"
+	exit 2
+fi
+
 ECHECS=0
 for ligne in "${BARRIERES[@]}"; do
 	IFS='|' read -r nom scene rendu extra <<< "$ligne"
@@ -47,7 +62,13 @@ for ligne in "${BARRIERES[@]}"; do
 	RESUME=$(echo "$SORTIE" | grep -E 'conforme|échec\(s\)|ne s.est pas exécuté|::error' \
 			| tail -2 | tr '\n' ' ')
 	echo "RESULTAT ${nom} :: ${RESUME}"
-	if echo "$RESUME" | grep -q '::error'; then
+	# UN RÉSUMÉ VIDE EST UN ÉCHEC, pas un succès : cela veut dire que la
+	# barrière n'a rien imprimé qu'on sache lire — donc qu'on ne sait pas
+	# si elle est passée.
+	if [ -z "${RESUME// /}" ]; then
+		echo "::error::${nom} n'a produit aucun verdict lisible"
+		ECHECS=$((ECHECS + 1))
+	elif echo "$RESUME" | grep -q '::error'; then
 		ECHECS=$((ECHECS + 1))
 	fi
 done
