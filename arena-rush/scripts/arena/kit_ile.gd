@@ -43,11 +43,18 @@ const DOSSIER_SOURCES := "res://assets/models/"
 ## 1×2 (posés sur des cellules de 2 m, ils déborderaient d'un mètre dans
 ## les rues), la cabane et le puits n'ont livré que leur toit, le
 ## palmier a perdu son tronc, la plateforme n'a rendu que l'étoile, le
-## tonneau est un pot sombre. Reprises commandées ; leurs modules
-## procéduraux tiennent la carte en attendant.
+## tonneau est un pot sombre.
+## Lot n° 2 (reprises), même contrôle : seul le tonneau (mode texte)
+## entre. Le bloc violet semblait enfin être UN cube — posé en
+## situation, c'était un GOLEM PORTANT le cube, le porteur caché
+## derrière le cube sous l'angle unique de l'aperçu : recalé, et
+## leçon retenue — le contrôle se fait aussi EN SITUATION. Cubes rouge
+## et vert encore doublés, cabane et puits encore réduits à leur toit,
+## palmier encore sans tronc — tous repartis en mode TEXTE, la voie qui
+## a réussi au tonneau.
 const APPROUVES: Array[StringName] = [
 	&"ile_barriere", &"ile_caisse", &"ile_cactus", &"ile_buisson",
-	&"ile_fleurs", &"ile_tour", &"ile_bloc_jaune",
+	&"ile_fleurs", &"ile_tour", &"ile_bloc_jaune", &"ile_tonneau",
 ]
 ## Nombre de tranches horizontales pour l'analyse du socle.
 const TRANCHES := 24

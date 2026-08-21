@@ -1,0 +1,10 @@
+{
+  "_pourquoi": "TROISIÈME essai : deux fois un toit posé au sol. Mode texte, base et poteaux décrits en premier.",
+  "_hauteur_cible_m": 3.2,
+  "nom": "ile_puits",
+  "mode": "texte",
+  "famille": "blocs",
+  "prompt": "stone well kiosk: a round GREY STONE base ring on the ground, four tall wooden corner posts rising from it, open air between the posts, and a small turquoise teal tiled canopy roof sitting on top of the posts. The stone base and the four posts are the main body of the object.",
+  "polycount": 5200,
+  "texturer": true
+}

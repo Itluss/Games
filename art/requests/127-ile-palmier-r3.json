@@ -1,0 +1,10 @@
+{
+  "_pourquoi": "TROISIÈME essai : deux fois une couronne sans tronc. Mode texte, tronc décrit en premier.",
+  "_hauteur_cible_m": 4.0,
+  "nom": "ile_palmier",
+  "mode": "texte",
+  "famille": "blocs",
+  "prompt": "cartoon palm tree: a TALL thick slightly curved brown trunk with ring segments taking two thirds of the height, topped by a crown of six thick rounded green fronds and two coconuts. The trunk is the main body of the object.",
+  "polycount": 4200,
+  "texturer": true
+}

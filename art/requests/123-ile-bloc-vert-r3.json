@@ -1,0 +1,10 @@
+{
+  "_pourquoi": "TROISIÈME essai, mode texte — voir 122.",
+  "_hauteur_cible_m": 2.0,
+  "nom": "ile_bloc_vert",
+  "mode": "texte",
+  "famille": "blocs",
+  "prompt": "single beveled cube block, ONE object only, equal width height depth 1:1:1, flat top, chamfered edges, four fused bricks visible as a 2x2 carved seam pattern on each face. No character, no creature, no figure, nothing carrying or holding it, no legs, not two blocks. Saturated teal green stone color with a mossy tint, top faces slightly lighter.",
+  "polycount": 2600,
+  "texturer": true
+}

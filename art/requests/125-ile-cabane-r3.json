@@ -1,0 +1,10 @@
+{
+  "_pourquoi": "TROISIÈME essai : deux découpes différentes ont produit deux toits sans murs. Mode texte, murs décrits en premier.",
+  "_hauteur_cible_m": 3.8,
+  "nom": "ile_cabane",
+  "mode": "texte",
+  "famille": "blocs",
+  "prompt": "small wooden cabin BUILDING: four plank walls forming a closed box with a dark door opening on the front wall, and on top a turquoise teal tiled gable roof with slight overhang. Walls take two thirds of the height. Warm light brown wood, saturated turquoise roof.",
+  "polycount": 6500,
+  "texturer": true
+}
