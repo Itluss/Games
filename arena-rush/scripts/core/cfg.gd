@@ -384,6 +384,27 @@ func _ready() -> void:
 		print("[Cfg] Arène de combat 40 × 40 m (composition manuelle).")
 	if est_mobile():
 		quality = Quality.LOW
+		# ─── LA PHYSIQUE DU TÉLÉPHONE REDESCEND À 60 HZ ────────────────
+		#
+		# Le projet la monte à 90 pour lisser le mouvement sur les écrans
+		# rapides d'ordinateur. Sur téléphone, mesuré à la sonde CPU :
+		# chaque tick coûte plusieurs millisecondes de scripts d'acteurs,
+		# et l'écran plafonne de toute façon à 60. Pire : quand l'image
+		# ralentit, le moteur RATTRAPE les ticks manqués — à 15 images
+		# par seconde, six ticks par image, et la spirale s'auto-entretient.
+		Engine.physics_ticks_per_second = 60
+		# Trois pas de rattrapage au maximum : au-delà, mieux vaut que le
+		# temps de jeu glisse un peu plutôt que l'image gèle. C'est le
+		# coupe-circuit de la spirale.
+		Engine.max_physics_steps_per_frame = 3
+		# ─── PAS D'ANTI-CRÉNELAGE SUR TÉLÉPHONE ────────────────────────
+		#
+		# Le MSAA 2× du projet multiplie la bande passante de chaque
+		# pixel — et le téléphone en dessine déjà des millions de trop
+		# (voir le plafond de résolution dans l'export web). Sur un
+		# écran à haute densité, le crénelage est de toute façon sous le
+		# seuil de l'œil : on paie cher un défaut qu'on ne voit pas.
+		get_viewport().msaa_3d = Viewport.MSAA_DISABLED
 	# On ne touche PAS à `scaling_3d_scale` : l'export web utilise le rendu
 	# `gl_compatibility`, où la mise à l'échelle 3D de Godot n'a aucun
 	# effet. La ligne aurait rassuré sans rien faire.

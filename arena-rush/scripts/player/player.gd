@@ -325,6 +325,28 @@ func _physics_process(delta: float) -> void:
 	if Net.is_server():
 		_tick_zone_damage(delta)
 
+
+# --- VISUEL, SUR L'HORLOGE DE RENDU --------------------------------------
+
+## LE CORPS SE SIMULE À LA CADENCE PHYSIQUE, LE VISUEL À CELLE DE L'ÉCRAN.
+##
+## Tout ce bloc vivait dans `_physics_process` : squelette, démarche,
+## suivi de la main d'arme — quatre-vingt-dix mises à jour par seconde et
+## par personnage, pour un écran qui n'en affiche que soixante… et le
+## téléphone de la joueuse, quinze. C'était doublement absurde : du
+## travail d'os jeté entre deux images, et une charge qui AGGRAVAIT la
+## spirale — image lente, donc plus de ticks de physique à rattraper par
+## image, donc image encore plus lente.
+##
+## Sur l'horloge de rendu, chaque image paie exactement UNE mise à jour
+## de pose par personnage visible : à quinze images par seconde, c'est
+## six fois moins de travail d'animation qu'avant — précisément au moment
+## où le téléphone en a le plus besoin. Rien de ce qui régit le JEU n'a
+## bougé d'horloge : simulation, réplication, dégâts et invulnérabilité
+## restent sur le pas de physique, comme l'exige l'équité réseau.
+func _process(delta: float) -> void:
+	if is_eliminated:
+		return
 	var speed_ratio := clampf(Vector2(velocity.x, velocity.z).length() / SPEED,
 			0.0, 1.0)
 	# L'inclinaison est calculée dans le repère du personnage : pencher

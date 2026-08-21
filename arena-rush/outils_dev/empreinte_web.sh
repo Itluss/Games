@@ -61,7 +61,28 @@ for ext in ('pck', 'wasm'):
 # pas — un cache intermédiaire vraiment têtu — on n'essaie qu'une fois et
 # l'on laisse le joueur jouer, fût-ce sur une version en retard : un jeu
 # qui se recharge sans fin serait pire qu'un jeu en retard d'une version.
+# ─── PLAFOND DE RÉSOLUTION ──────────────────────────────────────────────
+#
+# En étirement « canvas_items », Godot rend la 3D à la taille PHYSIQUE du
+# canvas : sur un téléphone à densité 3, c'est trois mégapixels de désert
+# par image dans un rendu WebGL — le fill-rate, pas les triangles, et
+# aucune de nos sondes de géométrie ne pouvait le voir. Le moteur lit
+# `window.devicePixelRatio` au démarrage : on le plafonne AVANT qu'il ne
+# démarre. À 1,6 sur un écran de six pouces, la perte de piqué est sous le
+# seuil de l'œil ; la surface à remplir, elle, est divisée par plus de
+# trois. L'interface est mise en page en pixels CSS, elle ne bouge pas.
 veilleur = '''<meta http-equiv="Cache-Control" content="no-cache">
+<script>
+(function () {
+	var reel = window.devicePixelRatio || 1;
+	var plafond = 1.6;
+	if (reel > plafond) {
+		Object.defineProperty(window, "devicePixelRatio", {
+			get: function () { return plafond; }
+		});
+	}
+})();
+</script>
 <script>
 (function () {
 	var attendue = "%s";
