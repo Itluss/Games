@@ -245,13 +245,23 @@ func _ready() -> void:
 	add_child(anneau)
 
 	health_bar = HealthBar3D.new()
-	health_bar.position = Vector3(0, 2.9, 0)
+	# 2,6 ET NON 2,9. La plaque était réglée pour porter un nom AU-DESSUS
+	# de la barre ; le nom parti, il restait un vide de trente centimètres
+	# entre le chapeau et la jauge, et l'on ne rattachait plus la barre au
+	# personnage d'un coup d'œil quand deux se croisaient.
+	health_bar.position = Vector3(0, 2.6, 0)
 	add_child(health_bar)
-	# LA PLAQUE PORTE LE NOM ET LA COULEUR DU HÉROS. C'est la réponse la
-	# plus rapide à « qui je vise ? » sur une arène vue de dessus, où six
-	# silhouettes se ressemblent beaucoup.
-	health_bar.build(1.1, Cfg.couleur_identite(heros()),
-			display_name.to_upper())
+	# ─── PLUS DE NOM, PLUS DE COULEUR D'IDENTITÉ SUR LA BARRE ──────────
+	#
+	# Les deux ont été retirés pour la même raison : ils n'aidaient pas à
+	# lire. Le nom ne se lit pas en combat, et la teinte du héros rendait
+	# la barre invisible — le rose sur du sable orange, le vert sur des
+	# cactus. La jauge répond désormais à la seule question qu'on lui pose,
+	# « combien il en reste », en vert-orange-rouge pour les six.
+	#
+	# Reconnaître QUI l'on vise reste possible par la silhouette, par la
+	# minicarte et par le classement.
+	health_bar.build(1.1)
 	# La plaque du joueur local passe en mode DISCRET plutôt que d'être
 	# éteinte : son nom et sa vie sont déjà dans le HUD du bas, mais
 	# l'étoile, elle, doit se voir sur lui aussi.

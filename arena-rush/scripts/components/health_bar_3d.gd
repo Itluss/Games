@@ -22,6 +22,12 @@ class_name HealthBar3D
 ## petit dégradé alpha aux extrémités suffit à les adoucir, et il tient
 ## dans une texture de trente-deux pixels partagée par toute la partie.
 
+## Les trois valeurs de la jauge. Franches, saturées, et choisies pour
+## trancher sur un sol ocre : c'est le seul fond que la carte propose.
+const COL_PLEINE := Color("46d63c")
+const COL_MOYENNE := Color("ffc02e")
+const COL_BASSE := Color("ff3b30")
+
 ## Rayon d'arrondi, en fraction de la hauteur de la barre.
 const ARRONDI := 0.5
 ## Largeur de la texture d'arrondi, en pixels. Minuscule : elle n'a qu'un
@@ -32,7 +38,6 @@ const TEX_HAUT := 12
 var _bg: MeshInstance3D
 var _fill: MeshInstance3D
 var _fill_mat: StandardMaterial3D
-var _nom: Label3D
 var _etoile: MeshInstance3D
 var _width: float = 1.0
 var _ratio: float = 1.0
@@ -79,7 +84,9 @@ func build(width: float = 1.0, color: Color = Color("4cd964"),
 	var galet := _texture_galet()
 
 	var bg_mat := StandardMaterial3D.new()
-	bg_mat.albedo_color = Color(0.04, 0.05, 0.08, 0.82)
+	# QUASI OPAQUE, ET TRÈS SOMBRE. À 0,82 d'opacité, le sable clair
+	# transparaissait au travers et mangeait le contraste du contour.
+	bg_mat.albedo_color = Color(0.03, 0.035, 0.055, 0.96)
 	bg_mat.albedo_texture = galet
 	bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	bg_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -96,7 +103,14 @@ func build(width: float = 1.0, color: Color = Color("4cd964"),
 	_fill_mat.render_priority = 2
 
 	var bg_mesh := QuadMesh.new()
-	bg_mesh.size = Vector2(width, width * 0.115)
+	# ─── PLUS ÉPAISSE, ET AVEC UN VRAI BORD ───────────────────────────
+	#
+	# Le fond sombre dépassait du remplissage de deux centimètres de chaque
+	# côté, soit UN PIXEL à la caméra de jeu : autant dire aucun contour.
+	# C'est pourtant lui qui détache la barre du décor, quel que soit ce
+	# décor. Il passe à quatre centimètres et demi, et la barre entière
+	# s'épaissit de moitié.
+	bg_mesh.size = Vector2(width, width * 0.20)
 	_bg = MeshInstance3D.new()
 	_bg.mesh = bg_mesh
 	_bg.material_override = bg_mat
@@ -104,35 +118,27 @@ func build(width: float = 1.0, color: Color = Color("4cd964"),
 	add_child(_bg)
 
 	var fill_mesh := QuadMesh.new()
-	fill_mesh.size = Vector2(width * 0.92, width * 0.075)
+	fill_mesh.size = Vector2(width * 0.88, width * 0.12)
 	_fill = MeshInstance3D.new()
 	_fill.mesh = fill_mesh
 	_fill.material_override = _fill_mat
 	_fill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_fill)
 
-	if nom != "":
-		# UN `Label3D`, pas un panneau d'interface projeté : il se tourne
-		# seul vers la caméra, il s'occlut correctement, et il ne coûte pas
-		# de passe de rendu supplémentaire.
-		_nom = Label3D.new()
-		_nom.text = nom.to_upper()
-		_nom.font_size = 96
-		# La taille APPARENTE est réglée par l'échelle du pixel, pas par la
-		# taille de police : une grande police rendue petite reste nette,
-		# l'inverse bave.
-		_nom.pixel_size = 0.0033
-		_nom.modulate = color
-		# Contour sombre : le nom passe au-dessus du sable clair comme
-		# au-dessus d'un rocher sombre, sans jamais disparaître.
-		_nom.outline_size = 26
-		_nom.outline_modulate = Color(0.03, 0.04, 0.07, 0.95)
-		_nom.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		_nom.no_depth_test = true
-		_nom.render_priority = 3
-		_nom.outline_render_priority = 2
-		_nom.position = Vector3(0, width * 0.22, 0)
-		add_child(_nom)
+	# ─── LE NOM A ÉTÉ RETIRÉ ──────────────────────────────────────────
+	#
+	# Il était écrit au-dessus de chaque combattant, dans sa couleur. À
+	# l'usage il n'apportait rien : on ne lit pas « BOT 10 » en plein
+	# combat, on lit une silhouette et une barre. Six héros aux couleurs et
+	# aux formes distinctes se reconnaissent sans étiquette, et le
+	# classement porte déjà les noms pour qui veut les consulter.
+	#
+	# Ce qu'il coûtait, en revanche, était réel : un `Label3D` par joueur,
+	# dix panneaux de texte allumés en permanence, et une plaque plus haute
+	# qui repoussait la barre loin au-dessus des têtes.
+	#
+	# Le paramètre `nom` reste dans la signature : les appelants le passent
+	# déjà, et le retirer demanderait de les modifier pour un gain nul.
 
 	set_ratio(1.0)
 
@@ -241,8 +247,6 @@ func _regler_portee() -> void:
 	var montrer := not loin and not _discret
 	_bg.visible = montrer
 	_fill.visible = montrer
-	if _nom:
-		_nom.visible = montrer
 
 
 func set_ratio(value: float) -> void:
@@ -252,16 +256,27 @@ func set_ratio(value: float) -> void:
 	# On rétrécit depuis la gauche (et non depuis le centre) : c'est la
 	# lecture attendue d'une jauge.
 	_fill.scale.x = maxf(_ratio, 0.001)
-	_fill.position.x = -(_width * 0.92) * (1.0 - _ratio) * 0.5
-	# ─── LA COULEUR D'IDENTITÉ TIENT, LE ROUGE NE VIENT QU'À LA FIN ────
+	_fill.position.x = -(_width * 0.88) * (1.0 - _ratio) * 0.5
+	# ─── ELLE SE LIT PAR LA VALEUR, PLUS PAR LA TEINTE DU HÉROS ────────
 	#
-	# L'ancienne version repeignait la barre en vert→rouge à chaque appel,
-	# ce qui écrasait silencieusement `set_bar_color` : la teinte du héros
-	# ne survivait pas au premier point de dégât. On garde donc SA couleur
-	# et l'on ne vire au rouge que sous un quart de vie — l'alerte reste
-	# lisible, l'identité aussi.
-	var alerte: float = clampf((0.25 - _ratio) / 0.25, 0.0, 1.0)
-	_fill_mat.albedo_color = _teinte.lerp(Cfg.COL_DANGER, alerte)
+	# Elle portait la couleur d'identité du personnage. C'était cohérent
+	# avec le reste de l'interface, et c'était illisible : le rose de Ruby
+	# sur du sable orange, à quinze mètres, disparaît. Le vert de Nox se
+	# confondait avec les cactus. Une barre par héros, c'est six problèmes
+	# de contraste différents à résoudre sur tous les fonds de la carte —
+	# et aucun n'était résolu.
+	#
+	# Une barre de vie ne répond qu'à une question : COMBIEN IL EN RESTE.
+	# Vert franc, orange, rouge : trois valeurs que tout le monde lit sans
+	# apprendre, identiques pour les six, et choisies pour trancher sur un
+	# désert. L'identité, elle, se lit sur la silhouette du personnage, sur
+	# la minicarte et dans le classement — trois endroits, c'est assez.
+	var c: Color
+	if _ratio > 0.55:
+		c = COL_PLEINE.lerp(COL_MOYENNE, (1.0 - _ratio) / 0.45)
+	else:
+		c = COL_MOYENNE.lerp(COL_BASSE, clampf((0.55 - _ratio) / 0.4, 0.0, 1.0))
+	_fill_mat.albedo_color = c
 
 
 func set_bar_color(color: Color) -> void:
