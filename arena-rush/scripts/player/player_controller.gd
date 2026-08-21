@@ -12,9 +12,15 @@ class_name PlayerController
 ## plus menaçante dans ce cône. Sans elle, tirer au doigt sur une cible
 ## mobile est frustrant ; avec elle, le combat reste nerveux.
 
-## Demi-angle du cône d'accrochage. Assez large pour pardonner un doigt
-## imprécis, assez étroit pour que le joueur reste maître de sa cible.
-const AIM_CONE := deg_to_rad(55.0)
+## Demi-angle du cône d'accrochage QUAND LE JOUEUR VISE — pouce glissé
+## sur le bouton de tir ou souris. Il était à 55° : assez large pour
+## qu'en visant un AUTRE ennemi, l'accrochage retombe sur le premier —
+## le joueur ne pouvait littéralement pas changer de cible. À 16°, la
+## direction du pouce désigne SA cible, et l'aimant ne fait plus que
+## pardonner le tremblement ; hors de tout cône, le tir part exactement
+## où le pouce pointe. Sans indice de visée, l'accrochage reste
+## l'ennemi le mieux placé, sans cône — le tap n'a pas changé.
+const AIM_CONE := deg_to_rad(16.0)
 const AIM_RANGE_BONUS := 1.25
 
 var player: Player = null

@@ -12,12 +12,19 @@ class_name HUD
 ##
 ## RÉPARTITION DES POUCES : le gauche DIRIGE, le droit TIRE. Le joystick
 ## de gauche ne sert qu'au déplacement, et le tir est un bouton que l'on
-## maintient. La visée est automatique et accroche l'ennemi le plus
-## proche — viser au doigt une cible mobile n'amuse personne.
+## maintient. Un appui simple accroche automatiquement l'ennemi le mieux
+## placé ; un GLISSEMENT sur le bouton oriente le tir, façon Brawl
+## Stars — c'est lui qui permet de choisir SA cible au lieu de subir
+## celle de l'accrochage.
 
 const MARGIN := 26
 const STICK_SIZE := 210
 const FIRE_SIZE := 168
+## Zone morte du glisser-pour-viser, en fraction du bouton de tir. En
+## deçà, l'appui reste un TAP — visée automatique ; au-delà, le doigt
+## VISE. Assez large pour qu'un pouce qui tremble ne bascule pas en
+## manuel par accident, assez étroite pour que l'intention passe vite.
+const VISEE_ZONE_MORTE := 0.35
 const ESQUIVE_SIZE := 104
 ## Diamètre du loader d'étoile, en pixels.
 const LOADER_SIZE := 96
@@ -45,6 +52,14 @@ var _fire_tapped: bool = false
 ## Le bouton suit désormais son propre doigt, par index, exactement comme
 ## le joystick. La voie souris subsiste pour le bureau.
 var _doigt_tir: int = -1
+## Direction de VISÉE MANUELLE du pouce droit, façon Brawl Stars : le
+## doigt posé sur TIR puis GLISSÉ au-delà de la zone morte oriente le
+## tir. ZERO tant que le glissement reste dans la zone morte — un appui
+## simple demeure un tir auto-accroché. C'est ce glissement qui permet
+## d'ARRACHER le verrou à une autre cible : sans lui, le premier ennemi
+## accroché gardait le tir tant qu'il restait le mieux placé, et le
+## joueur ne pouvait pas en choisir un autre.
+var _visee_tactile: Vector2 = Vector2.ZERO
 var _dash_button: UiKit.BoutonRond
 ## RENOMMÉ, ET CE N'EST PAS COSMÉTIQUE. Ce libellé s'appelait
 ## `_timer_label` et affichait le chronomètre de la partie. Le mode
@@ -87,15 +102,25 @@ func _input(event: InputEvent) -> void:
 				_marquer_tir(true)
 		elif t.index == _doigt_tir:
 			_doigt_tir = -1
+			_visee_tactile = Vector2.ZERO
 			_marquer_tir(false)
 	elif event is InputEventScreenDrag and _doigt_tir >= 0:
-		# Le doigt a glissé HORS du bouton : on relâche, sinon la gâchette
-		# resterait tenue alors que le doigt est parti ailleurs.
+		# LE GLISSEMENT EST LA VISÉE — plus une raison de lâcher. L'ancienne
+		# règle relâchait la gâchette dès que le doigt sortait du bouton ;
+		# elle interdisait précisément le geste qu'on veut : glisser pour
+		# orienter le tir. Le doigt qui a PRIS le bouton le garde jusqu'au
+		# lever, où qu'il aille, et sa position par rapport au CENTRE du
+		# bouton donne la direction — l'écran et le monde partagent déjà
+		# leurs axes, comme pour le joystick de gauche.
 		var d := event as InputEventScreenDrag
-		if d.index == _doigt_tir \
-				and not _fire_button.get_global_rect().has_point(d.position):
-			_doigt_tir = -1
-			_marquer_tir(false)
+		if d.index == _doigt_tir:
+			var v := d.position - _fire_button.get_global_rect().get_center()
+			if v.length() > FIRE_SIZE * VISEE_ZONE_MORTE:
+				_visee_tactile = v
+			else:
+				# Revenu dans la zone morte : on rend la main à l'accrochage
+				# automatique, sans cesser de tirer.
+				_visee_tactile = Vector2.ZERO
 
 
 ## Retour visuel de l'appui. Le style « pressé » d'un Button ne s'affiche
@@ -588,12 +613,12 @@ func _build_overlay() -> void:
 func move_vector() -> Vector2:
 	return _move_stick.value if _move_stick else Vector2.ZERO
 
-## Le tactile ne fournit PLUS de direction de visée : le joystick droit a
-## laissé la place à un bouton. Le pouce gauche dirige, la visée est
-## automatique. La fonction subsiste pour que le contrôleur reste
-## indifférent au périphérique.
+## Visée manuelle du pouce droit — le doigt posé sur TIR et glissé
+## au-delà de la zone morte donne la direction, façon Brawl Stars. Un
+## appui sans glissement rend ZERO : visée automatique, comme avant.
 func aim_vector() -> Vector2:
-	return Vector2.ZERO
+	return _visee_tactile.normalized() \
+			if _visee_tactile.length_squared() > 1.0 else Vector2.ZERO
 
 func is_firing() -> bool:
 	return _fire_held or _doigt_tir >= 0
