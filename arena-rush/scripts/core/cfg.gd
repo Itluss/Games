@@ -359,6 +359,10 @@ var arene_test := false
 
 var force_mobile := false
 
+## Le compteur d'images affiche aussi traitement, physique et appels de
+## dessin. Voir le bloc `?stats` de `_ready`.
+var stats_detaillees := false
+
 func _ready() -> void:
 	# Sur mobile, on part en qualité moyenne : mieux vaut 60 FPS stables
 	# qu'un premier lancement à 30 dont le joueur ne reviendra pas.
@@ -376,6 +380,19 @@ func _ready() -> void:
 	#
 	# C'est volontairement trop prudent. Le jeu doit d'abord TOURNER ; on
 	# remontera le curseur quand on saura ce que le téléphone encaisse.
+	# ─── RELEVÉ DE PERFORMANCE EMBARQUÉ ────────────────────────────────
+	#
+	# Le seul profileur qui mesure le VRAI téléphone, c'est le téléphone.
+	# Ouvert avec `?stats` (ou lancé avec --stats), le compteur d'images
+	# du HUD détaille traitement, physique et appels de dessin : c'est ce
+	# qui permet de trancher, appareil en main, entre une image bloquée
+	# par le code et une image bloquée par le rendu.
+	if "--stats" in OS.get_cmdline_user_args():
+		stats_detaillees = true
+	elif OS.has_feature("web"):
+		var q = JavaScriptBridge.eval("String(location.search)", true)
+		if q is String and "stats" in q:
+			stats_detaillees = true
 	if "--mobile" in OS.get_cmdline_user_args():
 		force_mobile = true
 		print("[Cfg] Profil téléphone forcé.")

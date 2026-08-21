@@ -486,6 +486,13 @@ func _brin(im: ImmediateMesh, cote: Vector3) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var _chrono0 := Time.get_ticks_usec() if SondeChrono.actif else 0
+	_tick_chrono(delta)
+	if SondeChrono.actif:
+		SondeChrono.ajouter(&"projectiles", Time.get_ticks_usec() - _chrono0)
+
+
+func _tick_chrono(delta: float) -> void:
 	if _done or data == null:
 		return
 	_life += delta

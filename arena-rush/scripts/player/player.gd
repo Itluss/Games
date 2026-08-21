@@ -309,6 +309,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if is_eliminated:
 		return
+	var _chrono0 := Time.get_ticks_usec() if SondeChrono.actif else 0
 	# L'invulnérabilité s'écoule sur l'HORLOGE PHYSIQUE, comme la recharge
 	# des armes. Sur l'horloge de rendu, sa durée dépendrait de la cadence
 	# d'images : deux joueurs sur deux téléphones différents n'auraient pas
@@ -324,6 +325,8 @@ func _physics_process(delta: float) -> void:
 
 	if Net.is_server():
 		_tick_zone_damage(delta)
+	if SondeChrono.actif:
+		SondeChrono.ajouter(&"joueur", Time.get_ticks_usec() - _chrono0)
 
 
 # --- VISUEL, SUR L'HORLOGE DE RENDU --------------------------------------

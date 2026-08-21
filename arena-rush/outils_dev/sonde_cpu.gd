@@ -36,6 +36,20 @@ func _ready() -> void:
 	add_child(_main)
 	# Cinq secondes de chauffe : apparitions, premiers échanges des bots.
 	await get_tree().create_timer(5.0).timeout
+	if "--sans-scripts" in OS.get_cmdline_user_args():
+		# Coupe TOUT _physics_process scripté (sauf la sonde) : ce qui
+		# reste au moniteur, c'est le moteur seul — serveur physique,
+		# zones, et la tournée des notifications. C'est le PLANCHER.
+		var pile: Array[Node] = [get_tree().root]
+		var coupes := 0
+		while not pile.is_empty():
+			var noeud: Node = pile.pop_back()
+			if noeud != self and noeud.get_script() != null \
+					and noeud.is_physics_processing():
+				noeud.set_physics_process(false)
+				coupes += 1
+			pile.append_array(noeud.get_children())
+		print("[sonde_cpu] %d scripts coupés de l'horloge physique" % coupes)
 	if "--figer" in OS.get_cmdline_user_args():
 		var n := 0
 		for j in get_tree().get_nodes_in_group(&"players"):
@@ -47,6 +61,8 @@ func _ready() -> void:
 					n += 1
 		print("[sonde_cpu] %d cerveaux figés" % n)
 	_demarre = true
+	SondeChrono.actif = true
+	SondeChrono.postes.clear()
 	print("[sonde_cpu] mesure lancée — physique à %d Hz" \
 			% Engine.physics_ticks_per_second)
 
@@ -99,6 +115,28 @@ func _rapport() -> void:
 			% [moy_f, _percentile(_ech_physique, 0.95)])
 	print("  ticks de physique         %.2f par image   soit %6.2f ms le tick"
 			% [ticks_par_image, tick_ms])
+	print("— décomposition du tick (scripts, cumulés) :")
+	print(SondeChrono.rapport(_ticks_physique))
+	# QUI ÉCOUTE L'HORLOGE PHYSIQUE ? Tout nœud à _physics_process actif
+	# paie l'appel de méthode par tick, script instrumenté ou pas — et
+	# les zones (Area3D) refont leurs recouvrements au pas du serveur.
+	var familles: Dictionary = {}
+	var zones := 0
+	var pile: Array[Node] = [get_tree().root]
+	while not pile.is_empty():
+		var noeud: Node = pile.pop_back()
+		if noeud is Area3D:
+			zones += 1
+		if noeud.is_physics_processing() and noeud.get_script() != null:
+			var nom := String(noeud.get_script().resource_path).get_file()
+			familles[nom] = int(familles.get(nom, 0)) + 1
+		pile.append_array(noeud.get_children())
+	var cles := familles.keys()
+	cles.sort_custom(func(a, b): return familles[a] > familles[b])
+	print("— nœuds à _physics_process actif :")
+	for c in cles:
+		print("  %-28s ×%d" % [c, familles[c]])
+	print("  Area3D dans la scène : %d" % zones)
 	print("  corps actifs %d · paires de collision %d · îlots %d"
 			% [int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)),
 			int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS)),

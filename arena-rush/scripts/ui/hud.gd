@@ -638,7 +638,19 @@ func _process(delta: float) -> void:
 		if _fps_prochain <= 0.0:
 			_fps_prochain = 0.25
 			var f := Engine.get_frames_per_second()
-			_fps_label.text = "%d FPS" % f
+			if Cfg.stats_detaillees:
+				# t = scripts d'affichage, φ = physique+simulation, a =
+				# appels de dessin. Les deux temps sont en millisecondes :
+				# leur somme comparée à 16,6 dit si le blocage est dans le
+				# code ; des appels par centaines disent qu'il est dans le
+				# pilote graphique.
+				_fps_label.text = "%d FPS · t %.1f · φ %.1f · a %d" % [f,
+						Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+						Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+						int(RenderingServer.get_rendering_info(
+								RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))]
+			else:
+				_fps_label.text = "%d FPS" % f
 			# VERT, ORANGE, ROUGE. Le chiffre seul demande de savoir ce
 			# qu'est une bonne cadence ; la couleur, non.
 			_fps_label.add_theme_color_override(&"font_color",

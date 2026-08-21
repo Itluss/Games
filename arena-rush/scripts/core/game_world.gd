@@ -333,7 +333,10 @@ func net_effacer_butin(loot_id: int) -> void:
 # --- RÉPLICATION DES MOBS ------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	var _chrono0 := Time.get_ticks_usec() if SondeChrono.actif else 0
 	_entretenir_le_butin(delta)
+	if SondeChrono.actif:
+		SondeChrono.ajouter(&"butin", Time.get_ticks_usec() - _chrono0)
 	if not Net.is_networked() or not Net.is_server():
 		return
 	_sync_accum += delta

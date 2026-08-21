@@ -136,4 +136,29 @@ func _rapport() -> void:
 	print("  nœuds de la scène         pic %6d" % _pic_noeuds)
 	print("")
 	# MARQUE DE FIN LUE PAR `barriere.sh`.
+	# QUI SONT CES OBJETS ? Le décor regroupé n'en explique qu'une poignée :
+	# on compte les instances 3D VISIBLES par famille de script ou de nom,
+	# au moment du rapport — c'est la carte des suspects du fil principal.
+	var familles: Dictionary = {}
+	var pile: Array[Node] = [get_tree().root]
+	while not pile.is_empty():
+		var noeud: Node = pile.pop_back()
+		var gi := noeud as GeometryInstance3D
+		if gi != null and gi.visible:
+			var proprio := noeud
+			for _i in 3:
+				if proprio.get_script() != null or proprio.get_parent() == null:
+					break
+				proprio = proprio.get_parent()
+			var nom := "<%s>" % noeud.get_class()
+			if proprio.get_script() != null:
+				nom = String(proprio.get_script().resource_path).get_file()
+			familles[nom] = int(familles.get(nom, 0)) + 1
+		pile.append_array(noeud.get_children())
+	var cles := familles.keys()
+	cles.sort_custom(func(a, b): return familles[a] > familles[b])
+	print("— instances 3D visibles par famille :")
+	for c in cles:
+		if familles[c] >= 4:
+			print("  %-28s ×%d" % [c, familles[c]])
 	print("=== 0 échec(s) ===")

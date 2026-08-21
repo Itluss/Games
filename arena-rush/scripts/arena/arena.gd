@@ -2199,6 +2199,8 @@ func _batir_arene_western() -> void:
 	# L'ancrage au sol vient EN DERNIER : il lit les pièces déjà posées.
 	if not Cfg.shadows_enabled():
 		_ombres_contact_western()
+	# Et le REGROUPEMENT vient après l'ancrage, qui lit les pièces une à une.
+	_regrouper_les_pieces_western()
 
 	player_spawn_points.clear()
 	for p: Vector2 in PlanAreneWestern.APPARITIONS:
@@ -2339,6 +2341,72 @@ func _ombres_contact_western() -> void:
 	mi.material_override = VisualKit.mat_ombre_contact()
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
+
+
+## REGROUPE LES PIÈCES PAR MODÈLE — cent quarante-huit instances
+## deviennent une douzaine de lots.
+##
+## POURQUOI. En WebGL, chaque appel de dessin coûte quelques dizaines de
+## microsecondes de processeur SUR LE FIL PRINCIPAL — celui du jeu. Cent
+## cinquante caisses, rochers et barrières dessinés un par un, c'est
+## plusieurs millisecondes par image payées en pure surcharge de pilote,
+## et c'était le plus gros poste restant entre le téléphone et ses
+## soixante images par seconde.
+##
+## Tous les exemplaires d'un modèle partagent déjà LE MÊME maillage sans
+## texture : ils remplissent donc un MultiMesh — un appel de dessin pour
+## tous. Le prix accepté : un lot se rejette d'un bloc, si bien que les
+## sommets hors champ d'un modèle dont UN exemplaire est visible sont
+## quand même transformés. À cent soixante-cinq mille sommets de décors
+## pour toute l'arène, ce surcoût de sommets est très inférieur au coût
+## des appels économisés — c'est l'arbitrage classique du mobile.
+##
+## Les collisions ne bougent pas : elles vivent sur l'arène, jamais dans
+## les pièces. Seuls les nœuds VISUELS sont remplacés.
+func _regrouper_les_pieces_western() -> void:
+	var lots: Dictionary = {}
+	_collecter_pieces(self, Transform3D.IDENTITY, lots)
+	var pieces_retirees := 0
+	for maille: Mesh in lots.keys():
+		var entrees: Array = lots[maille]
+		# Un modèle posé une ou deux fois ne vaut pas un lot : le gain
+		# serait nul et l'on perdrait son rejet hors champ individuel.
+		if entrees.size() < 3:
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = maille
+		mm.instance_count = entrees.size()
+		for i in entrees.size():
+			mm.set_instance_transform(i, entrees[i]["transform"])
+			pieces_retirees += 1
+		var inst := MultiMeshInstance3D.new()
+		inst.name = "Lot_%s" % String(maille.resource_path).get_file() \
+				.get_slice(".", 0)
+		inst.multimesh = mm
+		add_child(inst)
+		for e in entrees:
+			(e["noeud"] as Node).queue_free()
+	if pieces_retirees > 0:
+		print("Regroupement : %d pièces dans %d lots." \
+				% [pieces_retirees, get_children().size()])
+
+
+## Collecte les instances de maillage Meshy et leur transformée LOCALE à
+## l'arène — même parcours que les ombres de contact.
+func _collecter_pieces(n: Node, t: Transform3D, lots: Dictionary) -> void:
+	var mi := n as MeshInstance3D
+	if mi != null and mi.mesh != null \
+			and String(mi.mesh.resource_path).contains("west_"):
+		if not lots.has(mi.mesh):
+			lots[mi.mesh] = []
+		(lots[mi.mesh] as Array).append({"transform": t, "noeud": mi})
+	for e in n.get_children():
+		var st := t
+		var e3 := e as Node3D
+		if e3 != null:
+			st = t * e3.transform
+		_collecter_pieces(e, st, lots)
 
 
 ## Parcourt l'arène et note l'emprise au sol de chaque pièce Meshy.

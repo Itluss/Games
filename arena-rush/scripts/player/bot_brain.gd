@@ -30,6 +30,13 @@ func attach(p: Player) -> void:
 func _physics_process(delta: float) -> void:
 	if player == null or player.is_eliminated or not Net.is_server():
 		return
+	var _chrono0 := Time.get_ticks_usec() if SondeChrono.actif else 0
+	_tick_chrono(delta)
+	if SondeChrono.actif:
+		SondeChrono.ajouter(&"cerveau_bot", Time.get_ticks_usec() - _chrono0)
+
+
+func _tick_chrono(delta: float) -> void:
 	_think -= delta
 	if _think <= 0.0:
 		_think = THINK_INTERVAL
