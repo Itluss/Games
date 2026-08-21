@@ -494,3 +494,87 @@ static func build_weapon(silhouette: String, color: Color) -> Node3D:
 	muzzle.position = Vector3(0, 0.02, portee)
 	root.add_child(muzzle)
 	return root
+
+
+# --- OMBRE DE CONTACT ----------------------------------------------------
+
+## Maillage et matériau d'ombre de contact — UNE paire, partagée par les
+## héros et par les cent soixante-dix taches des décors.
+static var _maille_ombre: ArrayMesh
+static var _mat_ombre: StandardMaterial3D
+
+
+## POURQUOI CES TACHES EXISTENT. Sur téléphone, les vraies ombres sont
+## coupées (voir `Cfg.shadows_enabled`) : une carte d'ombres directionnelle
+## coûte une passe de géométrie entière, le poste le plus cher de l'image.
+## Mais sans elles, PLUS RIEN NE TOUCHE LE SOL : chaque caisse, chaque
+## rocher, chaque personnage flotte sur le sable. C'est le premier signal
+## « prototype » d'une image mobile, et tous les jeux d'arène mobiles le
+## règlent de la même façon — une tache douce peinte sous chaque chose.
+##
+## LE DÉGRADÉ VIT DANS LES SOMMETS, PAS DANS UNE TEXTURE. La première
+## version portait un dégradé radial en GradientTexture2D : correct pixel
+## par pixel en mémoire — vérifié —, il sortait à l'écran comme un carré
+## sombre UNIFORME dans le rendu Compatibility. Plutôt que de chercher
+## lequel des étages (mip, filtrage, téléversement) le perdait, on retire
+## l'étage : un disque dont les anneaux de sommets portent la couleur n'a
+## rien à échantillonner, donc rien à perdre. C'est la même leçon que les
+## décors — la couleur aux sommets est le chemin le plus court ET le plus
+## sûr de ce moteur de rendu.
+static func maille_ombre_contact() -> ArrayMesh:
+	if _maille_ombre != null:
+		return _maille_ombre
+	const SEG := 20
+	# RÉGLÉ SUR CAPTURE, trois itérations — et la troisième a été MESURÉE,
+	# pas regardée. Le premier jeu (cœur à 0,58, large) creusait des
+	# cratères. Le second, écrit à 0,74, SORTAIT à ×0,52 au pipetage : le
+	# rendu Compatibility décode la couleur de sommet comme du sRGB, si
+	# bien que la valeur affichée est la valeur écrite élevée à la
+	# puissance 2,2. Les teintes ci-dessous sont donc PRÉ-COMPENSÉES :
+	# écrites pour qu'à l'écran le cœur multiplie le sable par ~0,76 et
+	# que le bord s'éteigne — les valeurs visées, pas les valeurs subies.
+	const RAYONS: Array[float] = [0.0, 0.30, 0.44, 0.5]
+	const TEINTES: Array[Color] = [
+		Color(0.885, 0.868, 0.858), Color(0.935, 0.925, 0.915),
+		Color(0.978, 0.975, 0.972), Color.WHITE]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for a in RAYONS.size() - 1:
+		var r0: float = RAYONS[a]
+		var r1: float = RAYONS[a + 1]
+		var c0: Color = TEINTES[a]
+		var c1: Color = TEINTES[a + 1]
+		for i in SEG:
+			var t0 := TAU * float(i) / SEG
+			var t1 := TAU * float(i + 1) / SEG
+			var p00 := Vector3(cos(t0) * r0, 0, sin(t0) * r0)
+			var p01 := Vector3(cos(t1) * r0, 0, sin(t1) * r0)
+			var p10 := Vector3(cos(t0) * r1, 0, sin(t0) * r1)
+			var p11 := Vector3(cos(t1) * r1, 0, sin(t1) * r1)
+			for tri in [[p00, p10, p11, c0, c1, c1], [p00, p11, p01, c0, c1, c0]]:
+				for k in 3:
+					st.set_color(tri[3 + k])
+					st.set_normal(Vector3.UP)
+					st.add_vertex(tri[k])
+	_maille_ombre = st.commit()
+	return _maille_ombre
+
+
+## La tache est en MULTIPLICATION, pas en noir translucide : elle assombrit
+## la couleur du sable qu'elle recouvre — l'ombre garde donc la chaleur du
+## sol — au lieu de poser un voile gris par-dessus.
+static func mat_ombre_contact() -> StandardMaterial3D:
+	if _mat_ombre != null:
+		return _mat_ombre
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+	m.vertex_color_use_as_albedo = true
+	m.disable_receive_shadows = true
+	# La brume ne doit pas s'y déposer une seconde fois : elle est déjà
+	# dans la couleur du sol que la tache multiplie.
+	m.disable_fog = true
+	m.render_priority = -3
+	_mat_ombre = m
+	return m

@@ -214,6 +214,22 @@ func _ready() -> void:
 	# l'échelle du personnage pour cette raison.
 	visual.build(body_col, accent, VISUAL_HEIGHT, heros())
 
+	# ─── OMBRE DE CONTACT ──────────────────────────────────────────────
+	#
+	# Sur téléphone les vraies ombres sont coupées, et un personnage sans
+	# ombre FLOTTE — l'œil ne sait plus le poser sur le sol, ni juger sa
+	# distance à une caisse. Une tache douce sous les pieds rend les deux :
+	# l'ancrage, et la lecture de position. Elle suit le corps, donc elle
+	# est juste par construction — pas de raycast, pas de mise à jour.
+	if not Cfg.shadows_enabled():
+		var ombre := MeshInstance3D.new()
+		ombre.mesh = VisualKit.maille_ombre_contact()
+		ombre.material_override = VisualKit.mat_ombre_contact()
+		ombre.scale = Vector3(1.35, 1.0, 1.35)
+		ombre.position = Vector3(0, 0.03, 0)
+		ombre.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(ombre)
+
 	weapon = Weapon.new()
 	var mount := visual.get_weapon_mount()
 	if mount:

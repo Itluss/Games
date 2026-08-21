@@ -540,6 +540,19 @@ func _build_environment() -> void:
 	# silhouettes à quinze mètres, ce qui casserait la lisibilité du combat.
 	env.fog_density = 0.0055
 	env.fog_sky_affect = 0.2
+	if Cfg.arene_test:
+		# L'ARÈNE BORNÉE N'EST PAS LE MONDE OUVERT. La même densité qui
+		# sépare les plans sur 156 m LAVE ici la moitié d'un terrain de
+		# 80 m : sur les captures, le fond de l'arène partait en voile
+		# bleuté et toute l'image semblait délavée — le premier reproche
+		# fait à la carte. Densité réduite de moitié, et teinte ramenée
+		# vers le sable chaud : la profondeur reste, le voile bleu part.
+		env.fog_density = 0.0028
+		# Ni bleue ni ambre : un gris chaud à peine sablé. Le premier
+		# réglage (d8ccb2) baignait TOUTE l'image d'orange et les murs
+		# d'adobe perdaient leur crème — l'écart de teinte entre sable,
+		# pierre et roche est une information de lecture, pas un luxe.
+		env.fog_light_color = Color("d2ccc0")
 
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -552,7 +565,9 @@ func _build_environment() -> void:
 	# ombres sont courtes, nettes, et servent à ANCRER les objets au sol.
 	sun.rotation_degrees = Vector3(-52, -38, 0)
 	sun.light_color = Cfg.COL_SOLEIL_JOUR
-	sun.light_energy = 1.0
+	# Un cran de plus dans l'arène bornée : ses décors sans texture vivent
+	# de leurs faces éclairées, et la brume réduite rend l'écart visible.
+	sun.light_energy = 1.1 if Cfg.arene_test else 1.0
 	sun.shadow_enabled = Cfg.shadows_enabled()
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	# La portée d'ombre ne suit PAS la taille du monde : elle suit celle de
@@ -1961,6 +1976,19 @@ func _dalles_western() -> void:
 			# craquelé jusqu'à l'horizon lui volerait l'attention.
 			var loin: float = clampf((m2.length() - 44.0) / 26.0, 0.0, 1.0)
 			teinte = teinte.lerp(W_SABLE, loin * 0.85)
+			# ─── LES CHEMINS SONT PEINTS DANS LES SOMMETS ──────────────
+			#
+			# Un anneau autour de la place centrale et deux allées
+			# croisées : c'est le ZONAGE qui manquait au sol. Sans lui,
+			# le sable est une nappe uniforme et l'arène se lit comme un
+			# plateau vide ; avec lui, l'œil comprend « ici on circule,
+			# là on se couvre » avant même le premier échange de tirs.
+			# Coût : zéro — la teinte voyage dans les sommets existants.
+			# Les bords sont doux, et la gigue de la grille les rend
+			# irréguliers toute seule : un chemin damé, pas un marquage.
+			var chemin := _profil_chemin(m2) * (1.0 - loin)
+			if chemin > 0.003:
+				teinte = teinte.lerp(W_TERRE, chemin * 0.65)
 			# Le centre porte la teinte pleine, les coins une version
 			# assombrie : le dégradé entre les deux creuse un joint sombre
 			# le long de chaque bord, sans une seule texture.
@@ -2168,6 +2196,9 @@ func _batir_arene_western() -> void:
 	_lisiere_western()
 	_horizon_western()
 	_fermer_fusion()
+	# L'ancrage au sol vient EN DERNIER : il lit les pièces déjà posées.
+	if not Cfg.shadows_enabled():
+		_ombres_contact_western()
 
 	player_spawn_points.clear()
 	for p: Vector2 in PlanAreneWestern.APPARITIONS:
@@ -2225,6 +2256,154 @@ func _sol_western() -> void:
 
 	_dalles_western()
 
+
+
+## Terre battue des chemins — plus sombre et plus sourde que les dalles :
+## c'est le sol damé par les passages. Premier essai plus clair (9a7040) :
+## INVISIBLE en capture — mélangée à moitié dans les dalles, la teinte
+## n'écartait que de dix pour cent, sous le seuil de ce que la brume
+## laisse passer. Un chemin doit se lire depuis la caméra de jeu.
+const W_TERRE := Color("8a6234")
+## Rayon de l'anneau de circulation, entre la margelle et les bastions.
+const CHEMIN_RAYON := 19.5
+
+
+## PROFIL DES CHEMINS — 1 au cœur du chemin, 0 en dehors, bord fondu.
+##
+## Le réseau respecte la symétrie 180° de la carte : un anneau centré et
+## deux allées croisées le long des axes. Là où une allée passe sous un
+## muret ou une crête, elle disparaît simplement sous la pièce — c'est de
+## la teinte de sol, pas un objet.
+func _profil_chemin(p: Vector2) -> float:
+	var prof := 1.0 - smoothstep(1.2, 2.6, absf(p.length() - CHEMIN_RAYON))
+	if absf(p.x) < 33.0:
+		prof = maxf(prof, 1.0 - smoothstep(1.0, 2.2, absf(p.y)))
+	if absf(p.y) < 33.0:
+		prof = maxf(prof, 1.0 - smoothstep(1.0, 2.2, absf(p.x)))
+	return clampf(prof, 0.0, 1.0)
+
+
+## OMBRES DE CONTACT DES DÉCORS — l'ancrage au sol, à UN appel de dessin.
+##
+## Appelée seulement quand les vraies ombres sont coupées (téléphone).
+## Chaque pièce Meshy posée reçoit une tache douce à son emprise exacte,
+## et TOUTES les taches vivent dans un seul MultiMesh : cent soixante-dix
+## ancrages pour le prix d'un quad. Les murets maçonnés, fondus dans la
+## géométrie de l'arène, n'ont pas de maillage « west_ » à repérer — mais
+## le plan les connaît, et leurs taches viennent de là.
+func _ombres_contact_western() -> void:
+	var taches: Array[Transform3D] = []
+	_collecter_ombres(self, Transform3D.IDENTITY, taches)
+	# ─── DEUX PIÈCES AU MÊME ENDROIT NE FONT PAS DEUX OMBRES ───────────
+	#
+	# La végétation pose des touffes imbriquées, et les piles superposent
+	# leurs caisses. En MULTIPLICATION, les taches se cumulent : deux
+	# disques à ×0,76 font un trou à ×0,58. On trie par surface et on
+	# écarte toute tache dont le centre recouvre substantiellement une
+	# tache déjà gardée — la plus grande parle pour toutes.
+	taches.sort_custom(func(a: Transform3D, b: Transform3D) -> bool:
+		return a.basis.x.length() * a.basis.z.length() \
+				> b.basis.x.length() * b.basis.z.length())
+	var gardees: Array[Transform3D] = []
+	for t in taches:
+		var seule := true
+		var rt := maxf(t.basis.x.length(), t.basis.z.length()) * 0.5
+		for g in gardees:
+			var d := Vector2(t.origin.x - g.origin.x,
+					t.origin.z - g.origin.z).length()
+			var rg := maxf(g.basis.x.length(), g.basis.z.length()) * 0.5
+			if d < (rt + rg) * 0.8:
+				seule = false
+				break
+		if seule:
+			gardees.append(t)
+	taches = gardees
+	for m: Dictionary in PlanAreneWestern.MURS:
+		var c: Vector2 = m["pos"]
+		var a := deg_to_rad(float(m["angle"]))
+		taches.append(Transform3D(
+				Basis.from_euler(Vector3(0, -a, 0)) * Basis.from_scale(
+						Vector3(float(m["long"]) + 0.4, 1.0, 1.15)),
+				Vector3(c.x, 0.004, c.y)))
+	if taches.is_empty():
+		return
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = VisualKit.maille_ombre_contact()
+	mm.instance_count = taches.size()
+	for i in taches.size():
+		mm.set_instance_transform(i, taches[i])
+	var mi := MultiMeshInstance3D.new()
+	mi.name = "OmbresContact"
+	mi.multimesh = mm
+	mi.material_override = VisualKit.mat_ombre_contact()
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+## Parcourt l'arène et note l'emprise au sol de chaque pièce Meshy.
+##
+## L'emprise est ORIENTÉE : la boîte du maillage est projetée au sol dans
+## le repère de la pièce (son lacet, lu dans sa base), pas dans celui du
+## monde — sinon une barrière tournée de 45° recevrait une tache carrée.
+func _collecter_ombres(n: Node, t: Transform3D,
+		out: Array[Transform3D]) -> void:
+	var mi := n as MeshInstance3D
+	if mi != null and mi.mesh != null \
+			and String(mi.mesh.resource_path).contains("west_"):
+		var b: AABB = mi.mesh.get_aabb()
+		# ─── LE SOCLE ENTERRÉ NE COMPTE PAS ────────────────────────────
+		#
+		# Chaque modèle Meshy traîne son disque de sable, enfoui sous le
+		# sol à la pose (voir KitWestern). Il est invisible, mais il est
+		# toujours DANS la boîte du maillage : mesurée telle quelle, une
+		# botte de foin déclarait 3,5 m d'emprise et sa tache devenait
+		# une nappe. La coupe est une FRACTION de la hauteur de la pièce,
+		# pas une hauteur fixe : le fouillis cuit au pied d'un modèle
+		# grandit avec lui — sur un cactus de 2,9 m, les touffes montent
+		# à trente centimètres. Au-dessus de la cheville il ne reste que
+		# le CORPS de l'objet, et c'est lui qui doit faire l'ombre.
+		var eyy := t.basis.y.y
+		if absf(eyy) > 0.0001:
+			var sommet := t.origin.y + (b.position.y + b.size.y) * eyy
+			var coupe := clampf(sommet * 0.18, 0.05, 0.8)
+			var y_min := maxf(b.position.y, (coupe - t.origin.y) / eyy)
+			var reste := b.position.y + b.size.y - y_min
+			if reste <= 0.02:
+				return
+			b = AABB(Vector3(b.position.x, y_min, b.position.z),
+					Vector3(b.size.x, reste, b.size.z))
+		var bx := t.basis.x
+		var yaw := atan2(bx.z, bx.x)
+		var u := Vector2(cos(yaw), sin(yaw))
+		var v := Vector2(-u.y, u.x)
+		var mnu := INF
+		var mxu := -INF
+		var mnv := INF
+		var mxv := -INF
+		for k in 8:
+			var coin := b.position + Vector3(
+					b.size.x * float(k & 1),
+					b.size.y * float((k >> 1) & 1),
+					b.size.z * float((k >> 2) & 1))
+			var w := t * coin
+			var pr := Vector2(w.x, w.z)
+			mnu = minf(mnu, pr.dot(u))
+			mxu = maxf(mxu, pr.dot(u))
+			mnv = minf(mnv, pr.dot(v))
+			mxv = maxf(mxv, pr.dot(v))
+		var centre := u * ((mnu + mxu) * 0.5) + v * ((mnv + mxv) * 0.5)
+		out.append(Transform3D(
+				Basis.from_euler(Vector3(0, -yaw, 0)) * Basis.from_scale(
+						Vector3(maxf(mxu - mnu, 0.5) * 1.02, 1.0,
+								maxf(mxv - mnv, 0.5) * 1.02)),
+				Vector3(centre.x, 0.004, centre.y)))
+	for e in n.get_children():
+		var st := t
+		var e3 := e as Node3D
+		if e3 != null:
+			st = t * e3.transform
+		_collecter_ombres(e, st, out)
 
 
 ## CRÊTES ROCHEUSES — l'îlot de gameplay.

@@ -622,15 +622,28 @@ func consume_dash() -> bool:
 
 # --- MISES À JOUR --------------------------------------------------------
 
-func _process(_delta: float) -> void:
+## Prochaine mise à jour du compteur FPS, en secondes.
+var _fps_prochain := 0.0
+## Dernière valeur dessinée de la jauge de dash.
+var _dash_precedent := -1.0
+
+
+func _process(delta: float) -> void:
 	if _fps_label:
-		var f := Engine.get_frames_per_second()
-		_fps_label.text = "%d FPS" % f
-		# VERT, ORANGE, ROUGE. Le chiffre seul demande de savoir ce qu'est
-		# une bonne cadence ; la couleur, non.
-		_fps_label.add_theme_color_override(&"font_color",
-				Color("8ef0a8") if f >= 50 else
-				(UiKit.OR_CLAIR if f >= 30 else UiKit.ROUGE))
+		# QUATRE FOIS PAR SECONDE, PAS SOIXANTE. Réécrire le texte d'un
+		# Label force sa remise en forme et son redessin ; le faire à
+		# chaque image, c'est payer soixante mises en page par seconde
+		# pour un chiffre qu'aucun œil ne lit à cette cadence.
+		_fps_prochain -= delta
+		if _fps_prochain <= 0.0:
+			_fps_prochain = 0.25
+			var f := Engine.get_frames_per_second()
+			_fps_label.text = "%d FPS" % f
+			# VERT, ORANGE, ROUGE. Le chiffre seul demande de savoir ce
+			# qu'est une bonne cadence ; la couleur, non.
+			_fps_label.add_theme_color_override(&"font_color",
+					Color("8ef0a8") if f >= 50 else
+					(UiKit.OR_CLAIR if f >= 30 else UiKit.ROUGE))
 	# LES CINQ DERNIÈRES SECONDES SE DISENT. Le loader chauffe vers le
 	# blanc sur la fin, mais un joueur en pleine fusillade ne regarde pas
 	# son coin d'écran : c'est l'instant où l'on veut savoir qu'il faut
@@ -643,10 +656,15 @@ func _process(_delta: float) -> void:
 
 	if player and _dash_button:
 		var pret := player.dash_ready_ratio()
-		_dash_button.modulate.a = lerpf(0.55, 1.0, pret)
-		_dash_button.recharge = pret
-		_dash_button.attente = (1.0 - pret) * Player.DASH_COOLDOWN
-		_dash_button.queue_redraw()
+		# LE BOUTON NE SE REDESSINE QUE SI SA JAUGE A BOUGÉ. Prêt, il est
+		# STATIQUE — et « prêt » est son état les neuf dixièmes du temps.
+		# L'ancien code le redessinait à chaque image, y compris immobile.
+		if absf(pret - _dash_precedent) > 0.003:
+			_dash_precedent = pret
+			_dash_button.modulate.a = lerpf(0.55, 1.0, pret)
+			_dash_button.recharge = pret
+			_dash_button.attente = (1.0 - pret) * Player.DASH_COOLDOWN
+			_dash_button.queue_redraw()
 
 func _on_health_changed(current: float, maximum: float) -> void:
 	# La barre se dessine elle-même, teinte comprise : le HUD lui donne des
