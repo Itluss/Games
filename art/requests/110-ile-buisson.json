@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Kit de l'île aux huit quartiers — reproduction FIDÈLE de la planche arene_blocs_v1. La découpe jointe vient de la planche elle-même : Meshy doit rendre CET objet, pas une variation.",
+  "_hauteur_cible_m": 0.9,
+  "_note_echelle": "Meshy renvoie une échelle arbitraire ; l'arène remet le modèle à cette hauteur utile, socle exclu.",
+  "nom": "ile_buisson",
+  "mode": "image",
+  "famille": "blocs",
+  "image": "art/references/decoupes/blocs/buisson_rose.png",
+  "prompt": "round green bush with small pink blossom flowers, thick rounded foliage",
+  "polycount": 2400,
+  "texturer": true
+}

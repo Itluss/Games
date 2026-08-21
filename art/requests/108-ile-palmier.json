@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Kit de l'île aux huit quartiers — reproduction FIDÈLE de la planche arene_blocs_v1. La découpe jointe vient de la planche elle-même : Meshy doit rendre CET objet, pas une variation.",
+  "_hauteur_cible_m": 4.0,
+  "_note_echelle": "Meshy renvoie une échelle arbitraire ; l'arène remet le modèle à cette hauteur utile, socle exclu.",
+  "nom": "ile_palmier",
+  "mode": "image",
+  "famille": "blocs",
+  "image": "art/references/decoupes/blocs/palmier.png",
+  "prompt": "small cartoon palm tree, curved brown trunk, crown of thick rounded green fronds",
+  "polycount": 4200,
+  "texturer": true
+}

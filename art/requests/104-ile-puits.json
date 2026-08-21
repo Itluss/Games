@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Kit de l'île aux huit quartiers — reproduction FIDÈLE de la planche arene_blocs_v1. La découpe jointe vient de la planche elle-même : Meshy doit rendre CET objet, pas une variation.",
+  "_hauteur_cible_m": 3.2,
+  "_note_echelle": "Meshy renvoie une échelle arbitraire ; l'arène remet le modèle à cette hauteur utile, socle exclu.",
+  "nom": "ile_puits",
+  "mode": "image",
+  "famille": "blocs",
+  "image": "art/references/decoupes/blocs/puits.png",
+  "prompt": "small stone well with four wooden posts holding a turquoise tiled canopy roof, rope and bucket, grey stone base ring",
+  "polycount": 5200,
+  "texturer": true
+}

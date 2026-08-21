@@ -28,6 +28,15 @@
       "negatif": "photorealistic, realistic, gritty, grimy, rusty, desaturated, dark, grimdark, cyberpunk, neon city, horror, blurry, noisy, hyper detailed, intricate filigree, thin fragile parts, thin antennas, text, letters, numbers, watermark, logo, multiple characters, crowd, weapon in hands, gun, rifle, action pose, running pose, background scenery, terrain, ground plane, base plinth, display stand, UI panels",
       "art_style": "realistic",
       "sujet_defaut": "warm stylized arena hero in A-pose"
+    },
+    "blocs": {
+      "_role": "Le kit de l'île aux huit quartiers, généré DEPUIS LA PLANCHE arene_blocs_v1 : chaque bon de commande porte sa découpe. La planche fait autorité — le style ci-dessous ne fait qu'empêcher Meshy de dériver vers le réalisme ou d'ajouter un socle.",
+      "_pourquoi_ces_mots": "Trois exigences. (1) UN SEUL OBJET ISOLÉ, posé à plat, SANS socle ni terrain : un socle traverse ensuite le sol du jeu — c'est la leçon des douze assets western, tous livrés sur un disque de sable qu'il a fallu mesurer et enterrer un par un. (2) FORMES PLEINES ET BISEAUTÉES, lisibles du dessus : la caméra plonge à 52°. (3) COULEURS SATURÉES ET JOYEUSES de la planche, finition jouet peint — jamais de gris réaliste.",
+      "style_forme": "stylized mobile game environment prop, chunky voxel-like toy block style, heavily beveled chamfered edges, bold simple silhouette readable from above, low detail density, saturated joyful colors, hand-painted toy finish, one single isolated object, centered, upright, resting flat on the ground, no base plinth, no ground slab, no sand patch, no scenery around it",
+      "style_texture": "hand-painted stylized game texture, clean saturated flat colors, soft painterly shading, crisp beveled edges, warm sunny lighting baked subtly, toy-like finish, no dirt, no rust, no text, no logos",
+      "negatif": "photorealistic, gritty, desaturated, muted colors, blurry, noisy, text, letters, watermark, logo, characters, people, animals, weapons, background scenery, terrain, ground plane, sand base, grass base, base plinth, display stand, multiple separate objects, cluttered composition, UI panels",
+      "art_style": "realistic",
+      "sujet_defaut": "chunky beveled toy block"
     }
   },
   "_note_art_style": "art_style est un champ de l'API Meshy pour le mode texte (valeurs usuelles : realistic, sculpture). Il ne decrit PAS ton jeu — le rendu stylise vient de style_forme, pas de ce champ.",

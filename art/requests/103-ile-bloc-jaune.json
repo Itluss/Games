@@ -1,0 +1,12 @@
+{
+  "_pourquoi": "Kit de l'île aux huit quartiers — reproduction FIDÈLE de la planche arene_blocs_v1. La découpe jointe vient de la planche elle-même : Meshy doit rendre CET objet, pas une variation.",
+  "_hauteur_cible_m": 2.0,
+  "_note_echelle": "Meshy renvoie une échelle arbitraire ; l'arène remet le modèle à cette hauteur utile, socle exclu.",
+  "nom": "ile_bloc_jaune",
+  "mode": "image",
+  "famille": "blocs",
+  "image": "art/references/decoupes/blocs/bloc_jaune.png",
+  "prompt": "single chunky beveled cube block made of four fused golden yellow hay bales, saturated warm golden yellow",
+  "polycount": 2600,
+  "texturer": true
+}
