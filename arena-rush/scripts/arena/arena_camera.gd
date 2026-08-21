@@ -56,18 +56,19 @@ class_name ArenaCamera
 @export var smoothing: float = 7.5
 ## Décalage maximal dans la direction visée.
 ##
-## LAISSÉE À 3,4 ALORS QU'ON AVAIT COMMENCÉ PAR LA RELEVER À 4,3.
+## ZÉRO — LA CAMÉRA EST VERROUILLÉE SUR LE PERSONNAGE, façon Brawl Stars.
 ##
-## L'idée paraissait bonne : en se rapprochant, la caméra voit moins loin
-## devant, donc on lui rend en avance ce qu'on lui a pris en recul. Sauf que
-## cette avance déplace TOUT LE MONTAGE, caméra comprise — regardez
-## `_desired = _focus + _ahead`, puis `_ideal = _desired + (0, height,
-## distance)`. Viser vers l'avant rapproche donc le personnage, viser vers
-## l'arrière l'éloigne d'autant. Relever l'avance revenait à augmenter cet
-## écart au moment précis où la consigne était de rendre le personnage plus
-## GROS et plus STABLE à l'écran. On garde donc l'ancienne valeur, et le
-## rapprochement reste ce qu'il est : un rapprochement, pas un compromis.
-@export var look_ahead: float = 3.4
+## L'avance de 3,4 m paraissait généreuse : montrer ce qu'on attaque. En
+## jeu, elle était la première cause du « la caméra bouge sans cesse »
+## rapporté : la visée automatique rend `aim_input` actif dès qu'un ennemi
+## est à portée — c'est-à-dire presque toujours — et CHANGE DE DIRECTION à
+## chaque changement de cible verrouillée. Chaque bot qui passait devant
+## un autre faisait glisser tout le cadre de plusieurs mètres, et la visée
+## manuelle au pouce l'aurait fait tanguer à chaque geste. Le modèle du
+## genre n'a aucune avance : le personnage est cloué au cadre, et c'est le
+## MONDE qui défile. La machinerie reste en place — remonter cette valeur
+## suffit à réessayer un jour, en connaissance de cause.
+@export var look_ahead: float = 0.0
 
 ## Réglage nominal, mémorisé au démarrage. `adapt_to_zone` s'en écarte au
 ## lieu d'écrire des valeurs en dur.
