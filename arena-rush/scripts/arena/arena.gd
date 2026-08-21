@@ -2229,7 +2229,20 @@ func _eau_blocs() -> void:
 func _modules_blocs() -> void:
 	var lots: Dictionary = {}
 	for e: Dictionary in PlanAreneBlocs.PIECES:
-		var maille := _maille_module(e)
+		# LE KIT MESHY D'ABORD, LE PROCÉDURAL EN FILET. Chaque module a
+		# son homologue généré depuis la planche ; tant qu'un fichier
+		# n'est pas revenu de l'atelier, le module procédural le remplace
+		# et la carte reste jouable. La transformée corrective du kit
+		# (échelle à hauteur utile, socle enterré) se COMPOSE avec la
+		# pose du plan : les lots restent des lots.
+		var correctif := Transform3D.IDENTITY
+		var maille: Mesh = null
+		var meshy: Variant = _asset_ile(e)
+		if meshy != null:
+			maille = meshy["maille"]
+			correctif = meshy["transfo"]
+		else:
+			maille = _maille_module(e)
 		if maille == null:
 			continue
 		if not lots.has(maille):
@@ -2242,7 +2255,7 @@ func _modules_blocs() -> void:
 		(lots[maille] as Array).append(Transform3D(
 				Basis.from_euler(Vector3(0, -a, 0)),
 				Vector3(pos.x, PlanAreneBlocs.LEVEE + float(e.get("y", 0.0)),
-						pos.y)))
+						pos.y)) * correctif)
 		# L'étage n'a pas de collision : rien ne vole à trois mètres, et
 		# le cube du dessous bloque déjà corps et tirs.
 		if float(e.get("y", 0.0)) == 0.0:
@@ -2264,9 +2277,79 @@ func _modules_blocs() -> void:
 		var inst := MultiMeshInstance3D.new()
 		inst.name = "LotBlocs"
 		inst.multimesh = mm
-		inst.material_override = KitBlocs.materiau()
+		# Une maille du kit procédural n'a pas de matériau de surface :
+		# elle reçoit le matériau partagé. Une maille Meshy ARRIVE avec
+		# ses matériaux texturés — les écraser rendrait tout blanc.
+		if maille.get_surface_count() == 0 \
+				or maille.surface_get_material(0) == null:
+			inst.material_override = KitBlocs.materiau()
 		add_child(inst, true)
 		_props += entrees.size()
+
+
+## L'homologue Meshy d'un module du plan, s'il est déjà revenu de
+## l'atelier. La hauteur utile fait autorité : c'est elle qui remet le
+## modèle à l'échelle du jeu, socle exclu.
+func _asset_ile(e: Dictionary) -> Variant:
+	var nom: StringName = &""
+	var h := 2.0
+	match e["m"]:
+		"bloc":
+			var g: float = float(e.get("g", 1.0))
+			# Le bloc jaune Meshy est revenu en DALLE basse — recalé au
+			# contrôle comme cube de mur, mais parfait pour les rangées
+			# à hauteur de genou des champs : c'est là qu'il sert.
+			if e.get("c", "") == "jaune" and g == 0.5:
+				nom = &"ile_bloc_jaune"
+				h = 1.0
+			else:
+				match e.get("c", ""):
+					"rouge": nom = &"ile_bloc_rouge"
+					"vert": nom = &"ile_bloc_vert"
+					"violet": nom = &"ile_bloc_violet"
+					"jaune": nom = &"ile_bloc_jaune"
+					_: return null
+				if g != 1.0:
+					return null
+				h = 2.0
+		"plateforme":
+			nom = &"ile_plateforme"
+			h = 0.9
+		"cabane":
+			nom = &"ile_cabane"
+			h = 3.8
+		"machine":
+			nom = &"ile_tour"
+			h = 3.0
+		"caisse":
+			nom = &"ile_caisse"
+			h = 1.1
+		"tonneau":
+			nom = &"ile_tonneau"
+			h = 1.0
+		"barriere":
+			nom = &"ile_barriere"
+			h = 1.1
+		"cactus":
+			nom = &"ile_cactus"
+			h = 2.2
+		"palmier":
+			nom = &"ile_palmier"
+			h = 4.0
+		"arbre":
+			# Pas d'arbre sur la planche d'assets : le palmier est l'arbre
+			# de cette île.
+			nom = &"ile_palmier"
+			h = 3.4
+		"buisson":
+			nom = &"ile_buisson"
+			h = 0.9
+		"touffe":
+			nom = &"ile_fleurs"
+			h = 0.55
+		_:
+			return null
+	return KitIle.maille(nom, h)
 
 
 func _maille_module(e: Dictionary) -> Mesh:

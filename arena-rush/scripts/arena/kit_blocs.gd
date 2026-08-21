@@ -117,14 +117,19 @@ static func _boite(st: SurfaceTool, t: Transform3D, sx: float, sy: float,
 		# [normale approx., 4 coins], du dessus vers le bas
 		[Vector3.UP, [Vector3(-x + b, y, -z + b), Vector3(x - b, y, -z + b),
 				Vector3(x - b, y, z - b), Vector3(-x + b, y, z - b)], haut],
-		[Vector3.FORWARD, [Vector3(-x + b, y - b, -z), Vector3(x - b, y - b, -z),
-				Vector3(x - b, -y, -z), Vector3(-x + b, -y, -z)], flanc],
-		[Vector3.BACK, [Vector3(x - b, y - b, z), Vector3(-x + b, y - b, z),
-				Vector3(-x + b, -y, z), Vector3(x - b, -y, z)], flanc],
-		[Vector3.LEFT, [Vector3(-x, y - b, z - b), Vector3(-x, y - b, -z + b),
-				Vector3(-x, -y, -z + b), Vector3(-x, -y, z - b)], flanc_o],
-		[Vector3.RIGHT, [Vector3(x, y - b, -z + b), Vector3(x, y - b, z - b),
-				Vector3(x, -y, z - b), Vector3(x, -y, -z + b)], flanc_o],
+		# Même leçon que le sol et les couvercles : la face avant est
+		# celle dont les sommets tournent en sens horaire VUS DE DEHORS.
+		# Les flancs tournaient à l'envers — le culling les mangeait et
+		# chaque cube se rendait comme une table (le dessus, plus
+		# l'intérieur sombre du flanc opposé).
+		[Vector3.FORWARD, [Vector3(-x + b, -y, -z), Vector3(x - b, -y, -z),
+				Vector3(x - b, y - b, -z), Vector3(-x + b, y - b, -z)], flanc],
+		[Vector3.BACK, [Vector3(x - b, -y, z), Vector3(-x + b, -y, z),
+				Vector3(-x + b, y - b, z), Vector3(x - b, y - b, z)], flanc],
+		[Vector3.LEFT, [Vector3(-x, -y, z - b), Vector3(-x, -y, -z + b),
+				Vector3(-x, y - b, -z + b), Vector3(-x, y - b, z - b)], flanc_o],
+		[Vector3.RIGHT, [Vector3(x, -y, -z + b), Vector3(x, -y, z - b),
+				Vector3(x, y - b, z - b), Vector3(x, y - b, -z + b)], flanc_o],
 		# Chanfreins du dessus — quatre bandes à 45°.
 		[Vector3(0, 1, -1).normalized(), [Vector3(-x + b, y, -z + b),
 				Vector3(-x + b, y - b, -z), Vector3(x - b, y - b, -z),
@@ -139,6 +144,32 @@ static func _boite(st: SurfaceTool, t: Transform3D, sx: float, sy: float,
 				Vector3(x, y - b, -z + b), Vector3(x, y - b, z - b),
 				Vector3(x - b, y, z - b)], haut.lerp(flanc_o, 0.5)],
 	]
+	# Chanfreins des arêtes VERTICALES — les quatre coins. Les flancs
+	# sont en retrait de b : sans ces bandes, chaque coin est une fente
+	# ouverte sur l'intérieur (invisible tant que les flancs, enroulés à
+	# l'envers, cachaient tout — révélée par leur correction).
+	for coin: Vector2 in [Vector2(1, -1), Vector2(1, 1),
+			Vector2(-1, 1), Vector2(-1, -1)]:
+		var pa := Vector3(coin.x * (x - b), 0, coin.y * z)
+		var pb := Vector3(coin.x * x, 0, coin.y * (z - b))
+		var haut_a := Vector3(pa.x, y - b, pa.z)
+		var haut_b := Vector3(pb.x, y - b, pb.z)
+		var bas_a := Vector3(pa.x, -y, pa.z)
+		var bas_b := Vector3(pb.x, -y, pb.z)
+		var coin_haut := Vector3(coin.x * (x - b), y, coin.y * (z - b))
+		var n_coin := Vector3(coin.x, 0, coin.y)
+		if coin.x * coin.y < 0:
+			faces.append([n_coin, [bas_a, bas_b, haut_b, haut_a],
+					flanc.lerp(flanc_o, 0.5)])
+			faces.append([Vector3(coin.x, 1.4, coin.y),
+					[coin_haut, haut_a, haut_b, haut_b],
+					haut.lerp(flanc, 0.5)])
+		else:
+			faces.append([n_coin, [bas_b, bas_a, haut_a, haut_b],
+					flanc.lerp(flanc_o, 0.5)])
+			faces.append([Vector3(coin.x, 1.4, coin.y),
+					[coin_haut, haut_b, haut_a, haut_a],
+					haut.lerp(flanc, 0.5)])
 	for f: Array in faces:
 		var n: Vector3 = t.basis * (f[0] as Vector3)
 		var q: Array = f[1]
