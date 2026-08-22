@@ -953,12 +953,17 @@ func death(pos: Vector3, color: Color) -> void:
 ## la caméra tout seul, porte son contour sans shader, et se range dans le
 ## monde — donc il suit le décor, disparaît derrière un rocher, et
 ## s'enroule avec la carte sans qu'on ait rien à faire.
-func gain_xp(pos: Vector3, montant: int, couleur: Color = Color("7fd4ff")) -> void:
+## `etiquette` nomme la monnaie : « XP » par défaut, vide pour un simple
+## « +N » — le cas de la PRIME, qui s'affichait « +N XP » en doré. Deux
+## monnaies sous le même nom : le joueur ne comprenait ni l'une ni
+## l'autre. Désormais l'or dit la prime, le bleu dit l'expérience.
+func gain_xp(pos: Vector3, montant: int, couleur: Color = Color("7fd4ff"),
+		etiquette: String = "XP") -> void:
 	if montant <= 0:
 		return
 	var parent := _parent_for(self)
 	var t := Label3D.new()
-	t.text = "+%d XP" % montant
+	t.text = ("+%d %s" % [montant, etiquette]).strip_edges()
 	# CONTOUR MINCE. À 34 pixels pour un corps de 96, il ne détachait plus le
 	# chiffre : il le REMPLISSAIT. Vérifié en capture — le « +20 XP » sortait
 	# bleu marine presque noir, alors que la couleur demandée était un bleu

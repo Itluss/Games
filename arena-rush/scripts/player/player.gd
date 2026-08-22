@@ -784,15 +784,21 @@ func _teinte_du_tireur(id: int) -> Color:
 ## ramassables par n'importe qui : la mort d'un riche est un événement
 ## public, pas une transaction privée.
 func _regler_la_prime(killer_id: int, from_team: int) -> void:
-	if prime <= 0:
-		return
+	# PLUS DE COURT-CIRCUIT À PRIME NULLE. L'ancien `if prime <= 0:
+	# return` faisait qu'un adversaire frais — tous les bots en début de
+	# partie — ne rapportait RIEN : ni les cinq pièces du duel, ni la
+	# moindre pièce au sol. Premier retour de test du mode, mot pour
+	# mot : « je ne vois aucune pièce tombée à terre quand je tue un
+	# ennemi ». Le duel se paie TOUJOURS, et le mort lâche TOUJOURS au
+	# moins ses poches.
 	var moitie := 0
 	if from_team == Cfg.Team.PLAYER and killer_id != 0 \
 			and killer_id != peer_id:
 		var tueur := MatchDirector.players.get(killer_id) as Player
 		if tueur != null and is_instance_valid(tueur):
 			moitie = PrimeDirector.crediter_duel(tueur, self)
-	PrimeDirector.pluie_de_pieces(global_position, prime - moitie)
+	PrimeDirector.pluie_de_pieces(global_position,
+			maxi(prime - moitie, PrimeDirector.POCHES_DU_MORT))
 	prime = 0
 	Net.broadcast(self, &"net_compteurs", [kills, prime])
 
@@ -822,8 +828,10 @@ func net_compteurs(k: int, p: int) -> void:
 	# le retour qui enseigne la règle sans un mot : « +3 » doré sur
 	# l'adversaire qu'on vient de voir tuer un mob dit tout le système.
 	if p > prime:
+		# Étiquette VIDE : ce « +N » doré est de la PRIME, pas de l'XP —
+		# les deux affichés sous le même nom rendaient le système opaque.
 		Fx.gain_xp(global_position + Vector3.UP * 2.6, p - prime,
-				Color("ffd24a"))
+				Color("ffd24a"), "")
 	prime = p
 	_maj_tenue_prime()
 

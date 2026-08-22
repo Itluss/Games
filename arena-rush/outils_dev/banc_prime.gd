@@ -6,13 +6,16 @@ extends Node
 ## La règle tient en trois phrases, et chacune de ses transitions peut se
 ## casser sans que rien ne plante :
 ##
-##   1. un mob abattu crédite UNE pièce, fois le palier du tueur ;
+##   1. un mob abattu POSE une pièce d'or AU SOL, fois le palier du
+##      tueur — visible, jamais créditée en silence ;
 ##   2. le multiplicateur suit les paliers : ×1, ×2 à 10, ×3 à 25 ;
 ##   3. un joueur abattu : cinq pièces fois le palier, PLUS la moitié de
 ##      la prime de la victime — et la victime retombe à ZÉRO ;
 ##   4. le reste de la prime du mort ÉCLATE en pièces au sol ;
 ##   5. une pièce approchée est ramassée et créditée ;
-##   6. le joueur vivant le plus riche est ROI ; mort, il perd le trône.
+##   6. le joueur vivant le plus riche est ROI ; mort, il perd le trône ;
+##   7. même à prime NULLE, un mort lâche ses poches et paie le duel —
+##      le correctif du tout premier retour de test du mode.
 ##
 ## Aucune de ces situations ne lève d'erreur quand elle est fausse. Une
 ## prime qui ne changerait pas de mains à la mort donnerait un jeu
@@ -43,6 +46,7 @@ func _ready() -> void:
 	await _test3_duel()
 	await _test4_pluie_et_ramassage()
 	await _test5_le_roi()
+	await _test6_poches_du_mort()
 	print("")
 	print("=== %d échec(s) ===" % _echecs)
 	get_tree().quit(1 if _echecs > 0 else 0)
@@ -108,16 +112,31 @@ func _titre(t: String) -> void:
 # --- LES TESTS -----------------------------------------------------------
 
 func _test1_credit_mob() -> void:
-	_titre("Test 1 : un mob crédite une pièce")
+	_titre("Test 1 : un mob pose une pièce au sol")
 	await _repartir()
 	var js := _joueurs()
 	if js.is_empty():
 		_ligne(false, "au moins un joueur en scène", "0")
 		return
 	var a: Player = js[0]
-	PrimeDirector.crediter_mob(a)
+	# Le directeur est suspendu le temps d'INSPECTER la pièce posée :
+	# actif, il la ferait ramasser avant la mesure.
+	PrimeDirector._actif = false
+	PrimeDirector.crediter_mob(a, a.global_position)
 	await get_tree().process_frame
-	_ligne(a.prime == 1, "la prime passe à 1", "prime = %d" % a.prime)
+	var posees := PrimeDirector._pieces.size()
+	_ligne(posees == 1, "une pièce est posée au sol",
+			"%d pièce(s)" % posees)
+	var valeur := 0
+	for id in PrimeDirector._pieces:
+		valeur += PrimeDirector._pieces[id]["valeur"]
+	_ligne(valeur == 1, "elle vaut une pièce", "valeur = %d" % valeur)
+	# Puis le directeur reprend : la pièce est à portée du tueur, elle
+	# doit lui revenir — c'est le chemin complet mob → sol → prime.
+	PrimeDirector._actif = true
+	await get_tree().create_timer(0.5).timeout
+	_ligne(a.prime == 1, "ramassée, elle crédite la prime",
+			"prime = %d" % a.prime)
 
 
 func _test2_multiplicateur() -> void:
@@ -129,10 +148,15 @@ func _test2_multiplicateur() -> void:
 	_ligne(PrimeDirector.multiplicateur(25) == 3, "×3 à 25", "")
 	a.crediter_prime(10)
 	await get_tree().process_frame
-	PrimeDirector.crediter_mob(a)
+	PrimeDirector._actif = false
+	PrimeDirector.crediter_mob(a, a.global_position)
 	await get_tree().process_frame
-	_ligne(a.prime == 12, "un mob au palier ×2 rapporte 2",
-			"prime = %d, attendu 12" % a.prime)
+	var valeur := 0
+	for id in PrimeDirector._pieces:
+		valeur += PrimeDirector._pieces[id]["valeur"]
+	_ligne(valeur == 2, "un mob au palier ×2 lâche 2 pièces d'or",
+			"valeur au sol = %d, attendu 2" % valeur)
+	PrimeDirector._actif = true
 
 
 func _test3_duel() -> void:
@@ -226,3 +250,28 @@ func _test5_le_roi() -> void:
 	await get_tree().create_timer(0.5).timeout
 	_ligne(PrimeDirector.roi_id != b.peer_id, "le roi mort perd le trône",
 			"roi = %d" % PrimeDirector.roi_id)
+
+
+func _test6_poches_du_mort() -> void:
+	_titre("Test 6 : même à prime nulle, un mort paie")
+	await _repartir()
+	var js := _joueurs()
+	var a: Player = js[0]
+	var b: Player = js[1]
+	# B n'a RIEN — le cas de tous les bots en début de partie, celui du
+	# tout premier retour de test : « je ne vois aucune pièce tombée à
+	# terre quand je tue un ennemi ».
+	PrimeDirector._actif = false
+	b.server_take_damage(9999.0, b.global_position, a.peer_id,
+			Cfg.Team.PLAYER)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_ligne(a.prime == 5, "le duel paie ses 5 pièces au tueur",
+			"prime = %d, attendu 5" % a.prime)
+	var somme := 0
+	for id in PrimeDirector._pieces:
+		somme += PrimeDirector._pieces[id]["valeur"]
+	_ligne(somme == PrimeDirector.POCHES_DU_MORT,
+			"le mort lâche ses poches (%d)" % PrimeDirector.POCHES_DU_MORT,
+			"somme au sol = %d" % somme)
+	PrimeDirector._actif = true

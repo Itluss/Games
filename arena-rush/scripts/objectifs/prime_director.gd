@@ -48,6 +48,11 @@ const RAMASSAGE := 1.35
 ## Les pièces orphelines s'effacent au bout d'une minute : un champ de
 ## bataille qui scintille de vieilles pièces perd sa lisibilité.
 const PIECE_DUREE := 60.0
+## LES POCHES DU MORT : un joueur abattu lâche toujours au moins ces
+## pièces, même à prime nulle. Leçon du premier test en conditions
+## réelles : une mort qui ne fait rien tomber est INVISIBLE — le tueur
+## ne voit ni pièce ni gain et conclut que le système ne marche pas.
+const POCHES_DU_MORT := 3
 
 ## Identifiant du roi en titre, 0 = trône vacant.
 var roi_id: int = 0
@@ -61,6 +66,7 @@ var _prochaine_piece_id: int = 1
 ## Maillage partagé des pièces — une seule ressource pour toutes.
 var _maille_piece: CylinderMesh = null
 var _matiere_piece: StandardMaterial3D = null
+var _matiere_contour: StandardMaterial3D = null
 
 
 func demarrer() -> void:
@@ -106,11 +112,16 @@ func nom_roi() -> String:
 
 # --- CRÉDITS — SERVEUR UNIQUEMENT ----------------------------------------
 
-## Un mob abattu : la route sûre et lente. Une pièce, fois le palier.
-func crediter_mob(tueur: Player) -> void:
+## Un mob abattu : la route sûre et lente. Une pièce, fois le palier —
+## POSÉE AU SOL là où le mob est tombé, pas créditée en silence. Premier
+## test en conditions réelles : le crédit invisible faisait dire au
+## joueur « je ne vois aucune pièce quand je tue un ennemi ». La pièce
+## physique fait tout d'un coup : elle se voit, elle s'entend ramasser,
+## et son ramassage nourrit la prime, l'or ET l'expérience.
+func crediter_mob(tueur: Player, ou: Vector3) -> void:
 	if not Net.is_server() or tueur == null or not is_instance_valid(tueur):
 		return
-	tueur.crediter_prime(1 * multiplicateur(tueur.prime))
+	_poser_pieces(ou, 1 * multiplicateur(tueur.prime), 0.25, 0.6)
 
 
 ## Un joueur abattu : la route rapide — cinq pièces fois le palier, PLUS
@@ -127,6 +138,16 @@ func crediter_duel(tueur: Player, victime: Player) -> int:
 ## À LA MORT : la moitié part au tueur (voir crediter_duel), le RESTE
 ## éclate en pièces au sol. Appelé par le mourant, côté serveur.
 func pluie_de_pieces(centre: Vector3, montant: int) -> void:
+	_poser_pieces(centre, montant, 0.7, 2.1)
+
+
+## Le poseur commun : découpe le montant en pièces, les éparpille en
+## couronne entre les deux rayons, et diffuse. La pluie d'une mort éclate
+## large (0.7–2.1 m), la pièce d'un mob tombe presque sur place
+## (0.25–0.6 m) — assez décalée pour se voir, assez proche pour être
+## ramassée d'un pas.
+func _poser_pieces(centre: Vector3, montant: int,
+		rayon_min: float, rayon_max: float) -> void:
 	if not Net.is_server() or montant <= 0:
 		return
 	var n: int = clampi(montant, 1, PLUIE_MAX)
@@ -139,7 +160,7 @@ func pluie_de_pieces(centre: Vector3, montant: int) -> void:
 	var positions: Array = []
 	for i in n:
 		var a := TAU * float(i) / float(n) + randf() * 0.7
-		var r := randf_range(0.7, 2.1)
+		var r := randf_range(rayon_min, rayon_max)
 		positions.append(Vector3(centre.x + cos(a) * r, 0.0,
 				centre.z + sin(a) * r))
 	var ids: Array = []
@@ -274,6 +295,12 @@ func net_piece_prise(id: int, peer_id: int) -> void:
 		# Chaque pièce nourrit aussi l'EXPÉRIENCE : ramasser, c'est
 		# progresser — la règle « tout ce que tu fais te fait avancer ».
 		Profil.ajouter_xp(valeur * 2, &"piece")
+		# ET ÇA SE VOIT : le « +N XP » bleu monte à côté du « +N » doré
+		# de la prime, légèrement décalé pour ne pas se marcher dessus.
+		# Retour de test : « je ne vois pas non plus d'XP gagné » — le
+		# gain existait, muet ; un gain muet n'existe pas pour le joueur.
+		Fx.gain_xp(ramasseur.global_position
+				+ Vector3(0.7, 1.9, 0.0), valeur * 2)
 
 
 # --- PIÈCES : FABRICATION ET VIE ------------------------------------------
@@ -283,9 +310,9 @@ func net_piece_prise(id: int, peer_id: int) -> void:
 func _fabriquer_piece(valeur: int) -> Node3D:
 	if _maille_piece == null:
 		_maille_piece = CylinderMesh.new()
-		_maille_piece.top_radius = 0.24
-		_maille_piece.bottom_radius = 0.24
-		_maille_piece.height = 0.07
+		_maille_piece.top_radius = 0.3
+		_maille_piece.bottom_radius = 0.3
+		_maille_piece.height = 0.09
 		_maille_piece.radial_segments = 14
 		_matiere_piece = StandardMaterial3D.new()
 		_matiere_piece.albedo_color = Color("f5c542")
@@ -293,7 +320,14 @@ func _fabriquer_piece(valeur: int) -> Node3D:
 		_matiere_piece.roughness = 0.35
 		_matiere_piece.emission_enabled = true
 		_matiere_piece.emission = Color("d99a1e")
-		_matiere_piece.emission_energy_multiplier = 0.6
+		_matiere_piece.emission_energy_multiplier = 0.9
+		# LE CONTOUR DESSIN ANIMÉ — la coque inversée des balles. Vérifié
+		# en photo : or sur sable pâle, la pièce nue se fondait dans le
+		# sol ; c'est le cerne sombre qui la détache, pas sa brillance.
+		_matiere_contour = StandardMaterial3D.new()
+		_matiere_contour.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_matiere_contour.albedo_color = Color(0.32, 0.18, 0.03)
+		_matiere_contour.cull_mode = BaseMaterial3D.CULL_FRONT
 	var racine := Node3D.new()
 	racine.name = "PieceOr"
 	var mi := MeshInstance3D.new()
@@ -303,6 +337,13 @@ func _fabriquer_piece(valeur: int) -> Node3D:
 	# Dressée comme une pièce de dessin animé, pas posée à plat.
 	mi.rotation.x = PI / 2.0
 	racine.add_child(mi)
+	var coque := MeshInstance3D.new()
+	coque.mesh = _maille_piece
+	coque.material_override = _matiere_contour
+	coque.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	coque.rotation.x = PI / 2.0
+	coque.scale = Vector3(1.14, 1.35, 1.14)
+	racine.add_child(coque)
 	# Une grosse pièce se voit : la valeur gonfle légèrement le disque.
 	racine.scale = Vector3.ONE * clampf(1.0 + float(valeur) * 0.04, 1.0, 1.6)
 	return racine

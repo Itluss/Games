@@ -174,9 +174,11 @@ func _on_mob_died(mob: Mob, killer_id: int) -> void:
 	_crediter_mob(mob, killer_id)
 	if not Net.is_server():
 		return
-	# LA PRIME du tueur monte d'une pièce (fois son palier) — la route
-	# sûre et lente du système. Voir PrimeDirector.
-	PrimeDirector.crediter_mob(MatchDirector.players.get(killer_id))
+	# LA PRIME du tueur : le mob lâche une pièce d'or PHYSIQUE (fois le
+	# palier du tueur) là où il tombe — la route sûre et lente du
+	# système, et elle se VOIT. Voir PrimeDirector.
+	PrimeDirector.crediter_mob(MatchDirector.players.get(killer_id),
+			mob.global_position)
 	var data := mob.data
 	if data.loot_weapon_id == &"" or randf() > data.loot_chance:
 		return
