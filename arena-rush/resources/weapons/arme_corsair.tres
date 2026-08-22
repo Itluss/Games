@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/profils/corsair.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"arme_corsair"
+display_name = "Pistolet Pirate"
+damage = 8.0
+fire_rate = 3.2
+range = 15.0
+projectile_speed = 30.0
+projectile_count = 1
+spread_degrees = 1.5
+splash_radius = 0.0
+gravity = 0.0
+fuse_time = 0.0
+bounces = 0
+color = Color(0.96, 0.72, 0.24, 1)
+projectile_radius = 0.13
+trail_length = 0.0
+shake = 0.0
+recoil = 0.06
+silhouette = "pistol"
+profil = ExtResource("2")
+max_ammo = -1

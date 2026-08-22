@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="ProfilTir" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/profil_tir.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+heros = &"corsair"
+couleur = Color(0.96, 0.72, 0.24, 1)
+mode = "simple"
+rafale_coups = 1
+rafale_intervalle = 0.07
+flash = "etoile"
+flash_taille = 1.2
+flash_branches = 5
+trainee = "fine"
+trainee_longueur = 5.0
+tete_rayon = 0.11
+tete_longueur = 0.5
+trainee_metres = 1.7
+trainee_ondulation = 0.0
+trainee_periode = 1.2
+couleur_bout = Color(1, 0.45, 0.12, 0)
+couleur_secondaire = Color(1, 0.85, 0.5, 1)
+impact = "etoile"
+impact_taille = 1.05
+recul_corps = "sec"
+recul_amplitude = 0.06
+recul_duree = 0.14
+secousse_locale = 0.0
+son_hauteur = 300.0

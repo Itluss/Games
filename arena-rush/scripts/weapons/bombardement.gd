@@ -116,8 +116,8 @@ func _tomber(i: int) -> void:
 
 	var boule := MeshInstance3D.new()
 	var sph := SphereMesh.new()
-	sph.radius = 0.34
-	sph.height = 0.68
+	sph.radius = 0.44
+	sph.height = 0.88
 	sph.radial_segments = 10
 	sph.rings = 5
 	boule.mesh = sph
@@ -135,7 +135,7 @@ func _tomber(i: int) -> void:
 	var cyl := CylinderMesh.new()
 	cyl.top_radius = 0.05
 	cyl.bottom_radius = 0.22
-	cyl.height = 1.6
+	cyl.height = 2.3
 	cyl.radial_segments = 8
 	traine.mesh = cyl
 	traine.material_override = VisualKit.glow_mat(Color("ffb03a"), 2.2)
@@ -160,7 +160,7 @@ func _impact(i: int, boule: Node) -> void:
 		_anneaux[i].queue_free()
 	var mondial := global_position + _impacts[i]
 	_exploser(mondial)
-	Fx.shake_at(mondial, 0.3)
+	Fx.shake_at(mondial, 0.36)
 	if not _autoritaire:
 		return
 	_degats(mondial)
@@ -199,7 +199,7 @@ func _exploser(mondial: Vector3) -> void:
 			Color(1.0, 0.96, 0.78), 2.6, 0.95)
 	eclair.scale = Vector3.ONE * 0.4
 	var tw := create_tween().set_parallel(true)
-	tw.tween_property(eclair, "scale", Vector3.ONE * RAYON_IMPACT * 1.05, 0.09) \
+	tw.tween_property(eclair, "scale", Vector3.ONE * RAYON_IMPACT * 1.3, 0.1) \
 			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tw.tween_property(eclair, "transparency", 1.0, 0.18) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
@@ -219,34 +219,87 @@ func _exploser(mondial: Vector3) -> void:
 	tf.tween_property(feu, "transparency", 1.0, 0.26).set_delay(0.16)
 	tf.chain().tween_callback(feu.queue_free)
 
-	# ÉCLATS : six braises en cloche, tuées en vol.
-	for k in 6:
-		var ang := TAU * float(k) / 6.0 + randf() * 0.6
-		var portee := RAYON_IMPACT * randf_range(0.8, 1.45)
-		var cible := mondial + Vector3(cos(ang) * portee,
-				randf_range(0.3, 1.4), sin(ang) * portee)
-		var e := _sphere(parent, mondial + Vector3.UP * 0.8,
-				randf_range(0.14, 0.24),
-				Color("ffb03a") if k % 2 == 0 else Color("ff5a1e"), 2.4, 1.0)
-		var te := create_tween().set_parallel(true)
-		te.tween_property(e, "position", cible, randf_range(0.28, 0.42)) \
-				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		te.tween_property(e, "scale", Vector3.ONE * 0.05, 0.42) \
-				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		te.chain().tween_callback(e.queue_free)
+	# ANNEAU DE SOUFFLE au sol : l'onde qui court — c'est lui qui donne
+	# l'ÉCHELLE de la déflagration, bien plus que la boule elle-même.
+	var onde := MeshInstance3D.new()
+	var tor := TorusMesh.new()
+	tor.inner_radius = 0.82
+	tor.outer_radius = 1.0
+	tor.rings = 24
+	tor.ring_segments = 8
+	onde.mesh = tor
+	var mo := StandardMaterial3D.new()
+	mo.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mo.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mo.albedo_color = Color(1.0, 0.62, 0.22, 0.85)
+	mo.emission_enabled = true
+	mo.emission = Color("ff8a3c")
+	mo.emission_energy_multiplier = 1.8
+	onde.material_override = mo
+	onde.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	onde.position = mondial + Vector3(0, 0.12, 0)
+	onde.scale = Vector3(0.25, 0.5, 0.25)
+	parent.add_child(onde)
+	var to := create_tween().set_parallel(true)
+	to.tween_property(onde, "scale",
+			Vector3(RAYON_IMPACT * 1.6, 0.35, RAYON_IMPACT * 1.6), 0.32) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	to.tween_property(mo, "albedo_color:a", 0.0, 0.34) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	to.chain().tween_callback(onde.queue_free)
 
-	# FUMÉE : trois volutes mates qui montent en gonflant.
+	# COLONNE DE FEU : la langue de flamme qui monte au cœur — la planche
+	# montre une explosion HAUTE, pas une demi-sphère timide.
+	var colonne := _sphere(parent, mondial + Vector3.UP * 1.0, 1.0,
+			Color("ffb03a"), 2.2, 0.95)
+	colonne.scale = Vector3(0.5, 0.4, 0.5)
+	var tc := create_tween().set_parallel(true)
+	tc.tween_property(colonne, "scale",
+			Vector3(RAYON_IMPACT * 0.5, RAYON_IMPACT * 1.15,
+			RAYON_IMPACT * 0.5), 0.2) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tc.tween_property(colonne, "position",
+			mondial + Vector3.UP * (RAYON_IMPACT * 1.0), 0.24)
+	tc.tween_property(colonne, "transparency", 1.0, 0.3).set_delay(0.12)
+	tc.chain().tween_callback(colonne.queue_free)
+
+	# ÉCLATS : dix braises en cloche, qui RETOMBENT — la montée seule
+	# faisait feu d'artifice, la chute fait poids.
+	for k in 10:
+		var ang := TAU * float(k) / 10.0 + randf() * 0.5
+		var portee := RAYON_IMPACT * randf_range(0.7, 1.5)
+		var sommet := mondial + Vector3(cos(ang) * portee * 0.6,
+				randf_range(1.0, 2.0), sin(ang) * portee * 0.6)
+		var chute_sol := mondial + Vector3(cos(ang) * portee, 0.08,
+				sin(ang) * portee)
+		var e := _sphere(parent, mondial + Vector3.UP * 0.8,
+				randf_range(0.13, 0.22),
+				Color("ffb03a") if k % 2 == 0 else Color("ff5a1e"), 2.4, 1.0)
+		var duree_m := randf_range(0.16, 0.24)
+		var te := create_tween()
+		te.tween_property(e, "position", sommet, duree_m) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		te.tween_property(e, "position", chute_sol, duree_m * 1.4) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		te.parallel().tween_property(e, "scale", Vector3.ONE * 0.05,
+				duree_m * 1.4)
+		te.tween_callback(e.queue_free)
+
+	# FUMÉE : trois volutes claires et déjà translucides. Le premier
+	# réglage — cinq volutes sombres aux trois quarts opaques — noyait le
+	# feu sous un rideau gris : sur la planche du banc, les images
+	# d'après-coup n'étaient QUE fumée. Elle doit signer, pas masquer.
 	for k in 3:
-		var dep := mondial + Vector3(randf_range(-0.7, 0.7), 0.7,
+		var dep := mondial + Vector3(randf_range(-0.7, 0.7), 0.8,
 				randf_range(-0.7, 0.7))
-		var fum := _sphere(parent, dep, randf_range(0.5, 0.7),
-				Color(0.34, 0.30, 0.28), 0.0, 0.85)
+		var fum := _sphere(parent, dep, randf_range(0.45, 0.6),
+				Color(0.52, 0.47, 0.44), 0.0, 0.6)
 		var tfu := create_tween().set_parallel(true)
 		tfu.tween_property(fum, "position",
-				dep + Vector3(0, randf_range(1.2, 1.9), 0), 0.9) \
+				dep + Vector3(0, randf_range(1.3, 1.9), 0), 0.85) \
 				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tfu.tween_property(fum, "scale", Vector3.ONE * 1.9, 0.9)
-		tfu.tween_property(fum, "transparency", 1.0, 0.9) \
+		tfu.tween_property(fum, "scale", Vector3.ONE * 1.7, 0.85)
+		tfu.tween_property(fum, "transparency", 1.0, 0.85) \
 				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		tfu.chain().tween_callback(fum.queue_free)
 

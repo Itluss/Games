@@ -232,6 +232,24 @@ func _monter_modele(height: float) -> void:
 	_facteur = height / maxf(_hauteur_native(), 0.0001)
 	_modele.scale = Vector3.ONE * _facteur
 	_modele.rotation.y = MODELE_DEMI_TOUR
+	# ─── LES PIEDS À L'ORIGINE, MESURÉS ET NON SUPPOSÉS ────────────────
+	#
+	# L'échelle était mesurée, l'ORIGINE jamais : un maillage statique
+	# dont l'origine est au centre du corps — la convention Meshy —
+	# gardait sa moitié basse SOUS le sol. C'est le « à moitié enterrés »
+	# des retours de test, et c'est pourquoi le slime n'a jamais montré
+	# son visage en jeu alors que l'aperçu studio (qui compense, lui)
+	# l'affiche entier. Les modèles riggés sortent de la mesure — leur
+	# boîte de liaison ment (voir _hauteur_native) et leur origine est
+	# aux pieds par convention de la chaîne de rig.
+	if _trouver(_modele, "Skeleton3D") == null:
+		var boites: Array[AABB] = []
+		_boites(_modele, Transform3D.IDENTITY, boites)
+		if not boites.is_empty():
+			var t := boites[0]
+			for i in range(1, boites.size()):
+				t = t.merge(boites[i])
+			_modele.position.y = -t.position.y * _facteur
 	_rig.add_child(_modele)
 
 	_anim = _trouver(_modele, "AnimationPlayer") as AnimationPlayer
@@ -733,6 +751,38 @@ func _normaliser_clips() -> void:
 		var cible: String = TRADUCTION_CLIPS[source]
 		if bib.has_animation(source) and not bib.has_animation(cible):
 			bib.add_animation(cible, bib.get_animation(source))
+
+	# ─── MÊME TAILLE DANS TOUS LES CLIPS ───────────────────────────────
+	#
+	# MESURÉ dans le glb du Corsair : le clip « repos » porte une échelle
+	# de hanches de 1,1765 quand tous les autres sont à 1,0 — chaque clip
+	# Meshy est exporté séparément, avec l'échelle racine qui lui chante,
+	# et la fusion recolle tout sans arbitrer. À l'écran : un pirate qui
+	# grossit de 18 % dès qu'il s'arrête — « il n'a pas la même taille en
+	# course, à l'arrêt » est arrivé tel quel du test sur appareil.
+	#
+	# On normalise donc À LA SOURCE : chaque piste d'échelle des hanches
+	# est divisée par sa première clé. Un clip à l'échelle constante
+	# devient 1,0 pile ; un clip qui animerait vraiment son échelle garde
+	# son mouvement RELATIF. Robuste pour les vingt-neuf personnages qui
+	# suivront le même chemin de fusion.
+	for nom in bib.get_animation_list():
+		var clip := bib.get_animation(nom)
+		for piste in clip.get_track_count():
+			if clip.track_get_type(piste) != Animation.TYPE_SCALE_3D:
+				continue
+			if not String(clip.track_get_path(piste)).ends_with("Hips"):
+				continue
+			if clip.track_get_key_count(piste) == 0:
+				continue
+			var ref: Vector3 = clip.track_get_key_value(piste, 0)
+			if ref.is_equal_approx(Vector3.ONE) \
+					or absf(ref.x) < 0.0001 or absf(ref.y) < 0.0001 \
+					or absf(ref.z) < 0.0001:
+				continue
+			for k in clip.track_get_key_count(piste):
+				var v: Vector3 = clip.track_get_key_value(piste, k)
+				clip.track_set_key_value(piste, k, v / ref)
 
 
 func _hauteur_native() -> float:
