@@ -80,6 +80,29 @@ func _anneau(p: Vector3) -> MeshInstance3D:
 	a.scale = Vector3(0.15, 1.0, 0.15)
 	var tw := create_tween()
 	tw.tween_property(a, "scale", Vector3.ONE, DELAI)
+
+	# Le DISQUE intérieur se remplit pendant l'anticipation : la cible de
+	# la planche, et une horloge lisible — plein = la boule arrive.
+	var disque := MeshInstance3D.new()
+	var cd := CylinderMesh.new()
+	cd.top_radius = RAYON_IMPACT * 0.94
+	cd.bottom_radius = RAYON_IMPACT * 0.94
+	cd.height = 0.02
+	cd.radial_segments = 24
+	disque.mesh = cd
+	var md := VisualKit.glow_mat(Cfg.COL_DANGER, 1.1)
+	md.albedo_color.a = 0.16
+	disque.material_override = md
+	disque.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Enfant de l'anneau : il disparaît avec lui à l'impact, et l'échelle
+	# composée (anneau qui grandit × disque qui se remplit) reste
+	# monotone — pleine exactement quand la boule arrive.
+	disque.position = Vector3(0, -0.01, 0)
+	disque.scale = Vector3(0.01, 1.0, 0.01)
+	a.add_child(disque)
+	var td := create_tween()
+	td.tween_property(disque, "scale", Vector3.ONE, DELAI) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	return a
 
 
@@ -136,10 +159,148 @@ func _impact(i: int, boule: Node) -> void:
 	if i < _anneaux.size() and is_instance_valid(_anneaux[i]):
 		_anneaux[i].queue_free()
 	var mondial := global_position + _impacts[i]
-	Fx.explosion(mondial, RAYON_IMPACT, Color("ff8a3c"))
-	Fx.shake_at(mondial, 0.26)
+	_exploser(mondial)
+	Fx.shake_at(mondial, 0.3)
 	if not _autoritaire:
 		return
+	_degats(mondial)
+
+
+## ─── L'EXPLOSION DE LA PLANCHE, EN QUATRE TEMPS ─────────────────────────
+##
+## Le premier jet appelait `Fx.explosion` — une gerbe générique de dix
+## grains et un anneau. Verdict du test sur appareil : « des ronds rouges
+## au sol, c'est nul ». La planche des effets montre autre chose : un CŒUR
+## éclatant, une boule de feu orange bordée de rouge sombre, des éclats
+## qui fusent, des volutes de fumée rondes. On la reconstruit donc pièce
+## par pièce, sur la partition classique des explosions de dessin animé :
+##
+##   t=0        ÉCLAIR   une sphère blanc-jaune qui claque et disparaît —
+##                       c'est lui qui donne l'instant exact du coup ;
+##   t=0→0,25   FEU      la boule orange qui gonfle vite puis s'éteint en
+##                       s'assombrissant — le corps de l'explosion ;
+##   t=0→0,45   ÉCLATS   six braises qui fusent en cloche et meurent en
+##                       vol — elles donnent l'échelle et la violence ;
+##   t=0,1→1,0  FUMÉE    trois volutes grises qui montent en gonflant —
+##                       la trace qui reste quand le feu est passé ;
+##   et au sol, une brûlure sombre qui s'efface — la preuve que le canon
+##   a frappé LÀ.
+##
+## Tout est fait de sphères et de tweens : pas de shader, pas de texture —
+## le rendu web en gl_compatibility joue ça sans broncher, et le style
+## « jouet » du jeu s'en trouve mieux servi qu'avec des particules
+## réalistes.
+func _exploser(mondial: Vector3) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	# ÉCLAIR.
+	var eclair := _sphere(parent, mondial + Vector3.UP * 0.9, 1.0,
+			Color(1.0, 0.96, 0.78), 2.6, 0.95)
+	eclair.scale = Vector3.ONE * 0.4
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(eclair, "scale", Vector3.ONE * RAYON_IMPACT * 1.05, 0.09) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(eclair, "transparency", 1.0, 0.18) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(eclair.queue_free)
+
+	# BOULE DE FEU : gonfle vite, s'assombrit en mourant — l'orange de la
+	# planche, bordé de rouge par la traînée de l'éclair au centre.
+	var feu := _sphere(parent, mondial + Vector3.UP * 0.85, 1.0,
+			Color("ff7a2a"), 2.0, 1.0)
+	feu.scale = Vector3.ONE * 0.3
+	var mf := feu.material_override as StandardMaterial3D
+	var tf := create_tween().set_parallel(true)
+	tf.tween_property(feu, "scale", Vector3.ONE * RAYON_IMPACT * 0.92, 0.24) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tf.tween_property(mf, "emission", Color("8a2410"), 0.34) \
+			.set_delay(0.10)
+	tf.tween_property(feu, "transparency", 1.0, 0.26).set_delay(0.16)
+	tf.chain().tween_callback(feu.queue_free)
+
+	# ÉCLATS : six braises en cloche, tuées en vol.
+	for k in 6:
+		var ang := TAU * float(k) / 6.0 + randf() * 0.6
+		var portee := RAYON_IMPACT * randf_range(0.8, 1.45)
+		var cible := mondial + Vector3(cos(ang) * portee,
+				randf_range(0.3, 1.4), sin(ang) * portee)
+		var e := _sphere(parent, mondial + Vector3.UP * 0.8,
+				randf_range(0.14, 0.24),
+				Color("ffb03a") if k % 2 == 0 else Color("ff5a1e"), 2.4, 1.0)
+		var te := create_tween().set_parallel(true)
+		te.tween_property(e, "position", cible, randf_range(0.28, 0.42)) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		te.tween_property(e, "scale", Vector3.ONE * 0.05, 0.42) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		te.chain().tween_callback(e.queue_free)
+
+	# FUMÉE : trois volutes mates qui montent en gonflant.
+	for k in 3:
+		var dep := mondial + Vector3(randf_range(-0.7, 0.7), 0.7,
+				randf_range(-0.7, 0.7))
+		var fum := _sphere(parent, dep, randf_range(0.5, 0.7),
+				Color(0.34, 0.30, 0.28), 0.0, 0.85)
+		var tfu := create_tween().set_parallel(true)
+		tfu.tween_property(fum, "position",
+				dep + Vector3(0, randf_range(1.2, 1.9), 0), 0.9) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tfu.tween_property(fum, "scale", Vector3.ONE * 1.9, 0.9)
+		tfu.tween_property(fum, "transparency", 1.0, 0.9) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tfu.chain().tween_callback(fum.queue_free)
+
+	# BRÛLURE au sol, qui s'efface lentement.
+	var tache := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = RAYON_IMPACT * 0.8
+	cyl.bottom_radius = RAYON_IMPACT * 0.8
+	cyl.height = 0.02
+	cyl.radial_segments = 20
+	tache.mesh = cyl
+	var mt := StandardMaterial3D.new()
+	mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mt.albedo_color = Color(0.16, 0.11, 0.08, 0.55)
+	tache.material_override = mt
+	tache.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	tache.position = mondial + Vector3(0, 0.03, 0)
+	parent.add_child(tache)
+	var tt := create_tween()
+	tt.tween_property(mt, "albedo_color:a", 0.0, 1.8) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tt.tween_callback(tache.queue_free)
+
+	# Et la poussière du sol autour — le sable répond au coup.
+	Fx.poussiere(mondial + Vector3.UP * 0.15, Color("e6cfa0"), 2.2)
+
+
+## Sphère lumineuse jetable : la brique de l'explosion.
+func _sphere(parent: Node, pos: Vector3, rayon: float, couleur: Color,
+		energie: float, alpha: float) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var sph := SphereMesh.new()
+	sph.radius = rayon
+	sph.height = rayon * 2.0
+	sph.radial_segments = 12
+	sph.rings = 6
+	mi.mesh = sph
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(couleur.r, couleur.g, couleur.b, alpha)
+	if energie > 0.0:
+		m.emission_enabled = true
+		m.emission = couleur
+		m.emission_energy_multiplier = energie
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
+func _degats(mondial: Vector3) -> void:
 	# Dégâts de zone avec atténuation — la recette de l'exploseur, mais
 	# frappant joueurs ET mobs. Le lanceur est épargné : une compétence
 	# qui punit son propre appui n'apprend que la peur du bouton.

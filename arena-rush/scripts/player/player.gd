@@ -285,7 +285,7 @@ func _ready() -> void:
 	# de la barre ; le nom parti, il restait un vide de trente centimètres
 	# entre le chapeau et la jauge, et l'on ne rattachait plus la barre au
 	# personnage d'un coup d'œil quand deux se croisaient.
-	health_bar.position = Vector3(0, 2.6, 0)
+	health_bar.position = Vector3(0, 3.1, 0)
 	add_child(health_bar)
 	# ─── PLUS DE NOM, PLUS DE COULEUR D'IDENTITÉ SUR LA BARRE ──────────
 	#

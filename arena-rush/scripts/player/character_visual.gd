@@ -160,6 +160,9 @@ var _attache: BoneAttachment3D = null
 var _weapon_model: Node3D = null
 ## Rapport entre le gabarit voulu et la taille native du modèle.
 var _facteur: float = 1.0
+## Hauteur d'affichage demandée par build() — le pivot de la culbute en
+## a besoin : il vit à mi-corps.
+var _gabarit: float = 1.7
 
 var _time: float = 0.0
 var _vel: Vector3 = Vector3.ZERO
@@ -196,6 +199,7 @@ var _dead: bool = false
 func build(color: Color, accent: Color, height: float = 1.7,
 		heros: StringName = &"") -> void:
 	_heros = heros
+	_gabarit = height
 	_demarche = Node3D.new()
 	_demarche.name = "Demarche"
 	add_child(_demarche)
@@ -833,6 +837,7 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 		if _roulade_t <= 0.0:
 			_roulade_angle = 0.0
 			_rig.position.y = 0.0
+			_rig.position.z = 0.0
 			if _anim:
 				_anim.speed_scale = 1.0
 			_clip = ""
@@ -998,14 +1003,25 @@ func _bouffees_roulade(pr: float) -> void:
 
 func _appliquer_lean_roulade(delta: float) -> void:
 	_lean = _lean.lerp(Vector2.ZERO, 1.0 - exp(-delta / 0.09))
-	# Le corps s'ACCROUPIT au milieu du tour : c'est l'écrasement qui
-	# fait lire « roulade » plutôt que « toupie ».
-	var pr := clampf(1.0 - _roulade_t / ROULADE_DUREE, 0.0, 1.0)
-	_rig.position.y = -0.30 * sin(pr * PI)
+	# LA CULBUTE TOURNE AUTOUR DU CENTRE DU CORPS, pas des pieds.
+	#
+	# L'origine du rig est aux pieds : une rotation brute y enterrait le
+	# personnage — à 180°, le corps entier pointait SOUS le sol, et c'est
+	# le retour reçu mot pour mot : « les personnages sont enfoncés dans
+	# le sol ». On compense donc la rotation pour épingler le centre du
+	# corps à mi-hauteur : la tête passe en bas, les pieds en haut, et
+	# rien ne traverse le sable.
+	#
+	# Sur le trajet CLIP (Corsair), `_roulade_angle` reste à zéro : les
+	# deux termes s'annulent d'eux-mêmes et le clip garde la main — le
+	# précédent accroupissement forcé de −0,30 m s'ajoutait à celui du
+	# clip et plantait le pirate jusqu'à la taille.
+	var centre := _gabarit * 0.5
+	_rig.position.y = centre * (1.0 - cos(_roulade_angle))
+	_rig.position.z = centre * sin(_roulade_angle)
 	_rig.rotation.x = -_roulade_angle
 	_rig.rotation.z = 0.0
 	_rig.rotation.y = 0.0
-	_rig.position.z = 0.0
 	_squash = _squash.lerp(_squash_target, 1.0 - exp(-delta / 0.055))
 	_rig.scale = _squash
 
