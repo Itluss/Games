@@ -294,6 +294,22 @@ func _monter_modele(height: float) -> void:
 			# n'est métallique.
 			copie.metallic = 0.0
 			copie.roughness = 0.72
+			# ─── LE BRUIT DE L'IA EST DÉBRANCHÉ, LA COULEUR SEULE RESTE ──
+			#
+			# Meshy livre trois cartes : la couleur, un relief (normal
+			# map) et un métal/rugosité — les deux dernières GÉNÉRÉES,
+			# pleines de micro-détail pseudo-réaliste. Sous le soleil du
+			# désert, ce bruit accroche la lumière : grain sale, rendu
+			# « grossier » — le mot exact du retour de test, comparaison
+			# Hunt Royale à l'appui. Les jeux de référence n'ont RIEN de
+			# tout ça : des aplats peints, l'ombrage dans la texture.
+			# On garde donc l'albédo seul sous l'ombrage toon — le look
+			# « jouet en vinyle » de la planche, celui que le kit de
+			# l'île a déjà et qui rend propre.
+			copie.normal_enabled = false
+			copie.roughness_texture = null
+			copie.metallic_texture = null
+			copie.ao_enabled = false
 			copie.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
 			copie.specular_mode = BaseMaterial3D.SPECULAR_TOON
 			copie.rim_enabled = true
