@@ -106,7 +106,19 @@ func take_model() -> Node3D:
 
 func muzzle_position() -> Vector3:
 	if _muzzle and _muzzle.is_inside_tree():
-		return _muzzle.global_position
+		var p := _muzzle.global_position
+		# LA HAUTEUR EST BORNÉE À LA POITRINE. Le support d'arme suit l'os
+		# de la main à travers les échelles fantasques du rig Meshy : sur
+		# le Corsair au gabarit 3,15, la bouche se retrouvait à 0,41 m —
+		# les balles partaient DES CHEVILLES, cachées par le moindre
+		# muret et illisibles sous la caméra en plongée. Mesuré par la
+		# sonde de la balle. Le plan horizontal reste celui de la main ;
+		# la hauteur, elle, reste dans la bande crédible d'un tir d'épaule.
+		var parent3d := get_parent() as Node3D
+		if parent3d != null:
+			var socle := parent3d.global_position.y
+			p.y = socle + clampf(p.y - socle, 0.95, 1.75)
+		return p
 	return global_position
 
 ## LA RECHARGE EST DU JEU, pas de l'affichage : elle décompte donc sur

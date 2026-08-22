@@ -98,6 +98,15 @@ class_name ProfilTir
 ## indexée sur la distance parcourue, si bien que les tirets voyagent
 ## avec la balle au lieu de battre sur place.
 @export var trainee_pointilles: float = 0.0
+## Épaisseur du CONTOUR sombre autour de la tête, en mètres. Zéro = pas
+## de contour.
+##
+## LA LEÇON DE LA BALLE DORÉE : mesurée à l'écran, elle était LÀ — et
+## invisible, or sur sable. Sur la planche, la vignette pose la balle
+## sur fond sombre ; en jeu, le fond est le désert. Le contour du dessin
+## animé (coque inversée) rend la munition lisible sur N'IMPORTE quel
+## fond — c'est lui qui sépare la balle du décor, pas sa luminosité.
+@export var contour: float = 0.0
 ## Couleur de la QUEUE du ruban. La tête garde `couleur` : c'est ce dégradé
 ## qui donne à Ruby son rose-vers-cyan sans un seul shader.
 @export var couleur_bout: Color = Color(1, 1, 1, 0)

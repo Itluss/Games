@@ -48,6 +48,7 @@ var _identite: ProfilTir = null
 var _teinte: Color = Color.WHITE
 var _sphere: SphereShape3D
 var _ruban: MeshInstance3D
+var _contour: MeshInstance3D = null
 ## Distance parcourue depuis le départ. Elle sert de PHASE à l'ondulation :
 ## c'est elle qui fait voyager la vague avec la balle au lieu de la laisser
 ## battre sur place.
@@ -217,6 +218,7 @@ func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
 	cap.rings = 4
 	_mesh.material_override = VisualKit.noyau_mat(_teinte)
 	_mesh.scale = Vector3.ONE
+	_poser_contour(rv, cap.height)
 
 	# ─── LA QUEUE EST UN TRAIT, PAS UN PANACHE ─────────────────────────
 	#
@@ -280,6 +282,33 @@ func setup(weapon_data: WeaponData, origin: Vector3, dir: Vector3,
 	_setup_trail()
 	visible = true
 	set_physics_process(true)
+
+## Le CONTOUR de dessin animé : une coque légèrement plus grande que la
+## tête, faces AVANT éliminées — il ne reste que la silhouette sombre
+## derrière le noyau, sous tous les angles. Voir `ProfilTir.contour`.
+func _poser_contour(rv: float, hauteur: float) -> void:
+	var e: float = _identite.contour if _identite != null else 0.0
+	if e <= 0.0:
+		if _contour != null:
+			_contour.visible = false
+		return
+	if _contour == null:
+		_contour = MeshInstance3D.new()
+		_contour.mesh = CapsuleMesh.new()
+		var mc := StandardMaterial3D.new()
+		mc.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mc.albedo_color = Color(0.16, 0.08, 0.03)
+		mc.cull_mode = BaseMaterial3D.CULL_FRONT
+		_contour.material_override = mc
+		_contour.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_mesh.add_child(_contour)
+	var cc := _contour.mesh as CapsuleMesh
+	cc.radius = rv + e
+	cc.height = hauteur + e * 2.0
+	cc.radial_segments = 10
+	cc.rings = 4
+	_contour.visible = true
+
 
 ## Aligne le corps du projectile sur sa vitesse réelle, pas sur la
 ## direction de tir : une grenade qui retombe doit pointer vers le bas.

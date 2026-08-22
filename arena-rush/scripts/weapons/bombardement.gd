@@ -22,8 +22,8 @@ const DELAI := 1.0
 ## claque pas d'un bloc.
 const CADENCE := 0.18
 ## Durée de chute d'une boule.
-const CHUTE := 0.5
-const HAUTEUR := 13.0
+const CHUTE := 0.68
+const HAUTEUR := 17.0
 const RAYON_IMPACT := 2.3
 const DEGATS := 42.0
 
@@ -63,46 +63,41 @@ func _ready() -> void:
 ## L'anneau de danger, un par impact — même vocabulaire que l'exploseur :
 ## le cercle grandit pendant l'anticipation, la montée EST le compte à
 ## rebours.
+## LE TÉLÉGRAPHE S'EFFACE DEVANT LE SPECTACLE. Les premiers jets
+## posaient de grands disques rouges pleins — et c'est TOUT ce qu'on
+## voyait : « on s'attend à supprimer les cercles rouges au sol ». Il
+## reste le minimum vital de lisibilité : un LISERÉ fin qui pulse, et
+## l'OMBRE qui grandit sous le boulet pendant sa chute — le langage du
+## dessin animé, qui prévient sans voler la vedette.
 func _anneau(p: Vector3) -> MeshInstance3D:
 	var a := MeshInstance3D.new()
-	var cyl := CylinderMesh.new()
-	cyl.top_radius = RAYON_IMPACT
-	cyl.bottom_radius = RAYON_IMPACT
-	cyl.height = 0.04
-	cyl.radial_segments = 24
-	a.mesh = cyl
-	var m := VisualKit.glow_mat(Cfg.COL_DANGER, 1.6)
-	m.albedo_color.a = 0.32
+	var tor := TorusMesh.new()
+	tor.inner_radius = 0.94
+	tor.outer_radius = 1.0
+	tor.rings = 28
+	tor.ring_segments = 6
+	a.mesh = tor
+	var m := VisualKit.glow_mat(Cfg.COL_DANGER, 1.3)
+	m.albedo_color.a = 0.55
 	a.material_override = m
-	a.position = p + Vector3(0, 0.04, 0)
+	a.position = p + Vector3(0, 0.08, 0)
 	a.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(a)
-	a.scale = Vector3(0.15, 1.0, 0.15)
+	a.scale = Vector3(RAYON_IMPACT * 0.3, 1.0, RAYON_IMPACT * 0.3)
 	var tw := create_tween()
-	tw.tween_property(a, "scale", Vector3.ONE, DELAI)
-
-	# Le DISQUE intérieur se remplit pendant l'anticipation : la cible de
-	# la planche, et une horloge lisible — plein = la boule arrive.
-	var disque := MeshInstance3D.new()
-	var cd := CylinderMesh.new()
-	cd.top_radius = RAYON_IMPACT * 0.94
-	cd.bottom_radius = RAYON_IMPACT * 0.94
-	cd.height = 0.02
-	cd.radial_segments = 24
-	disque.mesh = cd
-	var md := VisualKit.glow_mat(Cfg.COL_DANGER, 1.1)
-	md.albedo_color.a = 0.16
-	disque.material_override = md
-	disque.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# Enfant de l'anneau : il disparaît avec lui à l'impact, et l'échelle
-	# composée (anneau qui grandit × disque qui se remplit) reste
-	# monotone — pleine exactement quand la boule arrive.
-	disque.position = Vector3(0, -0.01, 0)
-	disque.scale = Vector3(0.01, 1.0, 0.01)
-	a.add_child(disque)
-	var td := create_tween()
-	td.tween_property(disque, "scale", Vector3.ONE, DELAI) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(a, "scale",
+			Vector3(RAYON_IMPACT, 1.0, RAYON_IMPACT), DELAI * 0.55) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	# Puis il PULSE — dans son propre tween : accroché au premier, la
+	# boucle rejouerait aussi la croissance.
+	tw.tween_callback(func():
+		if not is_instance_valid(a):
+			return
+		var tp := a.create_tween().set_loops()
+		tp.tween_property(a, "scale",
+				Vector3(RAYON_IMPACT * 0.92, 1.0, RAYON_IMPACT * 0.92), 0.24)
+		tp.tween_property(a, "scale",
+				Vector3(RAYON_IMPACT, 1.0, RAYON_IMPACT), 0.24))
 	return a
 
 
@@ -114,18 +109,23 @@ func _tomber(i: int) -> void:
 	var cible := _impacts[i]
 	var depart := cible + Vector3(2.6, HAUTEUR, 1.5)
 
+	# UN VRAI BOULET DE CANON : gros, rond, OMBRÉ — le soleil dessine sa
+	# sphère, un reflet froid marque le métal. L'ancien était une bille
+	# émissive plate qu'on prenait pour un effet.
 	var boule := MeshInstance3D.new()
 	var sph := SphereMesh.new()
-	sph.radius = 0.44
-	sph.height = 0.88
-	sph.radial_segments = 10
-	sph.rings = 5
+	sph.radius = 0.58
+	sph.height = 1.16
+	sph.radial_segments = 16
+	sph.rings = 8
 	boule.mesh = sph
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color("23232b")
+	m.albedo_color = Color("2a2a32")
+	m.metallic = 0.6
+	m.roughness = 0.35
 	m.emission_enabled = true
-	m.emission = Color("ff7a2a")
-	m.emission_energy_multiplier = 0.8
+	m.emission = Color("ff5a1e")
+	m.emission_energy_multiplier = 0.35
 	boule.material_override = m
 	boule.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
@@ -133,9 +133,9 @@ func _tomber(i: int) -> void:
 	# enfant de la boule — elle suit sans une ligne de code de plus.
 	var traine := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
-	cyl.top_radius = 0.05
-	cyl.bottom_radius = 0.22
-	cyl.height = 2.3
+	cyl.top_radius = 0.06
+	cyl.bottom_radius = 0.3
+	cyl.height = 3.0
 	cyl.radial_segments = 8
 	traine.mesh = cyl
 	traine.material_override = VisualKit.glow_mat(Color("ffb03a"), 2.2)
@@ -147,9 +147,34 @@ func _tomber(i: int) -> void:
 
 	boule.position = depart
 	add_child(boule)
+
+	# L'OMBRE QUI GRANDIT sous le point de chute : elle remplace les
+	# grands disques rouges — on lit « ça va tomber LÀ » sans qu'un
+	# aplat mange l'écran.
+	var ombre := MeshInstance3D.new()
+	var co := CylinderMesh.new()
+	co.top_radius = 1.0
+	co.bottom_radius = 1.0
+	co.height = 0.02
+	co.radial_segments = 20
+	ombre.mesh = co
+	var mo := StandardMaterial3D.new()
+	mo.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mo.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mo.albedo_color = Color(0.1, 0.07, 0.05, 0.42)
+	ombre.material_override = mo
+	ombre.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ombre.position = cible + Vector3(0, 0.06, 0)
+	ombre.scale = Vector3(0.12, 1.0, 0.12)
+	add_child(ombre)
+
 	var tw := create_tween()
-	tw.tween_property(boule, "position", cible + Vector3(0, 0.2, 0), CHUTE) \
+	tw.tween_property(boule, "position", cible + Vector3(0, 0.25, 0), CHUTE) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(ombre, "scale",
+			Vector3(0.62, 1.0, 0.62), CHUTE) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_callback(ombre.queue_free)
 	tw.tween_callback(_impact.bind(i, boule))
 
 
