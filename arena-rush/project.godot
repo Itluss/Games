@@ -24,7 +24,7 @@ Net="*res://scripts/multiplayer/multiplayer_manager.gd"
 MatchDirector="*res://scripts/core/match_manager.gd"
 Profil="*res://scripts/progression/profil_joueur.gd"
 Respawn="*res://scripts/core/respawn_manager.gd"
-EtoileDirector="*res://scripts/objectifs/etoile_director.gd"
+PrimeDirector="*res://scripts/objectifs/prime_director.gd"
 
 [debug]
 

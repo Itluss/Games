@@ -29,7 +29,7 @@ BARRIERES=(
 	"Couture|sonde_couture|1|"
 	"Enroulement|test_enroulement|1|"
 	"Boucle persistante|test_arene_persistante|1|"
-	"Étoile Wanted|banc_etoile|1|"
+	"La Prime|banc_prime|1|"
 	"Armes|banc_armes|0|"
 	"Blocs|banc_blocs|0|"
 )

@@ -1,6 +1,6 @@
 extends Node3D
 class_name HealthBar3D
-## PLAQUE DE PERSONNAGE — nom, barre de vie, et l'étoile du porteur.
+## PLAQUE DE PERSONNAGE — nom, barre de vie, et la couronne du roi.
 ##
 ## Volontairement construite en quads plutôt qu'en Viewport d'interface :
 ## un Viewport par entité coûterait une passe de rendu par mob, ce qui est
@@ -43,12 +43,13 @@ const TEX_HAUT := 12
 var _bg: MeshInstance3D
 var _fill: MeshInstance3D
 var _fill_mat: StandardMaterial3D
-var _etoile: MeshInstance3D
+## La couronne du roi de la Prime — voir afficher_couronne.
+var _couronne: Node3D
 var _width: float = 1.0
 var _ratio: float = 1.0
 var _teinte: Color = Color("4cd964")
 var _t: float = 0.0
-## Plaque réduite à sa seule étoile — le joueur local. Voir `mode_discret`.
+## Plaque réduite à sa seule couronne — le joueur local. Voir `mode_discret`.
 var _discret: bool = false
 
 ## Texture d'arrondi partagée. Une seule pour tout le jeu : elle ne dépend
@@ -148,32 +149,71 @@ func build(width: float = 1.0, color: Color = Color("4cd964"),
 	set_ratio(1.0)
 
 
-## L'ÉTOILE DU PORTEUR — au-dessus du nom, et rien d'autre.
-##
-## La consigne est explicite : PAS de compteur 18/30 au-dessus du
-## personnage. Dans le monde, l'étoile dit « c'est lui » ; le chiffre, lui,
-## appartient au bas de l'écran, où on le lit quand on a le temps.
-func afficher_etoile(actif: bool) -> void:
+## LA COURONNE DU ROI — un vrai objet 3D doré, pas un pictogramme : un
+## bandeau et cinq pointes gemmées qui tournent lentement au-dessus de la
+## tête. Elle dit « c'est LUI le plus riche » à travers toute l'arène —
+## c'est la moitié du système de la Prime : l'objectif du jeu est un
+## joueur, et cette couronne est son enseigne.
+func afficher_couronne(actif: bool) -> void:
 	if not actif:
-		if _etoile != null and is_instance_valid(_etoile):
-			_etoile.queue_free()
-			_etoile = null
+		if _couronne != null and is_instance_valid(_couronne):
+			_couronne.queue_free()
+			_couronne = null
 		return
-	if _etoile != null and is_instance_valid(_etoile):
+	if _couronne != null and is_instance_valid(_couronne):
 		return
-	_etoile = MeshInstance3D.new()
-	_etoile.name = "EtoilePorteur"
-	_etoile.mesh = EtoileWanted._maille_etoile()
-	var m := VisualKit.glow_mat(Color("ffc73a"), 1.9)
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	m.billboard_keep_scale = true
-	m.no_depth_test = true
-	m.render_priority = 4
-	_etoile.material_override = m
-	_etoile.scale = Vector3.ONE * (_width * 0.62)
-	_etoile.position = Vector3(0, _width * 0.62, 0)
-	_etoile.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(_etoile)
+	_couronne = Node3D.new()
+	_couronne.name = "Couronne"
+	var or_mat := StandardMaterial3D.new()
+	or_mat.albedo_color = Color("f7c840")
+	or_mat.metallic = 0.55
+	or_mat.roughness = 0.3
+	or_mat.emission_enabled = true
+	or_mat.emission = Color("d9971e")
+	or_mat.emission_energy_multiplier = 0.9
+	# Le bandeau.
+	var bandeau := MeshInstance3D.new()
+	var tor := TorusMesh.new()
+	tor.inner_radius = 0.16
+	tor.outer_radius = 0.24
+	tor.rings = 20
+	tor.ring_segments = 8
+	bandeau.mesh = tor
+	bandeau.material_override = or_mat
+	bandeau.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_couronne.add_child(bandeau)
+	# Les cinq pointes, et leurs gemmes rouges.
+	var gemme_mat := StandardMaterial3D.new()
+	gemme_mat.albedo_color = Color("e33131")
+	gemme_mat.emission_enabled = true
+	gemme_mat.emission = Color("ff5050")
+	gemme_mat.emission_energy_multiplier = 1.4
+	for i in 5:
+		var a := TAU * float(i) / 5.0
+		var pointe := MeshInstance3D.new()
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.0
+		cone.bottom_radius = 0.055
+		cone.height = 0.17
+		cone.radial_segments = 6
+		pointe.mesh = cone
+		pointe.material_override = or_mat
+		pointe.position = Vector3(cos(a) * 0.2, 0.1, sin(a) * 0.2)
+		pointe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_couronne.add_child(pointe)
+		var gemme := MeshInstance3D.new()
+		var sph := SphereMesh.new()
+		sph.radius = 0.035
+		sph.height = 0.07
+		sph.radial_segments = 8
+		sph.rings = 4
+		gemme.mesh = sph
+		gemme.material_override = gemme_mat
+		gemme.position = Vector3(cos(a) * 0.2, 0.2, sin(a) * 0.2)
+		gemme.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_couronne.add_child(gemme)
+	_couronne.position = Vector3(0, _width * 0.55, 0)
+	add_child(_couronne)
 
 
 ## ─── LA PLAQUE S'ÉTEINT QUAND ELLE DEVIENT ILLISIBLE ─────────────────
@@ -206,6 +246,10 @@ var _prochain_test := 0.0
 
 
 func _process(delta: float) -> void:
+	# La couronne tourne lentement — l'or accroche la lumière sous tous
+	# les angles, et le mouvement attire l'œil vers le roi.
+	if _couronne != null and is_instance_valid(_couronne):
+		_couronne.rotation.y += delta * 1.6
 	_prochain_test -= delta
 	if _prochain_test <= 0.0:
 		_prochain_test = PERIODE_PORTEE
@@ -230,25 +274,18 @@ func _process(delta: float) -> void:
 			var vers_cam := (cam.global_position - global_position).normalized()
 			_fill.position = Vector3(_decalage_jauge(), 0.0, 0.0) \
 					+ vers_cam * 0.10
-	if _etoile == null or not is_instance_valid(_etoile):
-		return
-	# Un battement lent : l'étoile respire pour attirer l'œil sans tourner,
-	# parce qu'un panneau qui tourne autour de l'axe caméra donne le
-	# tournis quand on le suit du regard pendant trente secondes.
-	_t += delta
-	var b := 1.0 + sin(_t * 3.2) * 0.09
-	_etoile.scale = Vector3.ONE * (_width * 0.62 * b)
 
 
-## MODE DISCRET — la plaque ne montre plus QUE l'étoile.
+
+## MODE DISCRET — la plaque ne montre plus QUE la couronne.
 ##
 ## Le joueur local n'a pas besoin de lire son nom ni sa vie au-dessus de sa
 ## tête : le HUD du bas les porte déjà, et les répéter au centre de l'écran
-## encombre la seule zone qu'on regarde vraiment. Mais s'il porte l'étoile,
+## encombre la seule zone qu'on regarde vraiment. Mais s'il porte la couronne,
 ## il doit la voir sur lui — c'est le retour qui confirme qu'il l'a bien.
 ##
 ## D'où ce mode plutôt qu'un simple `visible = false` sur toute la plaque :
-## on éteint le nom et la barre, on garde l'étoile.
+## on éteint le nom et la barre, on garde la couronne.
 func mode_discret(actif: bool) -> void:
 	# L'ÉTAT EST MÉMORISÉ, ET C'EST INDISPENSABLE. `_regler_portee` rallume
 	# la plaque cinq fois par seconde dès qu'elle revient à portée : sans

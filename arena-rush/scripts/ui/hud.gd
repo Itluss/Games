@@ -26,7 +26,7 @@ const FIRE_SIZE := 168
 ## manuel par accident, assez étroite pour que l'intention passe vite.
 const VISEE_ZONE_MORTE := 0.35
 const ESQUIVE_SIZE := 104
-## Diamètre du loader d'étoile, en pixels.
+## Diamètre de la bourse (compteur de prime), en pixels.
 const LOADER_SIZE := 96
 
 var player: Player = null
@@ -73,7 +73,7 @@ var _slot_panels: Array[UiKit.CarteArme] = []
 var _minicarte: Minicarte
 var _fps_label: Label
 var _classement: Classement
-var _loader_etoile: LoaderEtoile
+var _bourse: Bourse
 var _kill_fx: KillFeedback
 var _replay_center: CenterContainer
 var _tueur_affiche: String = ""
@@ -243,9 +243,7 @@ func _ready() -> void:
 	# L'ÉTOILE PARLE PAR LA PLAQUE D'ANNONCE, plus par un bandeau à
 	# demeure. Trois messages, et seulement quand ils me concernent : le
 	# loader se charge du reste, en silence.
-	EtoileDirector.ramassee.connect(_sur_etoile_prise)
-	EtoileDirector.lachee.connect(_sur_etoile_lachee)
-	EtoileDirector.gagnee.connect(_sur_etoile_gagnee)
+	PrimeDirector.roi_change.connect(_sur_roi_change)
 	_rafraichir_progression()
 
 func bind_player(p: Player) -> void:
@@ -447,9 +445,8 @@ func _build_carte() -> void:
 ## regarde en combat — sur 390 pixels de haut, elle mangeait le tiers
 ## supérieur du champ de vision.
 ##
-## Tout ce qu'elle disait tient désormais dans `LoaderEtoile`, un disque de
-## la taille d'un bouton posé près du pouce droit. Voir ce fichier pour le
-## détail de ce qui a été gardé et de ce qui a été jeté.
+## Tout ce qu'elle disait tient désormais dans la BOURSE, un disque de
+## la taille d'un bouton posé près du pouce droit.
 
 
 ## ─── HAUT DROITE : LE CLASSEMENT ─────────────────────────────────────
@@ -520,7 +517,7 @@ func _build_bottom() -> void:
 	# Ce ne sont pas des suppressions par économie : ces cinq éléments
 	# décrivaient un jeu de progression — collectionner, débloquer, monter
 	# de niveau — alors que le mode qui se joue est un deathmatch à
-	# réapparition permanente avec une étoile à tenir trente secondes. Rien
+	# réapparition permanente autour de la Prime. Rien
 	# de ce qu'ils affichaient ne change une décision prise en combat.
 	#
 	# Il reste donc les deux seules choses qu'on lit EN JOUANT : avec quoi
@@ -616,19 +613,20 @@ func _build_controls() -> void:
 	# est pressé cent fois par partie ; l'échange d'arme est le plus petit
 	# parce qu'il l'est trois fois. Une taille égale pour les trois ferait
 	# manquer le seul qui compte.
-	# ─── LE LOADER D'ÉTOILE, À PORTÉE DE POUCE ────────────────────────
+	# ─── LA BOURSE — le compteur de prime, à portée de pouce ──────────
 	#
-	# Il occupe la place laissée libre par le bouton « ARME », à gauche du
-	# bouton de tir. Ce n'est pas un rangement par défaut : c'est là que le
-	# regard passe déjà, entre la visée et le décor, et un objectif se
-	# surveille du coin de l'œil sans quitter l'action.
-	_loader_etoile = LoaderEtoile.new()
-	_loader_etoile.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_loader_etoile.offset_left = -(FIRE_SIZE + MARGIN + LOADER_SIZE + 20)
-	_loader_etoile.offset_top = -(MARGIN + LOADER_SIZE + 26)
-	_loader_etoile.offset_right = -(FIRE_SIZE + MARGIN + 20)
-	_loader_etoile.offset_bottom = -(MARGIN + 26)
-	_root.add_child(_loader_etoile)
+	# À la place qu'occupait le loader d'étoile : là où le regard passe
+	# déjà, entre la visée et le décor. Une pièce d'or dessinée, le
+	# montant, et le multiplicateur quand il dépasse ×1 — le joueur voit
+	# d'un coup d'œil ce qu'il risque de perdre et ce que rapporte
+	# chacun de ses coups.
+	_bourse = Bourse.new()
+	_bourse.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_bourse.offset_left = -(FIRE_SIZE + MARGIN + LOADER_SIZE + 20)
+	_bourse.offset_top = -(MARGIN + LOADER_SIZE + 26)
+	_bourse.offset_right = -(FIRE_SIZE + MARGIN + 20)
+	_bourse.offset_bottom = -(MARGIN + 26)
+	_root.add_child(_bourse)
 
 	# ─── PLUS DE BOUTON « ARME » ──────────────────────────────────────
 	#
@@ -803,15 +801,11 @@ func _process(delta: float) -> void:
 			_fps_label.add_theme_color_override(&"font_color",
 					Color("8ef0a8") if f >= 50 else
 					(UiKit.OR_CLAIR if f >= 30 else UiKit.ROUGE))
-	# LES CINQ DERNIÈRES SECONDES SE DISENT. Le loader chauffe vers le
-	# blanc sur la fin, mais un joueur en pleine fusillade ne regarde pas
-	# son coin d'écran : c'est l'instant où l'on veut savoir qu'il faut
-	# tenir encore un peu.
-	if _je_portais and not _alerte_dite \
-			and EtoileDirector.porteur_id == Net.local_id() \
-			and EtoileDirector.DUREE - EtoileDirector.temps <= ALERTE_FIN:
-		_alerte_dite = true
-		_on_announce("TIENS BON", UiKit.OR_CLAIR)
+	# La bourse suit la prime du joueur local, et dit qui est roi.
+	if _bourse != null and player != null:
+		_bourse.poser(player.prime,
+				PrimeDirector.multiplicateur(player.prime),
+				PrimeDirector.roi_id == Net.local_id())
 
 	if player and _special_button:
 		var pret_c := player.special_ready_ratio()
@@ -878,48 +872,30 @@ func _rafraichir_progression() -> void:
 	# tenue par `Profil` et célébrée par le retour d'élimination.
 	# ET LE NIVEAU AUSSI A QUITTÉ L'ÉCRAN. Portrait, badge de niveau et
 	# barre d'expérience décrivaient un jeu de progression ; le mode qui se
-	# joue est un deathmatch permanent avec une étoile à tenir. `Profil`
+	# joue est un deathmatch permanent autour de la Prime. `Profil`
 	# continue de tout enregistrer — la progression n'est pas supprimée,
 	# elle n'est plus AFFICHÉE en combat.
 	pass
 
 
-# --- ÉTOILE ---------------------------------------------------------------
+# --- LA COURONNE ----------------------------------------------------------
 #
-# ON N'ANNONCE QUE CE QUI ME CONCERNE. Une plaque à chaque fois qu'un bot
-# ramasse ou perd l'étoile ferait clignoter le haut de l'écran en
-# permanence — dix joueurs, quelques secondes chacun. Le loader, lui,
-# montre l'état de tout le monde sans dire un mot.
+# ON N'ANNONCE QUE LES COURONNEMENTS. Le trône change rarement de tête —
+# et chaque bascule est un événement de la partie, digne de la plaque.
 
-## Le porteur au moment où j'ai perdu l'étoile : sert à savoir si la chute
-## me concerne.
-var _je_portais := false
-## Le seuil d'alerte a-t-il déjà été annoncé pour cette possession ?
-var _alerte_dite := false
-
-## Secondes restantes en dessous desquelles on prévient le porteur.
-const ALERTE_FIN := 5.0
-
-
-func _sur_etoile_prise(peer_id: int) -> void:
-	_je_portais = peer_id == Net.local_id()
-	_alerte_dite = false
-	if _je_portais:
-		_on_announce("ÉTOILE CAPTURÉE", UiKit.OR_CLAIR)
-
-
-func _sur_etoile_lachee(_position: Vector3) -> void:
-	if _je_portais:
-		_on_announce("ÉTOILE PERDUE", UiKit.ROUGE)
-	_je_portais = false
-	_alerte_dite = false
-
-
-func _sur_etoile_gagnee(peer_id: int, victoires: int) -> void:
-	_je_portais = false
-	_alerte_dite = false
-	if peer_id == Net.local_id():
-		_on_announce("+1 ÉTOILE  ·  %d" % victoires, UiKit.OR_CLAIR)
+## LE COURONNEMENT S'ANNONCE — à celui qui monte comme à celui qui
+## tombe. C'est la moitié du plaisir du trône : le moment où on le
+## prend, et le moment où on nous le prend.
+func _sur_roi_change(ancien_id: int, nouveau_id: int) -> void:
+	if nouveau_id == Net.local_id():
+		_on_announce("TU ES LE ROI", UiKit.OR_CLAIR)
+	elif ancien_id == Net.local_id() and nouveau_id != 0:
+		_on_announce("COURONNE PERDUE", UiKit.ROUGE)
+	elif nouveau_id != 0:
+		var nom := PrimeDirector.nom_roi()
+		if nom != "":
+			_on_announce("%s PREND LA COURONNE" % nom.to_upper(),
+					UiKit.OR_CLAIR)
 
 
 func _on_niveau_gagne(niveau: int) -> void:

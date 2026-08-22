@@ -201,58 +201,50 @@ func _draw() -> void:
 	draw_polyline(fleche + PackedVector2Array([milieu + av * 9.0]),
 			Color(0.04, 0.07, 0.16, 0.9), 1.6, true)
 
-	# ─── L'ÉTOILE WANTED, EN DERNIER ──────────────────────────────────
+	# ─── LE ROI DE LA PRIME, EN DERNIER ───────────────────────────────
 	#
-	# Dessinée après tout le reste, donc jamais recouverte : c'est
-	# l'objectif du mode, et une carte où il faudrait le chercher sous un
-	# point de mob ne servirait à rien.
-	#
-	# UN SEUL REPÈRE, DEUX SITUATIONS. Au sol, il marque l'endroit où elle
-	# attend ; portée, il suit le porteur. Aucune trace, aucune trajectoire
-	# — la consigne l'interdit, et elle a raison : une traînée persistante
+	# Dessiné après tout le reste, donc jamais recouvert : c'est
+	# l'objectif du mode — un joueur, pas un objet — et une carte où il
+	# faudrait le chercher sous un point de mob ne servirait à rien.
+	# Aucune trace, aucune trajectoire : une traînée persistante
 	# transformerait la carte en radar illisible en trois secondes.
-	_etoile_wanted(milieu, ech, dedans)
+	_marquer_le_roi(milieu, ech, dedans)
 	if ronde:
 		_cercle_cadre(milieu_boite, rayon)
 
 
-func _etoile_wanted(milieu: Vector2, ech: float, dedans: Callable) -> void:
-	if not EtoileDirector.est_active():
+func _marquer_le_roi(milieu: Vector2, ech: float, dedans: Callable) -> void:
+	if not PrimeDirector.est_actif():
 		return
-	var pos := Vector2.INF
-	if EtoileDirector.porteur_id != 0:
-		var porteur := EtoileDirector.porteur()
-		if porteur != null:
-			pos = Vector2(porteur.global_position.x, porteur.global_position.z)
-	elif EtoileDirector.au_sol:
-		pos = Vector2(EtoileDirector.position_sol.x,
-				EtoileDirector.position_sol.z)
-	if pos == Vector2.INF:
+	var roi := PrimeDirector.roi()
+	if roi == null or roi == joueur:
 		return
+	var pos := Vector2(roi.global_position.x, roi.global_position.z)
 	var centre := Vector2(joueur.global_position.x, joueur.global_position.z)
 	var p := milieu + PlanMonde.ecart(centre, pos) * ech
-	# HORS CADRE, ON LA RABAT SUR LE BORD. Une étoile qui disparaît dès
-	# qu'elle sort du disque laisse le joueur sans direction au moment
-	# précis où il en a le plus besoin. Rabattue, elle continue de dire
-	# « par là ».
+	# HORS CADRE, ON LE RABAT SUR LE BORD. Un roi qui disparaît dès qu'il
+	# sort du disque laisse le joueur sans direction au moment précis où
+	# il en a le plus besoin. Rabattu, il continue de dire « par là ».
 	if not dedans.call(p):
 		var r: float = minf(size.x, size.y) * 0.5 - 9.0
 		var d := p - milieu
 		if d.length() < 0.01:
 			return
 		p = milieu + d.normalized() * r
-	_poser_etoile(p, 7.0)
+	_poser_couronne(p, 7.0)
 
 
-## Une étoile à cinq branches, même contour que la maille 3D et que
-## l'icône de la barre WANTED. Trois dessins, une seule silhouette.
-func _poser_etoile(c: Vector2, r: float) -> void:
-	var pts := PackedVector2Array()
-	for i in 10:
-		var a := TAU * float(i) / 10.0 - PI * 0.5
-		var rayon: float = r if i % 2 == 0 else r * 0.44
-		pts.append(c + Vector2(cos(a), sin(a)) * rayon)
-	draw_circle(c, r * 1.25, Color(0.05, 0.04, 0.0, 0.75))
+## Une couronne stylisée : trois pointes sur un bandeau — la même
+## silhouette que la couronne 3D du roi. Deux dessins, une enseigne.
+func _poser_couronne(c: Vector2, r: float) -> void:
+	draw_circle(c, r * 1.3, Color(0.05, 0.04, 0.0, 0.75))
+	var b := r * 0.55
+	var pts := PackedVector2Array([
+		c + Vector2(-r, b), c + Vector2(-r, -b * 0.2),
+		c + Vector2(-r * 0.5, b * 0.15), c + Vector2(0, -r),
+		c + Vector2(r * 0.5, b * 0.15), c + Vector2(r, -b * 0.2),
+		c + Vector2(r, b),
+	])
 	draw_colored_polygon(pts, UiKit.OR_CLAIR)
 
 

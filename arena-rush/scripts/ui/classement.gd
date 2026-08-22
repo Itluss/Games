@@ -1,22 +1,14 @@
 extends PanelContainer
 class_name Classement
-## LE CLASSEMENT — quatre lignes, trois colonnes, rien d'autre.
+## LE CLASSEMENT — quatre lignes, quatre colonnes, rien d'autre.
 ##
-## COLONNES : rang, nom, kills, ★. La consigne est catégorique sur ce qu'il
-## NE doit PAS contenir — pas de temps d'étoile courant, pas de temps
-## cumulé, pas de colonne « victoires » en plus de la colonne ★, pas
-## d'étoiles décoratives. Ce sont toutes des informations qu'on serait
-## tenté d'ajouter « parce qu'on les a », et chacune coûterait une seconde
-## de lecture en plein combat.
+## COLONNES : rang, nom, kills, et la PRIME. Rien de plus : chaque
+## information ajoutée coûterait une seconde de lecture en plein combat.
 ##
-## LA COLONNE ★ EST UN NOMBRE DE VICTOIRES, pas une progression. Un joueur
-## qui porte l'étoile depuis vingt-neuf secondes affiche toujours le même
-## chiffre qu'avant de la ramasser : sa progression se lit dans la barre
-## WANTED, en haut, où elle a le contexte pour être comprise.
-##
-## LE TRI RESTE SUR LES KILLS. Le mode principal est un deathmatch ;
-## l'étoile est une mécanique secondaire. Classer par ★ ferait passer
-## devant un joueur qui a gagné une étoile et zéro élimination.
+## LE TRI SUIT LA PRIME. C'est elle, l'enjeu du jeu : le classement est
+## la course aux couronnes en direct — le premier du tableau EST le roi
+## qui porte la couronne dans l'arène, et le lien entre les deux se fait
+## d'un regard. Les kills départagent, l'identifiant stabilise.
 
 ## Nombre de lignes affichées. Quatre comme la maquette : au-delà, le
 ## panneau mange le coin de l'écran et plus personne ne le lit.
@@ -68,19 +60,19 @@ func _ready() -> void:
 	var t_kills := _texte("KILLS", 14, Color(0.75, 0.81, 0.92))
 	t_kills.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_grille.add_child(t_kills)
-	# L'ÉTOILE EST DESSINÉE, PAS ÉCRITE — voir `UiKit.EtoileGlyphe`.
+	# LA PIÈCE EST DESSINÉE, PAS ÉCRITE — voir `UiKit.PieceGlyphe`.
 	var boite := Control.new()
 	boite.custom_minimum_size = Vector2(28, 18)
 	boite.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_grille.add_child(boite)
-	var t_etoile := UiKit.EtoileGlyphe.new()
-	t_etoile.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	t_etoile.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	t_etoile.grow_vertical = Control.GROW_DIRECTION_BOTH
-	t_etoile.offset_left = -17
-	t_etoile.offset_top = -8
-	t_etoile.offset_bottom = 8
-	boite.add_child(t_etoile)
+	var t_piece := UiKit.PieceGlyphe.new()
+	t_piece.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	t_piece.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	t_piece.grow_vertical = Control.GROW_DIRECTION_BOTH
+	t_piece.offset_left = -17
+	t_piece.offset_top = -8
+	t_piece.offset_bottom = 8
+	boite.add_child(t_piece)
 
 	for i in LIGNES:
 		var rang := _texte("", 17, Color(0.62, 0.70, 0.85))
@@ -92,11 +84,11 @@ func _ready() -> void:
 		kills.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		kills.custom_minimum_size = Vector2(34, 0)
 		_grille.add_child(kills)
-		var etoiles := _texte("", 18, UiKit.OR_CLAIR)
-		etoiles.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		etoiles.custom_minimum_size = Vector2(28, 0)
-		_grille.add_child(etoiles)
-		_cases.append_array([rang, nom, kills, etoiles])
+		var pieces := _texte("", 18, UiKit.OR_CLAIR)
+		pieces.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		pieces.custom_minimum_size = Vector2(28, 0)
+		_grille.add_child(pieces)
+		_cases.append_array([rang, nom, kills, pieces])
 
 	set_process(true)
 
@@ -124,15 +116,15 @@ func rafraichir() -> void:
 		if j == null or not is_instance_valid(j):
 			continue
 		liste.append(j)
-	# Tri par kills, puis par ★, puis par identifiant. LE DERNIER CRITÈRE
-	# N'EST PAS DE LA COQUETTERIE : sans lui, deux joueurs à égalité
-	# permutent d'une image à l'autre au gré de l'ordre du groupe, et le
-	# tableau se met à clignoter.
+	# Tri par PRIME, puis par kills, puis par identifiant. LE DERNIER
+	# CRITÈRE N'EST PAS DE LA COQUETTERIE : sans lui, deux joueurs à
+	# égalité permutent d'une image à l'autre au gré de l'ordre du
+	# groupe, et le tableau se met à clignoter.
 	liste.sort_custom(func(a: Player, b: Player) -> bool:
+		if a.prime != b.prime:
+			return a.prime > b.prime
 		if a.kills != b.kills:
 			return a.kills > b.kills
-		if a.star_wins != b.star_wins:
-			return a.star_wins > b.star_wins
 		return a.peer_id < b.peer_id)
 
 	# ─── LE JOUEUR LOCAL EST TOUJOURS VISIBLE ─────────────────────────
@@ -174,4 +166,4 @@ func rafraichir() -> void:
 		_cases[base + 1].add_theme_color_override(&"font_color",
 				Cfg.couleur_identite(j.heros()))
 		_cases[base + 2].text = str(j.kills)
-		_cases[base + 3].text = str(j.star_wins)
+		_cases[base + 3].text = str(j.prime)

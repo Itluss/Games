@@ -169,20 +169,20 @@ var is_eliminated: bool = false
 # zéro à chaque session. Deux durées de vie différentes, deux endroits.
 #
 # L'AUTORITÉ EST CELLE DU SERVEUR, sans exception. Un client qui pourrait
-# s'incrémenter `star_wins` n'aurait qu'à le faire en boucle ; c'est
+# s'incrémenter `prime` n'aurait qu'à le faire en boucle ; c'est
 # exactement le genre de compteur qu'on ne laisse jamais au client, même
 # dans un prototype, parce que la triche s'écrit une fois et se retire
 # beaucoup plus tard.
 
 ## Éliminations de cette session, tous joueurs confondus.
 var kills: int = 0
-## Nombre de fois où ce joueur a gardé l'étoile trente secondes.
-var star_wins: int = 0
-## Détient-il l'étoile en ce moment ?
-var is_star_holder: bool = false
-## Secondes écoulées depuis qu'il l'a ramassée. Voir `EtoileDirector` : la
-## valeur n'est JAMAIS transmise d'un porteur au suivant.
-var star_hold_time: float = 0.0
+## LA PRIME — tout ce que ce joueur a accompli depuis son dernier
+## respawn, en pièces d'or. Elle est l'enjeu du jeu entier : elle
+## multiplie ses gains, le rend convoité, et éclate au sol à sa mort.
+## Voir `PrimeDirector` pour les règles complètes.
+var prime: int = 0
+## Anneau doré des paliers de prime — pur affichage, voir _maj_tenue_prime.
+var _aura_prime: MeshInstance3D = null
 
 ## Cible actuellement accrochée par la visée assistée, publiée par le
 ## contrôleur. Sert uniquement à l'affichage de l'indicateur.
@@ -320,11 +320,8 @@ func _ready() -> void:
 	# Reconnaître QUI l'on vise reste possible par la silhouette, par la
 	# minicarte et par le classement.
 	health_bar.build(1.1)
-	# LE JOUEUR LOCAL PORTE SA BARRE COMME TOUT LE MONDE. Elle vivait en
-	# bas de l'écran — une lecture à faire AILLEURS que là où on regarde,
-	# le combat. Une seule règle pour les dix combattants : la vie se lit
-	# au-dessus de la tête. Le mode discret de la plaque subsiste, mais
-	# plus personne ne l'active.
+	# LE JOUEUR LOCAL PORTE SA BARRE COMME TOUT LE MONDE — et la
+	# couronne du roi se pose sur cette même plaque, chez lui aussi.
 
 	# INDICATEURS DE VISÉE — joueur local seulement. Une visée assistée
 	# qu'on ne voit pas donne l'impression que le personnage décide seul.
@@ -748,10 +745,10 @@ func server_take_damage(amount: float, from: Vector3, killer_id: int,
 		# LOCAL et HUMAIN ; le tableau, lui, doit citer les bots, qui font
 		# l'essentiel des éliminations en solo.
 		_crediter_tableau(killer_id, from_team)
-		# L'ÉTOILE TOMBE AVANT LA PERTE D'ÉQUIPEMENT ET AVANT LE RETOUR.
-		# Le directeur a besoin de la position de MORT ; une fois la
-		# réapparition programmée, cette position n'existe déjà plus.
-		EtoileDirector.signaler_mort_porteur(peer_id, global_position)
+		# LA PRIME SE RÈGLE À LA POSITION DE MORT, avant la perte
+		# d'équipement et le retour : la moitié au tueur s'il y en a un,
+		# le reste éclate en pièces d'or exactement là où l'on est tombé.
+		_regler_la_prime(killer_id, from_team)
 		Respawn.appliquer_perte_equipement(self)
 		Respawn.signaler_mort(peer_id, killer_id)
 
@@ -780,6 +777,26 @@ func _teinte_du_tireur(id: int) -> Color:
 	return Cfg.COL_DANGER
 
 
+## SERVEUR — la prime du mort change de mains.
+##
+## La moitié va au tueur si c'est un joueur — c'est elle qui fait des
+## grosses primes des cibles de choix. Le reste éclate en pièces au sol,
+## ramassables par n'importe qui : la mort d'un riche est un événement
+## public, pas une transaction privée.
+func _regler_la_prime(killer_id: int, from_team: int) -> void:
+	if prime <= 0:
+		return
+	var moitie := 0
+	if from_team == Cfg.Team.PLAYER and killer_id != 0 \
+			and killer_id != peer_id:
+		var tueur := MatchDirector.players.get(killer_id) as Player
+		if tueur != null and is_instance_valid(tueur):
+			moitie = PrimeDirector.crediter_duel(tueur, self)
+	PrimeDirector.pluie_de_pieces(global_position, prime - moitie)
+	prime = 0
+	Net.broadcast(self, &"net_compteurs", [kills, prime])
+
+
 ## SERVEUR — incrémente le compteur d'éliminations du tableau.
 ##
 ## Mêmes règles d'attribution que la progression : seule une élimination
@@ -792,24 +809,64 @@ func _crediter_tableau(killer_id: int, from_team: int) -> void:
 	if tueur == null or not is_instance_valid(tueur):
 		return
 	tueur.kills += 1
-	Net.broadcast(tueur, &"net_compteurs", [tueur.kills, tueur.star_wins])
+	Net.broadcast(tueur, &"net_compteurs", [tueur.kills, tueur.prime])
 
 
 ## Réplique les compteurs de tableau. Ils ne changent qu'à des instants
-## rares — une élimination, une victoire d'étoile — donc en fiable et sans
+## rares — une élimination, une pièce ramassée — donc en fiable et sans
 ## cadence : les répliquer en continu serait du trafic pour rien.
 @rpc("authority", "call_local", "reliable")
-func net_compteurs(k: int, victoires: int) -> void:
+func net_compteurs(k: int, p: int) -> void:
 	kills = k
-	star_wins = victoires
+	# LE GAIN SE VOIT AU-DESSUS DE LA TÊTE — chez tous les pairs. C'est
+	# le retour qui enseigne la règle sans un mot : « +3 » doré sur
+	# l'adversaire qu'on vient de voir tuer un mob dit tout le système.
+	if p > prime:
+		Fx.gain_xp(global_position + Vector3.UP * 2.6, p - prime,
+				Color("ffd24a"))
+	prime = p
+	_maj_tenue_prime()
 
 
-## Montre ou cache l'étoile au-dessus de la tête. Appelé par
-## `EtoileDirector` sur TOUS les pairs — c'est ce qui fait que le porteur
-## est reconnaissable de loin par tout le monde, et pas seulement chez lui.
-func montrer_etoile(actif: bool) -> void:
+## SERVEUR — ajoute des pièces à la prime et réplique. Le seul chemin
+## d'écriture : personne ne touche `prime` directement.
+func crediter_prime(montant: int) -> void:
+	if not Net.is_server() or montant <= 0:
+		return
+	prime += montant
+	Net.broadcast(self, &"net_compteurs", [kills, prime])
+
+
+## LA TENUE DE PRIME — l'aura dorée du palier ×2, embrasée au ×3. Pur
+## affichage, joué chez tous : la richesse d'un joueur doit se lire de
+## loin, c'est elle qui désigne les proies de valeur.
+func _maj_tenue_prime() -> void:
+	var palier := PrimeDirector.multiplicateur(prime)
+	if _aura_prime == null and palier >= 2:
+		_aura_prime = MeshInstance3D.new()
+		var tore := TorusMesh.new()
+		tore.inner_radius = 0.78
+		tore.outer_radius = 0.92
+		tore.rings = 24
+		tore.ring_segments = 6
+		_aura_prime.mesh = tore
+		var m := VisualKit.glow_mat(Color("ffcf3f"), 1.5)
+		m.albedo_color.a = 0.65
+		_aura_prime.material_override = m
+		_aura_prime.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_aura_prime.position = Vector3(0, 0.09, 0)
+		add_child(_aura_prime)
+	if _aura_prime != null:
+		_aura_prime.visible = palier >= 2
+		_aura_prime.scale = Vector3.ONE * (1.25 if palier >= 3 else 1.0)
+		var mat := _aura_prime.material_override as StandardMaterial3D
+		mat.emission_energy_multiplier = 2.6 if palier >= 3 else 1.5
+
+
+## La couronne du roi — posée ou retirée par le PrimeDirector, chez tous.
+func montrer_couronne(actif: bool) -> void:
 	if health_bar != null and is_instance_valid(health_bar):
-		health_bar.afficher_etoile(actif)
+		health_bar.afficher_couronne(actif)
 
 
 func _crediter_elimination(killer_id: int, from_team: int) -> void:

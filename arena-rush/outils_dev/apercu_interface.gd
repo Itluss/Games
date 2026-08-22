@@ -164,35 +164,26 @@ func _mettre_en_scene_etoile() -> void:
 	# Des scores plausibles, pour que le classement ait quatre lignes
 	# remplies et des chiffres de largeurs différentes.
 	var scores := [12, 7, 4, 2]
-	var etoiles := [2, 1, 0, 0]
+	var primes := [2, 1, 0, 0]
 	var i := 0
 	for p in get_tree().get_nodes_in_group(&"players"):
 		if i >= scores.size():
 			break
 		p.set(&"kills", scores[i])
-		p.set(&"star_wins", etoiles[i])
+		p.set(&"prime", primes[i])
 		i += 1
-	# L'ÉTOILE AU SOL EST POSÉE DEVANT LE JOUEUR, en plus de celle que
-	# porte l'adversaire. Deux objets différents à juger sur la même
-	# image : le socle et la maille dorée dans le décor, et l'étoile
-	# billboard au-dessus d'une tête. On ne peut pas régler la taille de
-	# l'un sans voir l'autre.
+	# LE ROI EST DÉSIGNÉ POUR LA PHOTO : couronne 3D sur la tête du plus
+	# riche, marqueur sur la minicarte, liseré sur la bourse — les trois
+	# enseignes du même trône, jugées sur la même image.
+	var plus_riche: Node = moi if moi != null else cible
+	PrimeDirector.demarrer()
+	PrimeDirector.net_roi(0, plus_riche.get(&"peer_id"))
+	# Une pluie de pièces posée devant le joueur : l'objet le plus
+	# fréquent du mode, à juger dans le décor.
 	if moi != null:
-		var devant: Vector3 = moi.global_position + Vector3(3.4, 0.0, -2.2)
-		EtoileDirector.net_poser(Vector3(devant.x, 0.0, devant.z))
-		await get_tree().process_frame
-	# LE PORTEUR EST LE JOUEUR LOCAL POUR L'APERÇU. La maquette distingue
-	# « un adversaire la détient » (point rose) de « c'est toi » (point
-	# vert, anneau qui pulse) : c'est le second qui a le plus à rater, donc
-	# le second qu'on photographie.
-	EtoileDirector.net_ramasser(moi.get(&"peer_id") if moi != null
-			else cible.get(&"peer_id"))
-	# Le corps posé juste avant est consommé par le ramassage ; on en
-	# repose un pour la photo, sans toucher à l'état logique.
-	if moi != null:
-		var devant2: Vector3 = moi.global_position + Vector3(3.4, 0.0, -2.2)
-		EtoileDirector._creer_corps(Vector3(devant2.x, 0.0, devant2.z))
-		await get_tree().process_frame
-	# Dix-huit secondes sur trente : la jauge est à mi-course, ce qui est
-	# le seul endroit où l'on voit à la fois le remplissage et le vide.
-	EtoileDirector.temps = 18.0
+		var devant: Vector3 = (moi as Node3D).global_position \
+				+ Vector3(3.4, 0.0, -2.2)
+		PrimeDirector.net_pieces_poser([9001, 9002, 9003],
+				[Vector3(devant.x, 0.0, devant.z),
+				Vector3(devant.x + 1.1, 0.0, devant.z + 0.6),
+				Vector3(devant.x - 0.7, 0.0, devant.z + 1.2)], [1, 3, 5])

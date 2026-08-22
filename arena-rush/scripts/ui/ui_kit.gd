@@ -1033,6 +1033,23 @@ class Anneau extends Control:
 		var r: float = minf(size.x, size.y) * 0.5 - epaisseur * 0.5
 		draw_arc(size * 0.5, r, 0.0, TAU, 56, teinte, epaisseur, true)
 
+## PIÈCE D'OR DESSINÉE — l'en-tête de la colonne prime du classement.
+## Même langage que la pièce 3D au sol et que la bourse : un disque d'or
+## cerclé de sombre, un éclat.
+class PieceGlyphe extends Control:
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(17, 16)
+
+	func _draw() -> void:
+		var c := size * 0.5
+		var r := minf(size.x, size.y) * 0.5 - 1.0
+		draw_circle(c, r, Color("8a5f10"))
+		draw_circle(c, r - 1.6, OR_CLAIR)
+		draw_arc(c, r - 3.2, PI * 1.05, PI * 1.6, 8,
+				Color(1, 1, 1, 0.6), 1.6)
+
+
 ## ÉTOILE DESSINÉE — parce que « ★ » n'existe pas dans la police du jeu.
 ##
 ## Écrit en caractère Unicode, il se rendait en RECTANGLE VIDE — le carré

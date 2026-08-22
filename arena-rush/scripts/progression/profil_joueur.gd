@@ -41,6 +41,10 @@ var total_morts: int = 0
 var total_kills_mobs: int = 0
 var meilleure_serie: int = 0
 var temps_de_jeu: float = 0.0
+## LE TRÉSOR — l'or ramassé sur toutes les sessions, jamais perdu. C'est
+## la brique de la progression durable : les pièces de la Prime meurent
+## avec la vie, le trésor, lui, ne fait que grossir.
+var or_total: int = 0
 
 ## Série EN COURS. Elle n'est pas sauvegardée : une série est un état de
 ## session, et la retrouver intacte après avoir quitté le jeu la viderait
@@ -218,6 +222,7 @@ func _vers_dictionnaire() -> Dictionary:
 		"total_mob_kills": total_kills_mobs,
 		"best_kill_streak": meilleure_serie,
 		"total_play_time": temps_de_jeu,
+		"gold_total": or_total,
 		"title": titre_equipe,
 		"badge": String(badge_equipe),
 		"frame": String(cadre_equipe),
@@ -226,6 +231,17 @@ func _vers_dictionnaire() -> Dictionary:
 		"characters": personnages,
 		"weapons": armes,
 	}
+
+
+## Une pièce d'or ramassée entre dans le trésor — et y reste. La
+## sauvegarde est immédiate : sur le web, l'onglet peut se fermer sans
+## préavis, et un trésor perdu est la pire trahison d'un jeu de
+## collection.
+func ajouter_or(montant: int) -> void:
+	if montant <= 0:
+		return
+	or_total += montant
+	enregistrer()
 
 
 func enregistrer() -> void:
@@ -272,6 +288,7 @@ func charger() -> void:
 	total_kills_mobs = int(d.get("total_mob_kills", 0))
 	meilleure_serie = int(d.get("best_kill_streak", 0))
 	temps_de_jeu = float(d.get("total_play_time", 0.0))
+	or_total = int(d.get("gold_total", 0))
 	titre_equipe = String(d.get("title", "ROOKIE"))
 	badge_equipe = StringName(d.get("badge", ""))
 	cadre_equipe = StringName(d.get("frame", ""))

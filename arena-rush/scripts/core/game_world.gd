@@ -67,7 +67,7 @@ func _start() -> void:
 	# L'ÉTOILE DÉMARRE APRÈS LE MATCH, ET C'EST UN ORDRE, PAS UN HASARD :
 	# elle dérive ses points d'apparition de ceux de l'arène, qui ne sont
 	# calculés qu'une fois le monde bâti.
-	EtoileDirector.demarrer(arena)
+	PrimeDirector.demarrer()
 
 
 ## Position de préchauffe : loin sous l'arène, hors de tout champ de
@@ -174,6 +174,9 @@ func _on_mob_died(mob: Mob, killer_id: int) -> void:
 	_crediter_mob(mob, killer_id)
 	if not Net.is_server():
 		return
+	# LA PRIME du tueur monte d'une pièce (fois son palier) — la route
+	# sûre et lente du système. Voir PrimeDirector.
+	PrimeDirector.crediter_mob(MatchDirector.players.get(killer_id))
 	var data := mob.data
 	if data.loot_weapon_id == &"" or randf() > data.loot_chance:
 		return
