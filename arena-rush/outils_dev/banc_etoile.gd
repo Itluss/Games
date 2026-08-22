@@ -116,6 +116,14 @@ func _joueurs() -> Array:
 
 ## Remet le mode à plat entre deux tests : étoile au sol, personne dessus.
 func _repartir() -> void:
+	# RE-GEL À CHAQUE TEST. Le gel initial fige les bots présents — mais
+	# un bot mort RÉAPPARAÎT avec un cerveau neuf, actif. Sur une machine
+	# lente, les tests durent assez pour que ça arrive : une balle
+	# parasite de 7 points tombait juste avant les 9 999 du banc et les
+	# i-frames par coup les avalaient — « vie = 93 », huit échecs en
+	# cascade, reproductibles sur conteneur neuf et verts sur machine
+	# rapide.
+	_figer_les_bots()
 	EtoileDirector.porteur_id = 0
 	EtoileDirector.temps = 0.0
 	EtoileDirector._marquer_porteurs(0)
@@ -236,6 +244,14 @@ func _test2_mort_a_mi_course() -> void:
 	a.health.current_health = a.health.max_health
 	a.health.is_dead = false
 	a.is_eliminated = false
+	# ... ET SON INVULNÉRABILITÉ AVEC. La remise en vie ci-dessus était
+	# incomplète : si le porteur venait de réapparaître — ce qui arrive
+	# d'autant plus souvent que la machine est lente — la protection de
+	# réapparition avalait les 9 999 points et le test accusait la règle.
+	# Vu en rouge sur un conteneur neuf : « vie = 93 », six échecs en
+	# cascade, reproductible — et le même banc vert sur machine rapide.
+	a.set(&"_protection", 0.0)
+	a.health.set(&"_invulnerable_until", 0.0)
 	await get_tree().process_frame
 	a.server_take_damage(9999.0, a.global_position, b.peer_id,
 			Cfg.Team.PLAYER)
@@ -445,6 +461,8 @@ func _test6_drop_contre_obstacle() -> void:
 	a.health.current_health = a.health.max_health
 	a.health.is_dead = false
 	a.is_eliminated = false
+	a.set(&"_protection", 0.0)
+	a.health.set(&"_invulnerable_until", 0.0)
 	await get_tree().process_frame
 	EtoileDirector.tenter_ramassage(a.peer_id)
 	await get_tree().process_frame
