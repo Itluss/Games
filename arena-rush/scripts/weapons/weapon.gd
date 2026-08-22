@@ -114,9 +114,18 @@ func muzzle_position() -> Vector3:
 		# muret et illisibles sous la caméra en plongée. Mesuré par la
 		# sonde de la balle. Le plan horizontal reste celui de la main ;
 		# la hauteur, elle, reste dans la bande crédible d'un tir d'épaule.
-		var parent3d := get_parent() as Node3D
-		if parent3d != null:
-			var socle := parent3d.global_position.y
+		#
+		# LA RÉFÉRENCE EST LE CORPS DU PORTEUR, PAS LE PARENT DIRECT. Le
+		# parent de l'arme est le support de MAIN, déjà en hauteur : s'y
+		# référer ajoutait la bande à la main et le banc de l'enroulement
+		# a vu tous ses tirs passer AU-DESSUS des têtes — témoin rouge.
+		# On remonte donc à l'ancêtre CharacterBody3D, dont l'origine est
+		# aux pieds ; sans porteur, la bouche reste telle quelle.
+		var anc: Node = get_parent()
+		while anc != null and not (anc is CharacterBody3D):
+			anc = anc.get_parent()
+		if anc != null:
+			var socle := (anc as Node3D).global_position.y
 			p.y = socle + clampf(p.y - socle, 0.95, 1.75)
 		return p
 	return global_position
