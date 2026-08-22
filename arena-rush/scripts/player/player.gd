@@ -31,6 +31,14 @@ const TURN_TAU := 0.065
 const DASH_SPEED := 15.0
 const DASH_TIME := 0.16
 const DASH_COOLDOWN := 1.5
+## ─── LA COMPÉTENCE SPÉCIALE : LE BOMBARDEMENT DE CORSAIR ────────────────
+## Recharge longue — la planche la note six points sur huit : c'est la
+## carte qui change un combat, pas un troisième tir.
+const SPECIAL_COOLDOWN := 13.0
+## Distance de pose devant soi quand aucune cible n'est accrochée.
+const SPECIAL_PORTEE := 6.5
+## Rayon de dispersion des trois boules autour de la première.
+const SPECIAL_ZONE := 2.6
 const NET_SEND_HZ := 20.0
 ## Hauteur d'affichage du personnage, distincte de sa boîte de collision.
 const VISUAL_HEIGHT := 2.5
@@ -107,6 +115,12 @@ const TAMPON_MAX := 1.20
 ## attrapé sur un runner à cinq images par seconde.
 const TAMPON_MARGE := 0.25
 var want_dash: bool = false
+var want_special: bool = false
+var _special_cd: float = 0.0
+## Garde-fou CÔTÉ SERVEUR : l'horloge du dernier bombardement accordé à
+## ce joueur. La recharge du client pilote le bouton ; celle-ci empêche
+## un client modifié de marteler la demande.
+var _special_dernier_srv: float = -100.0
 
 var health: HealthComponent
 var visual: CharacterVisual
@@ -378,6 +392,13 @@ func _process(delta: float) -> void:
 func _simulate(delta: float) -> void:
 	if _dash_cd > 0.0:
 		_dash_cd -= delta
+	if _special_cd > 0.0:
+		_special_cd -= delta
+	if want_special:
+		want_special = false
+		if _special_cd <= 0.0 and not is_eliminated:
+			_special_cd = SPECIAL_COOLDOWN
+			Net.to_server(self, &"server_request_special", [])
 
 	var wish := Vector3(move_input.x, 0.0, move_input.y)
 	if wish.length() > 1.0:
@@ -529,6 +550,56 @@ func _try_fire(tap: bool = false) -> void:
 	# tant que le serveur n'a pas rediffusé l'ordre.
 	weapon.shake_local()
 	Net.to_server(self, &"server_request_fire", [dir, tap])
+
+## LE BOMBARDEMENT — le serveur choisit le point et les quatre impacts,
+## puis rediffuse : chaque pair voit les mêmes anneaux, et les dégâts ne
+## tombent que là où les anneaux ont prévenu.
+@rpc("any_peer", "call_local", "reliable")
+func server_request_special() -> void:
+	if not Net.is_server() or is_eliminated:
+		return
+	var t := Time.get_ticks_msec() / 1000.0
+	if t - _special_dernier_srv < SPECIAL_COOLDOWN - 0.5:
+		return
+	_special_dernier_srv = t
+	# Sur la cible accrochée si elle est raisonnablement proche, sinon
+	# droit devant : le geste du pouce reste un TAP, la visée est celle
+	# du tir.
+	var centre := global_position \
+			+ Vector3(sin(_facing), 0.0, cos(_facing)) * SPECIAL_PORTEE
+	if locked_target != null and is_instance_valid(locked_target) \
+			and PlanMonde.distance3(global_position,
+					locked_target.global_position) <= 10.0:
+		centre = locked_target.global_position
+	var decalages: Array = [Vector3.ZERO]
+	for i in 3:
+		var a := randf() * TAU
+		var r := randf_range(1.1, SPECIAL_ZONE)
+		decalages.append(Vector3(cos(a) * r, 0.0, sin(a) * r))
+	Net.broadcast(self, &"net_bombardement", [centre, decalages])
+
+
+@rpc("authority", "call_local", "reliable")
+func net_bombardement(centre: Vector3, decalages: Array) -> void:
+	# Le corps encaisse le geste — le recul « massif » de la planche —
+	# et l'écran secoue chez le lanceur seulement.
+	if visual != null:
+		visual.punch(Vector3(1.14, 0.88, 1.14), 0.22)
+	if peer_id == Net.local_id():
+		Fx.shake(0.12)
+	# `current_scene` peut être nul quand la scène est montée à la main —
+	# bancs de test, écrans intermédiaires : le parent du joueur est
+	# toujours un point d'ancrage valide.
+	var racine: Node = get_tree().current_scene
+	if racine == null:
+		racine = get_parent()
+	Bombardement.lancer(racine, centre, decalages,
+			peer_id, Cfg.Team.PLAYER, Net.is_server())
+
+
+func special_ready_ratio() -> float:
+	return clampf(1.0 - _special_cd / SPECIAL_COOLDOWN, 0.0, 1.0)
+
 
 @rpc("any_peer", "call_local", "reliable")
 func server_request_fire(dir: Vector3, tap: bool = false) -> void:

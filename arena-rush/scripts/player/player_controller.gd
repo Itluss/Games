@@ -51,6 +51,8 @@ func _process(_delta: float) -> void:
 		player.swap_weapon()
 	if _read_dash():
 		player.want_dash = true
+	if _read_special():
+		player.want_special = true
 
 func _read_move() -> Vector2:
 	# Le clavier et le joystick coexistent : on teste une tablette avec un
@@ -103,6 +105,15 @@ func _read_swap() -> bool:
 	if _hud and _hud.has_method(&"consume_swap"):
 		return _hud.call(&"consume_swap")
 	return false
+
+func _read_special() -> bool:
+	if InputMap.has_action(&"special") \
+			and Input.is_action_just_pressed(&"special"):
+		return true
+	if _hud and _hud.has_method(&"consume_special"):
+		return _hud.call(&"consume_special")
+	return false
+
 
 func _read_dash() -> bool:
 	if Input.is_action_just_pressed(&"dash"):

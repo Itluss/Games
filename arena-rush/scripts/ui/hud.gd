@@ -82,6 +82,8 @@ var _overlay_title: Label
 var _overlay_sub: Label
 
 var _dash_queued: bool = false
+var _special_button: UiKit.BoutonRond
+var _special_queued: bool = false
 var _help: Control = null
 
 ## Suivi du doigt posé sur le bouton de tir.
@@ -575,6 +577,23 @@ func _build_controls() -> void:
 	_dash_button.offset_right = -(MARGIN + 20)
 	_dash_button.offset_left = _dash_button.offset_right - ESQUIVE_SIZE
 	_dash_button.pressed.connect(func(): _dash_queued = true)
+
+	# ─── LA COMPÉTENCE SPÉCIALE : LE BOMBARDEMENT ─────────────────────
+	#
+	# Un bouton doré à tête de mort, à gauche de l'esquive — la place du
+	# pouce droit qui monte. Un TAP suffit : la zone se pose sur la cible
+	# accrochée, sinon droit devant. La couronne de recharge du bouton
+	# dit quand le canon est prêt — treize secondes, la carte qui change
+	# un combat ne se spamme pas.
+	_special_button = UiKit.bouton_rond(ESQUIVE_SIZE, "CANON", &"crane",
+			UiKit.COMP_CLAIR, UiKit.COMP_SOMBRE)
+	_special_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_special_button.offset_bottom = -(MARGIN + FIRE_SIZE + 16)
+	_special_button.offset_top = _special_button.offset_bottom - ESQUIVE_SIZE
+	_special_button.offset_right = -(MARGIN + 20 + ESQUIVE_SIZE + 18)
+	_special_button.offset_left = _special_button.offset_right - ESQUIVE_SIZE
+	_special_button.pressed.connect(func(): _special_queued = true)
+	_root.add_child(_special_button)
 	_root.add_child(_dash_button)
 
 func _build_overlay() -> void:
@@ -660,6 +679,13 @@ func consume_tap() -> bool:
 func consume_swap() -> bool:
 	return false
 
+func consume_special() -> bool:
+	if _special_queued:
+		_special_queued = false
+		return true
+	return false
+
+
 func consume_dash() -> bool:
 	var v := _dash_queued
 	_dash_queued = false
@@ -671,6 +697,7 @@ func consume_dash() -> bool:
 var _fps_prochain := 0.0
 ## Dernière valeur dessinée de la jauge de dash.
 var _dash_precedent := -1.0
+var _special_precedent := -1.0
 
 
 func _process(delta: float) -> void:
@@ -710,6 +737,15 @@ func _process(delta: float) -> void:
 			and EtoileDirector.DUREE - EtoileDirector.temps <= ALERTE_FIN:
 		_alerte_dite = true
 		_on_announce("TIENS BON", UiKit.OR_CLAIR)
+
+	if player and _special_button:
+		var pret_c := player.special_ready_ratio()
+		if absf(pret_c - _special_precedent) > 0.003:
+			_special_precedent = pret_c
+			_special_button.modulate.a = lerpf(0.55, 1.0, pret_c)
+			_special_button.recharge = pret_c
+			_special_button.attente = (1.0 - pret_c) * Player.SPECIAL_COOLDOWN
+			_special_button.queue_redraw()
 
 	if player and _dash_button:
 		var pret := player.dash_ready_ratio()
