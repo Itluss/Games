@@ -184,6 +184,8 @@ var _court: bool = false
 ## `_roulade_angle`.
 var _roulade_t: float = 0.0
 var _roulade_angle: float = 0.0
+## Progression déjà parcourue, pour ne lâcher chaque bouffée qu'une fois.
+var _roulade_pr_prec: float = 0.0
 var _attack_t: float = 0.0
 var _hit_t: float = 0.0
 var _dead: bool = false
@@ -245,6 +247,13 @@ func _monter_modele(height: float) -> void:
 
 	for maille in _mailles(_modele):
 		var mi := maille as MeshInstance3D
+		# COUCHE VISUELLE « PERSONNAGE » (2), en plus de la couche 1. Elle
+		# ne change rien au rendu par elle-même : elle permet à l'arène de
+		# braquer une lumière d'appoint sur les SEULS personnages. Sous le
+		# soleil du désert et l'exposition filmique, les mascottes
+		# rendaient terne — crâne blanc devenu brun — alors que les mêmes
+		# modèles, en lumière neutre, sont la copie de la planche.
+		mi.layers = (1 << 0) | (1 << 1)
 		for i in mi.mesh.get_surface_count():
 			var src: Material = mi.mesh.surface_get_material(i)
 			var copie: StandardMaterial3D
@@ -551,6 +560,7 @@ func roulade() -> void:
 	if _dead:
 		return
 	_roulade_t = ROULADE_DUREE
+	_roulade_pr_prec = 0.0
 	if _arbre != null and _anim != null and _anim.has_animation(A_ROULADE):
 		var clip := _anim.get_animation(A_ROULADE)
 		clip.loop_mode = Animation.LOOP_NONE
@@ -812,6 +822,7 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	var tire := _vise_cible > 0.5
 	if _roulade_t > 0.0:
 		_roulade_t -= delta
+		_bouffees_roulade(clampf(1.0 - _roulade_t / ROULADE_DUREE, 0.0, 1.0))
 		if _anim == null or _arbre == null \
 				or not _anim.has_animation(A_ROULADE):
 			# Culbute procédurale à VITESSE PROFILÉE — le lissage en S
@@ -967,6 +978,24 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 
 
 ## Assiette du corps PENDANT la roulade : la culbute remplace le penché.
+## Trois bouffées de poussière au fil de la roulade : départ, cœur,
+## réception.
+##
+## POURQUOI DE LA POUSSIÈRE. Vue sous la plongée du jeu, la rotation du
+## corps ne se lit pas : le chapeau du Corsair — et le sommet de
+## n'importe quelle mascotte — masque le tour complet, et l'aperçu du
+## clip l'a prouvé image par image : la roulade est parfaite de profil et
+## illisible de dessus. On ne redresse pas la caméra pour un geste ; on
+## fait porter l'information par le SOL, visible sous tout angle — c'est
+## la grammaire du genre pour dire « contact au sol pendant un
+## déplacement brusque ».
+func _bouffees_roulade(pr: float) -> void:
+	for seuil in [0.12, 0.5, 0.88]:
+		if _roulade_pr_prec < seuil and pr >= seuil:
+			Fx.poussiere(global_position + Vector3.UP * 0.12, Color("efe0bd"), 1.3)
+	_roulade_pr_prec = pr
+
+
 func _appliquer_lean_roulade(delta: float) -> void:
 	_lean = _lean.lerp(Vector2.ZERO, 1.0 - exp(-delta / 0.09))
 	# Le corps s'ACCROUPIT au milieu du tour : c'est l'écrasement qui

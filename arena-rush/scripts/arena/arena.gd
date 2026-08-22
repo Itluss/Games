@@ -594,6 +594,29 @@ func _build_environment() -> void:
 	add_child(sun)
 	_soleil = sun
 
+	# ─── LUMIÈRE D'APPOINT DES PERSONNAGES ────────────────────────────────
+	#
+	# LE CONSTAT, PROUVÉ PAR L'APERÇU DES MASCOTTES : les mêmes modèles qui
+	# reproduisent la planche trait pour trait en lumière neutre rendent
+	# terne sous l'éclairage du désert — soleil chaud, exposition filmique
+	# à 0,45, brume sable. Le crâne d'os, blanc sur la planche, sortait
+	# BRUN à l'écran. Or la planche est la référence : le joueur doit
+	# retrouver SES personnages, éclatants.
+	#
+	# On ne retouche pas l'équilibre du décor, durement acquis : cette
+	# lumière blanche ne frappe que la couche visuelle 2, celle des seuls
+	# personnages (posée par character_visual). Elle vient de l'azimut
+	# opposé au soleil, en face de la caméra, pour déboucher le flanc que
+	# le soleil laisse dans l'ombre — le rôle du réflecteur d'un studio.
+	# Sans ombres : elle remplit, elle ne dessine pas.
+	var appoint := DirectionalLight3D.new()
+	appoint.rotation_degrees = Vector3(-38, 142, 0)
+	appoint.light_color = Color("ffffff")
+	appoint.light_energy = 0.45
+	appoint.light_cull_mask = 1 << 1
+	appoint.shadow_enabled = false
+	add_child(appoint)
+
 # --- SOL -----------------------------------------------------------------
 
 ## LE SOL D'UN MONDE QUI S'ENROULE.

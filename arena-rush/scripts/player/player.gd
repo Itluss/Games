@@ -41,7 +41,13 @@ const SPECIAL_PORTEE := 6.5
 const SPECIAL_ZONE := 2.6
 const NET_SEND_HZ := 20.0
 ## Hauteur d'affichage du personnage, distincte de sa boîte de collision.
-const VISUAL_HEIGHT := 2.5
+##
+## 2,5 → 2,85. Le personnage est la vedette : sur la vue de jeu il
+## n'occupait qu'un septième de la hauteur d'écran et les mascottes
+## adverses, plus loin de la caméra, se réduisaient à des pastilles.
+## +14 % les ramène au premier plan sans toucher à la boîte de collision
+## ni aux portées — c'est un choix d'affichage, pas d'équilibrage.
+const VISUAL_HEIGHT := 2.85
 ## Dégâts par seconde hors de la zone sûre.
 const ZONE_DPS := 11.0
 

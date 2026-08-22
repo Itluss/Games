@@ -77,6 +77,14 @@ func _capturer() -> void:
 		return
 	var img := get_viewport().get_texture().get_image()
 	img.save_png(_dossier.path_join("roulade_%02d.png" % _photo))
+	# La position ÉCRAN du joueur accompagne chaque photo : le personnage
+	# se déplace pendant l'esquive, un recadrage fixe le perd — celui qui
+	# assemble la planche recadre autour de ces coordonnées.
+	var cam := get_viewport().get_camera_3d()
+	if cam:
+		var p := cam.unproject_position(
+				(_joueur.global_position + Vector3.UP * 1.2))
+		print("POS %02d %d %d" % [_photo, int(p.x), int(p.y)])
 	_photo += 1
 	if _photo >= PHOTOS:
 		_prete = false

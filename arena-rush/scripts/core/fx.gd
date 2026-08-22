@@ -906,6 +906,21 @@ func impact(pos: Vector3, color: Color, power: float = 1.0) -> void:
 	if power >= 1.0:
 		_flash_light(parent, pos, color, 2.0, 3.5, 0.12)
 
+## Bouffée de poussière au sol — le langage du CONTACT AVEC LA TERRE.
+##
+## `impact` parle de métal : grains vifs, rapides, un éclair. La roulade,
+## une réception de saut, un dérapage parlent de terre : des grains LENTS
+## et LARGES qui montent à peine et retombent mollement. Les premiers
+## essais recyclaient `impact` en petit — cinq étincelles invisibles sur
+## le sable, vérifié sur la planche de la sonde de roulade. La poussière
+## est donc un geste à part entière, pas un impact au rabais.
+func poussiere(pos: Vector3, color: Color = Color("efe0bd"),
+		power: float = 1.0) -> void:
+	var parent := _parent_for(self)
+	_emit_burst(parent, pos, color, int(16 * power), 1.8 * power,
+			0.5 * power, 0.6, -1.5)
+
+
 ## Coup encaissé : gerbe vive, secousse, et micro-arrêt si le coup est lourd.
 func hit(pos: Vector3, color: Color, power: float = 1.0) -> void:
 	var parent := _parent_for(self)
