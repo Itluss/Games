@@ -35,6 +35,11 @@ gdscript/warnings/shadowed_variable=0
 
 ; Paysage imposé : toute l'interface est conçue pour ce ratio.
 window/size/viewport_width=1280
+; Rendu à la densité RÉELLE de l'écran (Retina : 2-3 pixels physiques par
+; pixel logique). C'est la valeur par défaut du moteur, mais elle est trop
+; lourde de conséquences pour rester implicite : sans elle, le navigateur
+; étire un rendu 1× et TOUT devient flou-pixelisé, quel que soit le reste.
+window/dpi/allow_hidpi=true
 window/size/viewport_height=720
 window/size/resizable=true
 ; « canvas_items » + « expand » : l'interface garde sa taille physique et

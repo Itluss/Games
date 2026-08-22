@@ -416,14 +416,19 @@ func _ready() -> void:
 		# temps de jeu glisse un peu plutôt que l'image gèle. C'est le
 		# coupe-circuit de la spirale.
 		Engine.max_physics_steps_per_frame = 3
-		# ─── PAS D'ANTI-CRÉNELAGE SUR TÉLÉPHONE ────────────────────────
+		# ─── L'ANTI-CRÉNELAGE RESTE ALLUMÉ, MÊME SUR TÉLÉPHONE ────────
 		#
-		# Le MSAA 2× du projet multiplie la bande passante de chaque
-		# pixel — et le téléphone en dessine déjà des millions de trop
-		# (voir le plafond de résolution dans l'export web). Sur un
-		# écran à haute densité, le crénelage est de toute façon sous le
-		# seuil de l'œil : on paie cher un défaut qu'on ne voit pas.
-		get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+		# Il avait été coupé ici au nom de la bande passante, sur la foi
+		# que « le crénelage est sous le seuil de l'œil sur un écran à
+		# haute densité ». Le test sur appareil dit le contraire : « tout
+		# est très pixelisé, personnages compris ». Notre monde est fait
+		# d'APLATS à fort contraste — sable clair, blocs sombres — et sur
+		# ces frontières franches, l'escalier de pixels se voit à trois
+		# mètres. Le MSAA 2× du projet reste donc en place ; l'appareil
+		# de référence tient 50-57 i/s, il a la marge. Si un téléphone
+		# faible peine, c'est la QUALITÉ (ombres, halo) qu'on baissera,
+		# pas la propreté des bords — elle est le prix d'entrée du
+		# « fin » de la référence du genre.
 	# On ne touche PAS à `scaling_3d_scale` : l'export web utilise le rendu
 	# `gl_compatibility`, où la mise à l'échelle 3D de Godot n'a aucun
 	# effet. La ligne aurait rassuré sans rien faire.
