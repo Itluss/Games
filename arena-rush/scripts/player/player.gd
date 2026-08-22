@@ -39,6 +39,8 @@ const SPECIAL_COOLDOWN := 13.0
 const SPECIAL_PORTEE := 6.5
 ## Rayon de dispersion des trois boules autour de la première.
 const SPECIAL_ZONE := 2.6
+## Portée maximale de la marque quand le pouce vise à fond.
+const SPECIAL_PORTEE_MAX := 9.0
 const NET_SEND_HZ := 20.0
 ## Hauteur d'affichage du personnage, distincte de sa boîte de collision.
 ##
@@ -48,6 +50,19 @@ const NET_SEND_HZ := 20.0
 ## +14 % les ramène au premier plan sans toucher à la boîte de collision
 ## ni aux portées — c'est un choix d'affichage, pas d'équilibrage.
 const VISUAL_HEIGHT := 2.85
+## Corrections de gabarit par héros — la boîte englobante ment sur la
+## PRÉSENCE. Normaliser tout le monde à la même hauteur totale rend
+## inégaux les corps : le chapeau du Corsair mange un tiers de sa boîte
+## (son corps paraît petit), quand le slime ou la citrouille sont TOUT
+## en corps (ils paraissent énormes). On corrige les extrêmes, mesurés
+## sur l'aperçu des mascottes — pas de valeur sans image à l'appui.
+const HAUTEURS_HEROS := {
+	&"corsair": 3.15,
+	&"slime": 2.6,
+	&"pumpkin": 2.55,
+	&"boom": 2.5,
+	&"wisp": 2.65,
+}
 ## Dégâts par seconde hors de la zone sûre.
 const ZONE_DPS := 11.0
 
@@ -122,6 +137,12 @@ const TAMPON_MAX := 1.20
 const TAMPON_MARGE := 0.25
 var want_dash: bool = false
 var want_special: bool = false
+## Visée de la compétence au moment du lâcher : direction × force (0-1).
+## Nulle = tap simple, l'accrochage automatique décide.
+var special_visee: Vector3 = Vector3.ZERO
+## Visée EN COURS de glissement, pour l'aperçu au sol. Nulle = caché.
+var special_apercu: Vector3 = Vector3.ZERO
+var _apercu_special: MeshInstance3D = null
 var _special_cd: float = 0.0
 ## Garde-fou CÔTÉ SERVEUR : l'horloge du dernier bombardement accordé à
 ## ce joueur. La recharge du client pilote le bouton ; celle-ci empêche
@@ -232,7 +253,8 @@ func _ready() -> void:
 	# Kael n'occupait qu'une poignée de pixels et se lisait comme une
 	# tache sombre. Les jeux d'arène en vue de dessus exagèrent tous
 	# l'échelle du personnage pour cette raison.
-	visual.build(body_col, accent, VISUAL_HEIGHT, heros())
+	visual.build(body_col, accent,
+			HAUTEURS_HEROS.get(heros(), VISUAL_HEIGHT), heros())
 
 	# ─── OMBRE DE CONTACT ──────────────────────────────────────────────
 	#
@@ -371,6 +393,7 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	if is_eliminated:
 		return
+	_tenir_apercu_special()
 	var speed_ratio := clampf(Vector2(velocity.x, velocity.z).length() / SPEED,
 			0.0, 1.0)
 	# L'inclinaison est calculée dans le repère du personnage : pencher
@@ -404,7 +427,7 @@ func _simulate(delta: float) -> void:
 		want_special = false
 		if _special_cd <= 0.0 and not is_eliminated:
 			_special_cd = SPECIAL_COOLDOWN
-			Net.to_server(self, &"server_request_special", [])
+			Net.to_server(self, &"server_request_special", [special_visee])
 
 	var wish := Vector3(move_input.x, 0.0, move_input.y)
 	if wish.length() > 1.0:
@@ -560,20 +583,63 @@ func _try_fire(tap: bool = false) -> void:
 ## LE BOMBARDEMENT — le serveur choisit le point et les quatre impacts,
 ## puis rediffuse : chaque pair voit les mêmes anneaux, et les dégâts ne
 ## tombent que là où les anneaux ont prévenu.
+## L'APERÇU DE LA MARQUE — la moitié de la visée, c'est de la VOIR.
+##
+## Pendant le glissement sur CANON, un anneau rouge suit le pouce au sol,
+## exactement là où le serveur posera la zone : même direction, même
+## portée. Le retour de test disait « la compétence est dure à utiliser,
+## la visée n'est pas bonne » — elle était surtout INVISIBLE avant le
+## tir. Client local uniquement : l'adversaire n'a pas à lire l'intention.
+func _tenir_apercu_special() -> void:
+	if peer_id != Net.local_id():
+		return
+	if special_apercu.length() <= 0.05:
+		if _apercu_special != null:
+			_apercu_special.visible = false
+		return
+	if _apercu_special == null:
+		_apercu_special = MeshInstance3D.new()
+		var tore := TorusMesh.new()
+		tore.inner_radius = 0.88
+		tore.outer_radius = 1.0
+		tore.rings = 24
+		tore.ring_segments = 6
+		_apercu_special.mesh = tore
+		var m := VisualKit.glow_mat(Cfg.COL_DANGER, 1.4)
+		m.albedo_color.a = 0.5
+		_apercu_special.material_override = m
+		_apercu_special.cast_shadow = \
+				GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_apercu_special.top_level = true
+		add_child(_apercu_special)
+	var force := clampf(special_apercu.length(), 0.0, 1.0)
+	var dir := Vector3(special_apercu.x, 0.0, special_apercu.z).normalized()
+	var centre := global_position + dir * lerpf(2.5, SPECIAL_PORTEE_MAX, force)
+	_apercu_special.visible = true
+	_apercu_special.global_position = Vector3(centre.x, 0.12, centre.z)
+	_apercu_special.scale = Vector3(SPECIAL_ZONE, 1.0, SPECIAL_ZONE)
+
+
 @rpc("any_peer", "call_local", "reliable")
-func server_request_special() -> void:
+func server_request_special(visee: Vector3 = Vector3.ZERO) -> void:
 	if not Net.is_server() or is_eliminated:
 		return
 	var t := Time.get_ticks_msec() / 1000.0
 	if t - _special_dernier_srv < SPECIAL_COOLDOWN - 0.5:
 		return
 	_special_dernier_srv = t
-	# Sur la cible accrochée si elle est raisonnablement proche, sinon
-	# droit devant : le geste du pouce reste un TAP, la visée est celle
-	# du tir.
+	# TROIS RÉGIMES, du plus intentionnel au plus assisté. Le pouce a
+	# GLISSÉ sur CANON : la marque tombe où il a pointé — direction ×
+	# force, bornée serveur (un client modifié ne frappe pas plus loin).
+	# Simple TAP : la cible accrochée si elle est proche, sinon droit
+	# devant — l'ancien geste, toujours valable.
 	var centre := global_position \
 			+ Vector3(sin(_facing), 0.0, cos(_facing)) * SPECIAL_PORTEE
-	if locked_target != null and is_instance_valid(locked_target) \
+	if visee.length() > 0.05:
+		var force := clampf(visee.length(), 0.0, 1.0)
+		var dir := Vector3(visee.x, 0.0, visee.z).normalized()
+		centre = global_position + dir * lerpf(2.5, SPECIAL_PORTEE_MAX, force)
+	elif locked_target != null and is_instance_valid(locked_target) \
 			and PlanMonde.distance3(global_position,
 					locked_target.global_position) <= 10.0:
 		centre = locked_target.global_position

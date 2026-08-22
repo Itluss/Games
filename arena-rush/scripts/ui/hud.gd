@@ -84,6 +84,16 @@ var _overlay_sub: Label
 var _dash_queued: bool = false
 var _special_button: UiKit.BoutonRond
 var _special_queued: bool = false
+## Doigts posés sur ESQUIVE et CANON, par index — la voie souris émulée
+## est confisquée par le joystick dès qu'on court : sans ce suivi, les
+## deux boutons étaient INJOIGNABLES en mouvement (retour de test :
+## « la roulade n'est pas accessible quand le personnage court »).
+var _doigt_dash: int = -1
+var _doigt_special: int = -1
+## Visée de la compétence, en pixels depuis le centre du bouton CANON.
+var _visee_special: Vector2 = Vector2.ZERO
+## Visée figée au LEVER du doigt — c'est elle que le contrôleur consomme.
+var _special_visee_larguee: Vector2 = Vector2.ZERO
 var _help: Control = null
 
 ## Suivi du doigt posé sur le bouton de tir.
@@ -101,12 +111,38 @@ func _input(event: InputEvent) -> void:
 				_doigt_tir = t.index
 				_fire_tapped = true
 				_marquer_tir(true)
+			elif _doigt_dash < 0 and _dash_button != null \
+					and _dash_button.get_global_rect().has_point(t.position):
+				_doigt_dash = t.index
+				_dash_queued = true
+				_dash_button.enfonce_doigt = true
+				_dash_button.queue_redraw()
+			elif _doigt_special < 0 and _special_button != null \
+					and _special_button.get_global_rect().has_point(t.position):
+				_doigt_special = t.index
+				_visee_special = Vector2.ZERO
+				_special_button.enfonce_doigt = true
+				_special_button.queue_redraw()
 		elif t.index == _doigt_tir:
 			_doigt_tir = -1
 			_visee_tactile = Vector2.ZERO
 			_poignee_tir(Vector2.ZERO)
 			_marquer_tir(false)
-	elif event is InputEventScreenDrag and _doigt_tir >= 0:
+		elif t.index == _doigt_dash:
+			_doigt_dash = -1
+			_dash_button.enfonce_doigt = false
+			_dash_button.queue_redraw()
+		elif t.index == _doigt_special:
+			# Le CANON part AU LEVER, comme les supers du genre : glisser
+			# vise, lâcher tire. Un simple tap laisse la visée nulle et
+			# retombe sur l'accrochage automatique.
+			_doigt_special = -1
+			_special_queued = true
+			_special_visee_larguee = _visee_special
+			_visee_special = Vector2.ZERO
+			_special_button.enfonce_doigt = false
+			_poignee_special(Vector2.ZERO)
+	elif event is InputEventScreenDrag:
 		# LE GLISSEMENT EST LA VISÉE — plus une raison de lâcher. L'ancienne
 		# règle relâchait la gâchette dès que le doigt sortait du bouton ;
 		# elle interdisait précisément le geste qu'on veut : glisser pour
@@ -124,6 +160,13 @@ func _input(event: InputEvent) -> void:
 				# automatique, sans cesser de tirer.
 				_visee_tactile = Vector2.ZERO
 			_poignee_tir(v)
+		elif d.index == _doigt_special and _special_button != null:
+			var vs := d.position - _special_button.get_global_rect().get_center()
+			if vs.length() > ESQUIVE_SIZE * VISEE_ZONE_MORTE:
+				_visee_special = vs
+			else:
+				_visee_special = Vector2.ZERO
+			_poignee_special(vs)
 
 
 ## Position de la POIGNÉE du bouton-joystick de tir, en fraction du
@@ -141,6 +184,37 @@ func _poignee_tir(v: Vector2) -> void:
 ## Retour visuel de l'appui. Le style « pressé » d'un Button ne s'affiche
 ## que sur la voie souris : au doigt, sans cela, rien ne bougerait à
 ## l'écran et le bouton paraîtrait mort même quand il tire.
+func _poignee_special(v: Vector2) -> void:
+	if _special_button == null or not is_instance_valid(_special_button):
+		return
+	_special_button.visee = v / (ESQUIVE_SIZE * 0.5)
+	_special_button.queue_redraw()
+
+
+## Visée de la compétence EN COURS de glissement : direction × force
+## (0 = zone morte, 1 = bord du bouton et au-delà). Sert à l'aperçu au
+## sol — le joueur voit la marque avant de lâcher.
+func special_aim_vector() -> Vector2:
+	if _visee_special == Vector2.ZERO:
+		return Vector2.ZERO
+	var brute := _visee_special.length() / (ESQUIVE_SIZE * 0.5)
+	var force := clampf((brute - VISEE_ZONE_MORTE) / (1.6 - VISEE_ZONE_MORTE),
+			0.1, 1.0)
+	return _visee_special.normalized() * force
+
+
+## Visée figée au lever du doigt, consommée avec l'ordre de tir.
+func consume_special_visee() -> Vector2:
+	var v := _special_visee_larguee
+	_special_visee_larguee = Vector2.ZERO
+	if v == Vector2.ZERO:
+		return Vector2.ZERO
+	var brute := v.length() / (ESQUIVE_SIZE * 0.5)
+	var force := clampf((brute - VISEE_ZONE_MORTE) / (1.6 - VISEE_ZONE_MORTE),
+			0.1, 1.0)
+	return v.normalized() * force
+
+
 func _marquer_tir(actif: bool) -> void:
 	if _fire_button == null or not is_instance_valid(_fire_button):
 		return
@@ -592,6 +666,7 @@ func _build_controls() -> void:
 	_special_button.offset_top = _special_button.offset_bottom - ESQUIVE_SIZE
 	_special_button.offset_right = -(MARGIN + 20 + ESQUIVE_SIZE + 18)
 	_special_button.offset_left = _special_button.offset_right - ESQUIVE_SIZE
+	_special_button.mode_joystick = true
 	_special_button.pressed.connect(func(): _special_queued = true)
 	_root.add_child(_special_button)
 	_root.add_child(_dash_button)

@@ -583,14 +583,14 @@ func roulade() -> void:
 		return
 	_roulade_t = ROULADE_DUREE
 	_roulade_pr_prec = 0.0
-	if _arbre != null and _anim != null and _anim.has_animation(A_ROULADE):
-		var clip := _anim.get_animation(A_ROULADE)
-		clip.loop_mode = Animation.LOOP_NONE
-		_posture = A_ROULADE
-		_n_base.animation = A_ROULADE
-		_melange = 0.0
-		_appliquer_melange(0.0)
-		_anim.speed_scale = clip.length / ROULADE_DUREE
+	# LE CLIP MESHY EST DÉBRANCHÉ, ET C'EST UN CHOIX D'EXPÉRIENCE. Le
+	# Roll_Dodge est superbe de profil — vérifié image par image — mais
+	# il déplace et enfonce la RACINE à sa guise : sous la caméra du jeu
+	# le pirate rapetissait et passait sous le sable, deux retours de
+	# test successifs. La culbute procédurale, elle, est maîtrisée de
+	# bout en bout : pivot au centre du corps, vitesse profilée, jamais
+	# sous le sol, identique pour les trente personnages. Uniformité et
+	# contrôle valent mieux qu'une belle animation qui ment.
 
 
 ## Place l'arme dans la main : POSITION de l'os, ORIENTATION du corps.
@@ -877,13 +877,11 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 	if _roulade_t > 0.0:
 		_roulade_t -= delta
 		_bouffees_roulade(clampf(1.0 - _roulade_t / ROULADE_DUREE, 0.0, 1.0))
-		if _anim == null or _arbre == null \
-				or not _anim.has_animation(A_ROULADE):
-			# Culbute procédurale à VITESSE PROFILÉE — le lissage en S
-			# démarre doucement, tourne vite au cœur, amortit la réception.
-			# Un tour linéaire se lisait comme un scintillement.
-			var pr := clampf(1.0 - _roulade_t / ROULADE_DUREE, 0.0, 1.0)
-			_roulade_angle = TAU * (pr * pr * (3.0 - 2.0 * pr))
+		# Culbute procédurale à VITESSE PROFILÉE — le lissage en S démarre
+		# doucement, tourne vite au cœur, amortit la réception. Un tour
+		# linéaire se lisait comme un scintillement.
+		var pr := clampf(1.0 - _roulade_t / ROULADE_DUREE, 0.0, 1.0)
+		_roulade_angle = TAU * (pr * pr * (3.0 - 2.0 * pr))
 		if _roulade_t <= 0.0:
 			_roulade_angle = 0.0
 			_rig.position.y = 0.0

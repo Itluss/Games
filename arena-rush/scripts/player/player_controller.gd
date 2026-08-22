@@ -51,8 +51,17 @@ func _process(_delta: float) -> void:
 		player.swap_weapon()
 	if _read_dash():
 		player.want_dash = true
+	# La visée du CANON : pendant le glissement, l'aperçu au sol suit le
+	# pouce ; au lever, la direction figée part avec l'ordre.
+	if _hud and _hud.has_method(&"special_aim_vector"):
+		var sv: Vector2 = _hud.call(&"special_aim_vector")
+		player.special_apercu = Vector3(sv.x, 0.0, sv.y)
 	if _read_special():
 		player.want_special = true
+		player.special_visee = Vector3.ZERO
+		if _hud and _hud.has_method(&"consume_special_visee"):
+			var fv: Vector2 = _hud.call(&"consume_special_visee")
+			player.special_visee = Vector3(fv.x, 0.0, fv.y)
 
 func _read_move() -> Vector2:
 	# Le clavier et le joystick coexistent : on teste une tablette avec un

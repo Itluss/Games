@@ -477,6 +477,15 @@ func _brin(im: ImmediateMesh, cote: Vector3) -> void:
 		# on mesurait deux mètres de traînée et on en voyait quatre-vingts
 		# centimètres. À 1,15, la moitié arrière se voit encore.
 		c.a = 0.9 * pow(1.0 - t, 1.15)
+		# LES POINTILLÉS DE LA PLANCHE. Une porte périodique sur l'alpha,
+		# indexée comme l'ondulation sur la distance PARCOURUE : les
+		# tirets restent accrochés au monde et défilent derrière la
+		# balle. Le creux garde un fantôme (0,12) pour que la queue ne se
+		# lise pas comme des balles séparées.
+		if _identite != null and _identite.trainee_pointilles > 0.0:
+			var tiret: float = _identite.trainee_pointilles
+			if fposmod(_parcouru - z, tiret * 2.0) > tiret:
+				c.a *= 0.12
 		var centre := Vector3(x, 0.0, z)
 		im.surface_set_color(c)
 		im.surface_add_vertex(centre - cote * w)

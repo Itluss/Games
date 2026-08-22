@@ -205,19 +205,46 @@ func _exploser(mondial: Vector3) -> void:
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.chain().tween_callback(eclair.queue_free)
 
-	# BOULE DE FEU : gonfle vite, s'assombrit en mourant — l'orange de la
-	# planche, bordé de rouge par la traînée de l'éclair au centre.
-	var feu := _sphere(parent, mondial + Vector3.UP * 0.85, 1.0,
-			Color("ff7a2a"), 2.0, 1.0)
-	feu.scale = Vector3.ONE * 0.3
-	var mf := feu.material_override as StandardMaterial3D
-	var tf := create_tween().set_parallel(true)
-	tf.tween_property(feu, "scale", Vector3.ONE * RAYON_IMPACT * 0.92, 0.24) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tf.tween_property(mf, "emission", Color("8a2410"), 0.34) \
-			.set_delay(0.10)
-	tf.tween_property(feu, "transparency", 1.0, 0.26).set_delay(0.16)
-	tf.chain().tween_callback(feu.queue_free)
+	# LA LUMIÈRE DU SOUFFLE — c'est elle qui fait le « vrai 3D » : le
+	# sable, les blocs et les personnages voisins s'embrasent une demi-
+	# seconde. Une explosion qui n'éclaire pas son monde reste un dessin
+	# collé sur l'écran.
+	var lum := OmniLight3D.new()
+	lum.light_color = Color("ff9a3c")
+	lum.light_energy = 5.0
+	lum.omni_range = RAYON_IMPACT * 4.0
+	lum.omni_attenuation = 1.4
+	lum.shadow_enabled = false
+	lum.position = mondial + Vector3.UP * 1.2
+	parent.add_child(lum)
+	var tl := create_tween()
+	tl.tween_property(lum, "light_energy", 0.0, 0.4) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tl.tween_callback(lum.queue_free)
+
+	# BOULE DE FEU : une GRAPPE de quatre sphères OMBRÉES qui gonflent en
+	# se décalant — le bouillonnement de la planche. Une seule sphère
+	# plate faisait pastille ; quatre volumes éclairés font une explosion.
+	for k in 4:
+		var dec := Vector3(randf_range(-0.5, 0.5), randf_range(0.0, 0.7),
+				randf_range(-0.5, 0.5)) * RAYON_IMPACT * 0.4
+		var feu := _sphere(parent, mondial + Vector3.UP * 0.75 + dec,
+				1.0, Color("ff7a2a") if k % 2 == 0 else Color("ffb03a"),
+				1.6, 1.0, true)
+		feu.scale = Vector3.ONE * 0.25
+		var mf := feu.material_override as StandardMaterial3D
+		mf.albedo_color = Color(1.0, 0.45, 0.12, 1.0)
+		var tf := create_tween().set_parallel(true)
+		tf.tween_property(feu, "scale",
+				Vector3.ONE * RAYON_IMPACT * randf_range(0.55, 0.8),
+				randf_range(0.2, 0.28)) \
+				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tf.tween_property(feu, "position",
+				feu.position + dec * 1.6 + Vector3.UP * 0.5, 0.3)
+		tf.tween_property(mf, "emission", Color("6a1c0c"), 0.32) \
+				.set_delay(0.1)
+		tf.tween_property(feu, "transparency", 1.0, 0.24).set_delay(0.18)
+		tf.chain().tween_callback(feu.queue_free)
 
 	# ANNEAU DE SOUFFLE au sol : l'onde qui court — c'est lui qui donne
 	# l'ÉCHELLE de la déflagration, bien plus que la boule elle-même.
@@ -293,7 +320,7 @@ func _exploser(mondial: Vector3) -> void:
 		var dep := mondial + Vector3(randf_range(-0.7, 0.7), 0.8,
 				randf_range(-0.7, 0.7))
 		var fum := _sphere(parent, dep, randf_range(0.45, 0.6),
-				Color(0.52, 0.47, 0.44), 0.0, 0.6)
+				Color(0.52, 0.47, 0.44), 0.0, 0.6, true)
 		var tfu := create_tween().set_parallel(true)
 		tfu.tween_property(fum, "position",
 				dep + Vector3(0, randf_range(1.3, 1.9), 0), 0.85) \
@@ -328,18 +355,22 @@ func _exploser(mondial: Vector3) -> void:
 	Fx.poussiere(mondial + Vector3.UP * 0.15, Color("e6cfa0"), 2.2)
 
 
-## Sphère lumineuse jetable : la brique de l'explosion.
+## Sphère jetable : la brique de l'explosion. `ombree` la fait éclairer
+## par le soleil et la lumière du souffle — c'est ce qui donne du VOLUME
+## au feu et à la fumée ; l'éclair, lui, reste un aplat qui claque.
 func _sphere(parent: Node, pos: Vector3, rayon: float, couleur: Color,
-		energie: float, alpha: float) -> MeshInstance3D:
+		energie: float, alpha: float, ombree: bool = false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var sph := SphereMesh.new()
 	sph.radius = rayon
 	sph.height = rayon * 2.0
-	sph.radial_segments = 12
-	sph.rings = 6
+	sph.radial_segments = 16
+	sph.rings = 8
 	mi.mesh = sph
 	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	if not ombree:
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.roughness = 1.0
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.albedo_color = Color(couleur.r, couleur.g, couleur.b, alpha)
 	if energie > 0.0:

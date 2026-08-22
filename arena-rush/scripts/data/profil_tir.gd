@@ -91,6 +91,13 @@ class_name ProfilTir
 @export var trainee_ondulation: float = 0.0
 ## Longueur d'onde de cette ondulation, en mètres.
 @export var trainee_periode: float = 1.2
+## Longueur d'un TIRET de traînée, en mètres. Zéro = ruban continu.
+##
+## La « balle pirate » de la planche Corsair n'a pas une queue pleine :
+## une boule dorée suivie de POINTILLÉS qui s'espacent. La porte est
+## indexée sur la distance parcourue, si bien que les tirets voyagent
+## avec la balle au lieu de battre sur place.
+@export var trainee_pointilles: float = 0.0
 ## Couleur de la QUEUE du ruban. La tête garde `couleur` : c'est ce dégradé
 ## qui donne à Ruby son rose-vers-cyan sans un seul shader.
 @export var couleur_bout: Color = Color(1, 1, 1, 0)
