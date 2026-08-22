@@ -2,7 +2,7 @@ extends Camera3D
 class_name ArenaCamera
 ## CAMÉRA D'ARÈNE — vue de dessus légèrement inclinée.
 ##
-## L'inclinaison (~52°) est un compromis assumé : à la verticale on perd
+## L'inclinaison (~42°) est un compromis assumé : à la verticale on perd
 ## la silhouette des personnages et le jeu devient plat ; trop bas, les
 ## obstacles masquent le combat. Cet angle garde les corps lisibles ET le
 ## sol lisible.
@@ -54,9 +54,25 @@ class_name ArenaCamera
 ## est un peu proche » est arrivé dans l'heure. On rend 12 % de recul
 ## (13,1 → 14,8 m de distance réelle, −10 % de taille apparente), à
 ## rapport hauteur/recul constant : l'angle de plongée reste à 52°.
-@export var height: float = 11.7
+##
+## PUIS LA PLONGÉE BAISSE DE 52° À 42°, ET C'EST UNE RÉPONSE AU JEU, PAS
+## UN GOÛT. Le retour de test : « je ne reconnais pas les autres
+## participants — des boules blanches sans aucune identification
+## visuelle ». À 52°, la caméra regarde les mascottes par le crâne : le
+## chapeau du corsaire devient un disque, le visage disparaît, et tout
+## chibi vu du dessus est une boule. La planche des personnages tranche
+## elle-même la question : sa vignette « VUE EN JEU (caméra éloignée) »
+## cadre le pirate sous ~40° de plongée, chapeau ET visage lisibles.
+## On pivote donc la caméra sur son arc À DISTANCE CONSTANTE :
+##
+##     52°   11,7 / 9,0   →  14,8 m
+##     42°    9,9 / 11,0  →  14,8 m     même taille apparente
+##
+## La silhouette gagne ce que le sol perd, et le dégagement d'obstacles
+## (DEGAGEMENT_MINI) couvre le surcroît de décor qui entre dans l'axe.
+@export var height: float = 9.9
 ## Recul derrière la cible.
-@export var distance: float = 9.0
+@export var distance: float = 11.0
 ## Vitesse de rattrapage. Assez élevée pour ne jamais « traîner », assez
 ## basse pour amortir les à-coups.
 @export var smoothing: float = 7.5
@@ -78,8 +94,8 @@ class_name ArenaCamera
 
 ## Réglage nominal, mémorisé au démarrage. `adapt_to_zone` s'en écarte au
 ## lieu d'écrire des valeurs en dur.
-var _hauteur_nominale := 11.7
-var _recul_nominal := 9.0
+var _hauteur_nominale := 9.9
+var _recul_nominal := 11.0
 
 ## Hauteur de l'œil visé sur le joueur : la ligne de vue part de sa
 ## poitrine, pas de ses pieds, sinon le moindre muret la coupe.
@@ -152,9 +168,10 @@ func _ready() -> void:
 	add_to_group(&"camera_arene")
 	fov = 58.0
 	# Champ lointain court. Ce n'est PAS « la taille de l'arène » — le monde
-	# fait 156 m — mais la portée réelle du cadre : incliné à 52° avec 29°
-	# de demi-ouverture, le rayon le plus haut touche le sol à 30 m. Tout ce
-	# qui est au-delà n'entre dans l'image que par sa hauteur.
+	# fait 156 m — mais la portée réelle du cadre : incliné à 42° avec 29°
+	# de demi-ouverture, le rayon le plus haut file à 13° sous l'horizon et
+	# touche le sol vers 49 m. Tout ce qui est au-delà n'entre dans l'image
+	# que par sa hauteur.
 	far = 140.0
 	_forme.radius = RAYON_SONDE
 	_requete.shape = _forme

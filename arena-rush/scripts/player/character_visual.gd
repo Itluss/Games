@@ -98,7 +98,13 @@ const A_ROULADE := "roulade"
 ## comprimer un tour complet donnerait une toupie illisible. Le corps
 ## finit donc sa culbute pendant la glissade d'arrivée — le déplacement,
 ## lui, reste strictement celui du gameplay.
-const ROULADE_DUREE := 0.42
+##
+## REMONTÉE DE 0,42 À 0,68 après essai sur appareil : « bien trop
+## rapide, on ne voit absolument rien ». À 0,42 s le tour complet est
+## un battement de cils ; à 0,68 s, avec la vitesse PROFILÉE (départ
+## doux, cœur rapide, réception amortie) et le corps qui S'ACCROUPIT
+## au milieu du tour, le geste se décompose et se lit.
+const ROULADE_DUREE := 0.68
 
 ## Durée du fondu entre deux clips. Assez court pour rester réactif,
 ## assez long pour qu'on ne voie pas le personnage se téléporter d'une
@@ -808,12 +814,14 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 		_roulade_t -= delta
 		if _anim == null or _arbre == null \
 				or not _anim.has_animation(A_ROULADE):
-			# Culbute procédurale : un tour complet vers l'avant, ajouté
-			# plus bas à l'assiette du corps.
-			_roulade_angle = TAU * clampf(1.0 - _roulade_t / ROULADE_DUREE,
-					0.0, 1.0)
+			# Culbute procédurale à VITESSE PROFILÉE — le lissage en S
+			# démarre doucement, tourne vite au cœur, amortit la réception.
+			# Un tour linéaire se lisait comme un scintillement.
+			var pr := clampf(1.0 - _roulade_t / ROULADE_DUREE, 0.0, 1.0)
+			_roulade_angle = TAU * (pr * pr * (3.0 - 2.0 * pr))
 		if _roulade_t <= 0.0:
 			_roulade_angle = 0.0
+			_rig.position.y = 0.0
 			if _anim:
 				_anim.speed_scale = 1.0
 			_clip = ""
@@ -961,6 +969,10 @@ func update_visual(delta: float, speed_ratio: float) -> void:
 ## Assiette du corps PENDANT la roulade : la culbute remplace le penché.
 func _appliquer_lean_roulade(delta: float) -> void:
 	_lean = _lean.lerp(Vector2.ZERO, 1.0 - exp(-delta / 0.09))
+	# Le corps s'ACCROUPIT au milieu du tour : c'est l'écrasement qui
+	# fait lire « roulade » plutôt que « toupie ».
+	var pr := clampf(1.0 - _roulade_t / ROULADE_DUREE, 0.0, 1.0)
+	_rig.position.y = -0.30 * sin(pr * PI)
 	_rig.rotation.x = -_roulade_angle
 	_rig.rotation.z = 0.0
 	_rig.rotation.y = 0.0
