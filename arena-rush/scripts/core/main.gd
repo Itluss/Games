@@ -95,7 +95,7 @@ func _show_menu() -> void:
 
 	var title := Label.new()
 	title.text = "ARENA RUSH"
-	title.add_theme_font_size_override(&"font_size", 78)
+	title.add_theme_font_size_override(&"font_size", 54)
 	title.add_theme_color_override(&"font_color", Cfg.COL_LOCAL_PLAYER)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
@@ -111,10 +111,43 @@ func _show_menu() -> void:
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sub)
 
-	box.add_child(_spacer(28))
-	# LE MONDE OUVERT D'ABORD : c'est le jeu.
-	box.add_child(_menu_button("MONDE OUVERT — %d BOTS" % BOTS_SOLO,
-			Cfg.COL_HEAL, func(): _lancer_monde()))
+	box.add_child(_spacer(14))
+
+	# ─── LE BANDEAU DE PROGRESSION ────────────────────────────────────
+	#
+	# La première chose qu'on voit en ouvrant le jeu : QUI l'on est
+	# devenu. Niveau, barre d'XP vers le prochain, trésor d'or cumulé.
+	# C'est la moitié de la promesse « le joueur a envie de progresser » :
+	# la progression s'affiche AVANT de jouer, pas seulement pendant.
+	box.add_child(_bandeau_progression())
+	box.add_child(_spacer(16))
+
+	# ─── LA PORTE DES CARTES ──────────────────────────────────────────
+	#
+	# Deux affiches côte à côte : l'île jouable, et la suivante —
+	# verrouillée, silhouette sombre, cadenas d'or, « NIVEAU 10 ». On ne
+	# cache pas la suite du jeu : on la fait désirer. C'est la structure
+	# des grands du genre, dans notre thème.
+	var cartes := HBoxContainer.new()
+	cartes.alignment = BoxContainer.ALIGNMENT_CENTER
+	cartes.add_theme_constant_override(&"separation", 18)
+	var ile := CarteMonde.new()
+	ile.titre = "L'ÎLE SANS BORD"
+	ile.sous_titre = "NIVEAUX 1-10  ·  %d BOTS" % BOTS_SOLO
+	ile.choisie.connect(func(): _lancer_monde())
+	cartes.add_child(ile)
+	var suivante := CarteMonde.new()
+	suivante.verrouillee = true
+	suivante.niveau_requis = 10
+	# Le palier ATTEINT change le message : la carte n'existe pas encore,
+	# on le dit honnêtement plutôt que de laisser un cadenas mensonger.
+	if Profil.niveau_compte >= 10:
+		suivante.sous_titre = "BIENTÔT DISPONIBLE"
+	else:
+		suivante.sous_titre = "MONTE EN NIVEAU POUR L'OUVRIR"
+	cartes.add_child(suivante)
+	box.add_child(cartes)
+	box.add_child(_spacer(16))
 	# ─── L'ARÈNE DOIT ÊTRE ATTEIGNABLE SANS LIGNE DE COMMANDE ───────────
 	#
 	# Elle n'existait que derrière `-- --arene-test`. Or le jeu se joue au
@@ -163,11 +196,61 @@ func _spacer(h: int) -> Control:
 	c.custom_minimum_size = Vector2(0, h)
 	return c
 
+## Niveau, barre d'XP, trésor — l'identité du joueur, dessinée en une
+## ligne au-dessus des cartes.
+func _bandeau_progression() -> Control:
+	var ligne := HBoxContainer.new()
+	ligne.alignment = BoxContainer.ALIGNMENT_CENTER
+	ligne.add_theme_constant_override(&"separation", 14)
+
+	var niveau := Label.new()
+	niveau.text = "NIVEAU %d" % Profil.niveau_compte
+	niveau.add_theme_font_size_override(&"font_size", 24)
+	niveau.add_theme_color_override(&"font_color", UiKit.OR_CLAIR)
+	ligne.add_child(niveau)
+
+	# La barre d'XP vers le prochain niveau.
+	var etat: Dictionary = ConfigProgression.niveau_pour_xp(Profil.xp_compte)
+	var barre := ProgressBar.new()
+	barre.custom_minimum_size = Vector2(190, 16)
+	barre.min_value = 0.0
+	barre.max_value = 1.0
+	barre.value = float(etat.get("xp_dans_niveau", 0)) \
+			/ maxf(1.0, float(etat.get("xp_du_niveau", 1)))
+	barre.show_percentage = false
+	var fond := StyleBoxFlat.new()
+	fond.bg_color = Color(0.06, 0.09, 0.17)
+	fond.set_corner_radius_all(8)
+	barre.add_theme_stylebox_override(&"background", fond)
+	var plein := StyleBoxFlat.new()
+	plein.bg_color = UiKit.OR_CLAIR
+	plein.set_corner_radius_all(8)
+	barre.add_theme_stylebox_override(&"fill", plein)
+	var porte_barre := VBoxContainer.new()
+	porte_barre.alignment = BoxContainer.ALIGNMENT_CENTER
+	porte_barre.add_child(barre)
+	ligne.add_child(porte_barre)
+
+	# Le trésor : la pièce du classement et l'or cumulé.
+	var piece := UiKit.PieceGlyphe.new()
+	piece.custom_minimum_size = Vector2(18, 18)
+	var porte_piece := VBoxContainer.new()
+	porte_piece.alignment = BoxContainer.ALIGNMENT_CENTER
+	porte_piece.add_child(piece)
+	ligne.add_child(porte_piece)
+	var tresor := Label.new()
+	tresor.text = str(Profil.or_total)
+	tresor.add_theme_font_size_override(&"font_size", 22)
+	tresor.add_theme_color_override(&"font_color", UiKit.OR_CLAIR)
+	ligne.add_child(tresor)
+	return ligne
+
+
 func _menu_button(text: String, color: Color, action: Callable) -> Control:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(420, 68)
-	b.add_theme_font_size_override(&"font_size", 26)
+	b.custom_minimum_size = Vector2(420, 56)
+	b.add_theme_font_size_override(&"font_size", 22)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(color.r, color.g, color.b, 0.22)
 	style.set_corner_radius_all(14)

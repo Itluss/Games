@@ -271,6 +271,9 @@ func net_piece_prise(id: int, peer_id: int) -> void:
 		ramasseur.crediter_prime(valeur)
 	if peer_id == Net.local_id():
 		Profil.ajouter_or(valeur)
+		# Chaque pièce nourrit aussi l'EXPÉRIENCE : ramasser, c'est
+		# progresser — la règle « tout ce que tu fais te fait avancer ».
+		Profil.ajouter_xp(valeur * 2, &"piece")
 
 
 # --- PIÈCES : FABRICATION ET VIE ------------------------------------------
