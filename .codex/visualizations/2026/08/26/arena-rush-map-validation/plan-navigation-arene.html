@@ -1,0 +1,78 @@
+<div id="arena-plan-v1">
+  <div class="viz-controls" aria-label="Couches du plan">
+    <label class="form-check"><input class="form-check-input" type="checkbox" id="arp-loops" checked><span class="form-check-label">Boucles</span></label>
+    <label class="form-check"><input class="form-check-input" type="checkbox" id="arp-links" checked><span class="form-check-label">Connexions</span></label>
+    <label class="form-check"><input class="form-check-input" type="checkbox" id="arp-cover" checked><span class="form-check-label">Abris</span></label>
+    <label class="form-check"><input class="form-check-input" type="checkbox" id="arp-spawns" checked><span class="form-check-label">Spawns</span></label>
+  </div>
+  <svg viewBox="0 0 1000 720" role="img" aria-labelledby="arp-title arp-desc">
+    <title id="arp-title">Plan de validation de l’arène Arena Rush</title>
+    <desc id="arp-desc">Arène ovale avec boucle périphérique, boucle intermédiaire, boucle centrale, quatre quartiers, dix spawns, huit connexions et sept cachettes traversantes.</desc>
+    <defs>
+      <marker id="arp-arrow" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="var(--viz-series-2)"/></marker>
+    </defs>
+    <ellipse cx="500" cy="360" rx="455" ry="320" class="arp-ground"/>
+    <g class="arp-districts">
+      <path d="M105 315 Q130 125 425 85 L435 300 Q300 265 105 315Z" class="arp-zone z1"/><text x="250" y="148">ÉPAVE</text>
+      <path d="M575 85 Q870 125 895 315 L565 300 Q700 265 575 85Z" class="arp-zone z2"/><text x="750" y="148">TRÉSORS</text>
+      <path d="M105 405 Q130 595 425 635 L435 420 Q300 455 105 405Z" class="arp-zone z3"/><text x="250" y="585">DOCKS</text>
+      <path d="M575 635 Q870 595 895 405 L565 420 Q700 455 575 635Z" class="arp-zone z4"/><text x="750" y="585">ROCHERS</text>
+    </g>
+    <g id="arp-loop-layer">
+      <ellipse cx="500" cy="360" rx="405" ry="273" class="arp-loop peripheral"/>
+      <ellipse cx="500" cy="360" rx="292" ry="194" class="arp-loop middle"/>
+      <ellipse cx="500" cy="360" rx="150" ry="103" class="arp-loop central"/>
+      <text x="500" y="103" class="arp-direct">Boucle périphérique · 9–12 m</text>
+      <text x="500" y="190" class="arp-direct">Boucle intermédiaire · 7–10 m</text>
+      <text x="500" y="286" class="arp-direct">Boucle centrale · 7–9 m</text>
+    </g>
+    <g id="arp-link-layer" class="arp-links">
+      <path d="M500 87 L500 257"/><path d="M500 463 L500 633"/><path d="M95 360 L350 360"/><path d="M650 360 L905 360"/>
+      <path d="M212 170 L394 286"/><path d="M788 170 L606 286"/><path d="M212 550 L394 434"/><path d="M788 550 L606 434"/>
+      <text x="500" y="347" class="arp-direct">Podium</text>
+    </g>
+    <g id="arp-cover-layer">
+      <g class="arp-hideout" transform="translate(310 235) rotate(-18)"><path d="M-48-35V30H-6 M48 35V-30H6"/><line x1="0" y1="-18" x2="0" y2="18"/><text x="0" y="56">2 sorties</text></g>
+      <g class="arp-hideout" transform="translate(690 235) rotate(18)"><path d="M-48-35V30H-6 M48 35V-30H6"/><line x1="0" y1="-18" x2="0" y2="18"/><text x="0" y="56">2 sorties</text></g>
+      <g class="arp-hideout" transform="translate(310 485) rotate(18)"><path d="M-48-35V30H-6 M48 35V-30H6"/><line x1="0" y1="-18" x2="0" y2="18"/><text x="0" y="56">2 sorties</text></g>
+      <g class="arp-hideout" transform="translate(690 485) rotate(-18)"><path d="M-48-35V30H-6 M48 35V-30H6"/><line x1="0" y1="-18" x2="0" y2="18"/><text x="0" y="56">2 sorties</text></g>
+      <g class="arp-cover-small"><path d="M430 280l38 12 M532 292l38-12 M430 440l38-12 M532 428l38 12 M365 330l18 30 M365 390l18-30 M635 330l-18 30 M635 390l-18-30"/></g>
+    </g>
+    <g id="arp-spawn-layer" class="arp-spawns">
+      <g transform="translate(260 112)"><circle r="22"/><text>1</text></g><g transform="translate(740 112)"><circle r="22"/><text>2</text></g>
+      <g transform="translate(885 280)"><circle r="22"/><text>3</text></g><g transform="translate(900 455)"><circle r="22"/><text>4</text></g>
+      <g transform="translate(720 626)"><circle r="22"/><text>5</text></g><g transform="translate(400 650)"><circle r="22"/><text>6</text></g>
+      <g transform="translate(205 590)"><circle r="22"/><text>7</text></g><g transform="translate(92 470)"><circle r="22"/><text>8</text></g>
+      <g transform="translate(100 280)"><circle r="22"/><text>9</text></g><g transform="translate(500 70)"><circle r="22"/><text>10</text></g>
+    </g>
+    <g class="arp-legend">
+      <line x1="110" y1="686" x2="150" y2="686" class="peripheral"/><text x="160" y="691">rotation sûre</text>
+      <line x1="335" y1="686" x2="375" y2="686" class="middle"/><text x="385" y="691">rotation de combat</text>
+      <line x1="590" y1="686" x2="630" y2="686" class="central"/><text x="640" y="691">zone à risque</text>
+      <path d="M815 676v20h28" class="arp-hide-key"/><text x="852" y="691">cachette traversante</text>
+    </g>
+  </svg>
+  <div class="card arp-summary"><span><strong>10</strong> spawns</span><span><strong>3</strong> boucles</span><span><strong>8</strong> connexions</span><span><strong>4</strong> cachettes traversantes</span><span><strong>0</strong> cul-de-sac</span></div>
+</div>
+<style>
+#arena-plan-v1{color:var(--foreground)}
+#arena-plan-v1 .viz-controls{margin-bottom:8px}
+#arena-plan-v1 svg{display:block;width:100%;height:auto;max-height:720px}
+#arena-plan-v1 .arp-ground{fill:color-mix(in srgb,var(--viz-series-5) 10%,var(--card));stroke:var(--border);stroke-width:2}
+#arena-plan-v1 .arp-zone{stroke:none;opacity:.13}.z1{fill:var(--viz-series-1)}.z2{fill:var(--viz-series-2)}.z3{fill:var(--viz-series-3)}.z4{fill:var(--viz-series-4)}
+#arena-plan-v1 text{fill:var(--foreground);font-family:system-ui,sans-serif;text-anchor:middle;font-weight:500}
+#arena-plan-v1 .arp-districts text{opacity:.7}
+#arena-plan-v1 .arp-loop{fill:none;stroke-width:16}.peripheral{stroke:var(--viz-series-1)}.middle{stroke:var(--viz-series-3)}.central{stroke:var(--viz-series-5)}
+#arena-plan-v1 .arp-direct{paint-order:stroke;stroke:var(--background);stroke-width:5px;stroke-linejoin:round}
+#arena-plan-v1 .arp-links path{fill:none;stroke:var(--viz-series-2);stroke-width:8;stroke-linecap:round;marker-end:url(#arp-arrow)}
+#arena-plan-v1 .arp-hideout path,#arena-plan-v1 .arp-hideout line,#arena-plan-v1 .arp-cover-small path{fill:none;stroke:var(--foreground);stroke-width:10;stroke-linecap:round;stroke-linejoin:round}
+#arena-plan-v1 .arp-hideout text{font-weight:400}
+#arena-plan-v1 .arp-spawns circle{fill:var(--primary);stroke:var(--primary-foreground);stroke-width:3}.arp-spawns text{fill:var(--primary-foreground);dominant-baseline:central}
+#arena-plan-v1 .arp-legend text{text-anchor:start;font-weight:400}.arp-legend line{stroke-width:8}.arp-hide-key{fill:none;stroke:var(--foreground);stroke-width:8}
+#arena-plan-v1 .arp-summary{display:flex;flex-wrap:wrap;justify-content:center;gap:12px 24px;padding:10px;margin-top:6px}
+#arena-plan-v1 .arp-summary span{white-space:nowrap}
+@media(max-width:520px){#arena-plan-v1 .arp-districts text,#arena-plan-v1 .arp-direct,#arena-plan-v1 .arp-hideout text,#arena-plan-v1 .arp-legend{display:none}}
+</style>
+<script>
+(()=>{const root=document.getElementById('arena-plan-v1');const pairs=[['arp-loops','arp-loop-layer'],['arp-links','arp-link-layer'],['arp-cover','arp-cover-layer'],['arp-spawns','arp-spawn-layer']];for(const [input,layer] of pairs){const c=root.querySelector('#'+input),g=root.querySelector('#'+layer);c.addEventListener('change',()=>{g.style.display=c.checked?'':'none'})}})();
+</script>

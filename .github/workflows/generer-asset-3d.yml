@@ -1,0 +1,260 @@
+# GÉNÉRATION D'ASSETS 3D — Meshy.
+#
+# POURQUOI UN WORKFLOW ET PAS UN APPEL DIRECT : la clé d'API vit dans les
+# secrets du dépôt, qui sont EN ÉCRITURE SEULE. Leur valeur n'est
+# déchiffrée que par un runner Actions, jamais lisible depuis l'extérieur.
+# Le runner est donc le seul endroit d'où l'on peut appeler Meshy.
+#
+# PRÉREQUIS : Settings → Secrets and variables → Actions → New repository
+# secret, nommé MESHY_API_KEY.
+#
+# Lancement : onglet Actions → « Générer un asset 3D (Meshy) » → Run.
+name: Générer un asset 3D (Meshy)
+
+on:
+  # Deux façons de lancer une génération.
+  #
+  # 1. À la main, depuis l'onglet Actions.
+  # 2. En déposant un « bon de commande » dans art/requests/. Déclencher un
+  #    workflow par l'API demande un droit que tous les jetons n'ont pas ;
+  #    un push, lui, passe toujours. Le fichier de demande sert alors à la
+  #    fois d'ordre et de trace des réglages employés.
+  #
+  # SEULES LES DEMANDES AJOUTÉES par le commit déclencheur sont traitées.
+  # Rejouer un ancien commit ne regénère donc rien, et ne consomme aucun
+  # crédit en double.
+  push:
+    branches: [main]
+    paths:
+      - "art/requests/**"
+  workflow_dispatch:
+    inputs:
+      nom:
+        description: "Nom du fichier produit (sans extension)"
+        required: true
+        default: "heros"
+      mode:
+        description: "image = depuis une planche · texte = depuis une description · texture = retexturer un .glb existant"
+        required: true
+        default: "texte"
+        type: choice
+        options: [texte, image, texture]
+      prompt:
+        description: "Description du sujet (anglais de préférence)"
+        required: false
+        default: "stocky arena fighter with a visor helmet and shoulder pads"
+      image:
+        description: "Chemin d'une image de référence versionnée (mode image)"
+        required: false
+        default: ""
+      modele_url:
+        description: "URL publique du .glb à retexturer (mode texture)"
+        required: false
+        default: ""
+      polycount:
+        description: "Budget de triangles"
+        required: false
+        default: "30000"
+      branche:
+        description: "Branche où déposer l'asset produit"
+        required: false
+        default: "assets-3d"
+
+permissions:
+  contents: write
+
+jobs:
+  generer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Deux commits sont nécessaires pour comparer et repérer les
+          # demandes réellement ajoutées.
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Garde-fou explicite : sans clé, on échoue avec un message lisible
+      # plutôt qu'avec une erreur d'authentification obscure.
+      - name: Vérifier la clé d'API
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+        run: |
+          if [ -z "$MESHY_API_KEY" ]; then
+            echo "::error::Le secret MESHY_API_KEY est absent de ce dépôt."
+            echo "Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "Clé présente (${#MESHY_API_KEY} caractères)."
+
+      # Appel de LISTE, gratuit : valide la clé sans consommer de crédit.
+      # Découvrir une clé morte après une génération coûte un run entier.
+      - name: Préflight (gratuit)
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+        run: python3 outils/meshy.py --verifier
+
+      - name: Relever les demandes ajoutées
+        id: demandes
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.before }}"
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE=""
+          fi
+
+          # ─── LE CLONE EST SUPERFICIEL, ET C'EST CE QUI A CASSÉ ──────────
+          #
+          # `fetch-depth: 2` ne ramène que HEAD et son parent. Cela suffit
+          # tant qu'un push ne porte QU'UN commit — et c'est l'hypothèse
+          # implicite qui a tenu jusqu'ici. Un push de DEUX commits met le
+          # point de départ hors du clone : `git diff <before> <sha>`
+          # répond « bad object », `set -e` tue l'étape, et la génération
+          # est sautée. Vérifié : run 32289911098, six demandes déposées,
+          # aucune vue, étape 6 en échec.
+          #
+          # On approfondit donc l'historique au lieu de supposer. Cent
+          # commits couvrent n'importe quel push réaliste ; si cela ne
+          # suffit toujours pas, on déplie tout, et en dernier recours on
+          # se rabat sur le parent immédiat.
+          if [ -n "$BASE" ] && ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "Point de départ $BASE hors du clone — approfondissement."
+            git fetch --deepen=100 origin "$GITHUB_REF_NAME" 2>/dev/null || true
+          fi
+          if [ -n "$BASE" ] && ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            git fetch --unshallow origin 2>/dev/null || true
+          fi
+          if [ -n "$BASE" ] && ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "::warning::Point de départ toujours introuvable — repli sur HEAD~1."
+            BASE=""
+          fi
+          if [ -z "$BASE" ]; then
+            BASE=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
+
+          if [ -n "$BASE" ]; then
+            # `--no-renames` est indispensable : sans lui, git voit le
+            # remplacement d'une demande par une autre comme un RENOMMAGE,
+            # que le filtre « ajouté » exclut. Le workflow réussissait
+            # alors sans rien générer — un succès trompeur, bien pire
+            # qu'un échec.
+            FICHIERS=$(git diff --name-only --no-renames --diff-filter=A \
+              "$BASE" "${{ github.sha }}" -- 'art/requests/*.json' | tr '\n' ' ')
+          else
+            FICHIERS=""
+          fi
+          echo "Demandes à traiter : ${FICHIERS:-aucune}"
+          # Un push qui touche art/requests/ sans qu'aucune demande ne soit
+          # retenue signale un problème de détection, pas une absence de
+          # travail. On le dit haut et fort plutôt que de finir en vert.
+          if [ -z "$FICHIERS" ]; then
+            echo "::warning::Aucune demande ajoutée détectée alors que le push touche art/requests/ — vérifier la détection avant de conclure."
+          fi
+          echo "fichiers=$FICHIERS" >> "$GITHUB_OUTPUT"
+
+      - name: Générer depuis les demandes
+        if: github.event_name == 'push' && steps.demandes.outputs.fichiers != ''
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+        run: python3 outils/lancer_generation.py ${{ steps.demandes.outputs.fichiers }}
+
+      - name: Générer
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+        run: |
+          set -euo pipefail
+          ARGS=(--mode "${{ inputs.mode }}" --nom "${{ inputs.nom }}")
+          [ -n "${{ inputs.prompt }}" ] && ARGS+=(--prompt "${{ inputs.prompt }}")
+          [ -n "${{ inputs.image }}" ] && ARGS+=(--image "${{ inputs.image }}")
+          [ -n "${{ inputs.modele_url }}" ] && ARGS+=(--modele-url "${{ inputs.modele_url }}")
+          ARGS+=(--polycount "${{ inputs.polycount }}")
+          python3 outils/meshy.py "${ARGS[@]}"
+
+      # `always()` À PARTIR D'ICI. Les demandes partent maintenant par lots
+      # de quinze : si l'une échoue, l'étape de génération sort en erreur —
+      # et sans cette clause, GitHub sauterait la récupération des QUATORZE
+      # autres, pourtant déjà générées et déjà FACTURÉES. La règle du
+      # dépôt est constante : une génération payée ne se perd jamais.
+      - name: Inspecter le modèle produit
+        if: always()
+        run: |
+          pip install --quiet trimesh numpy
+          python3 - <<'PY'
+          import glob, trimesh
+          for f in glob.glob("arena-rush/assets/models/*.glb"):
+              s = trimesh.load(f)
+              geoms = s.geometry.values() if hasattr(s, "geometry") else []
+              tris = sum(len(g.faces) for g in geoms)
+              b = s.bounds
+              print("%s : %d triangles, %d matériaux" % (f, tris, len(list(geoms))))
+              print("  dimensions %.2f x %.2f x %.2f" % tuple(b[1] - b[0]))
+          PY
+
+      # L'ARTEFACT D'ABORD : quoi qu'il arrive ensuite, le modèle produit
+      # est récupérable. Une génération PAYÉE ne doit jamais être perdue
+      # parce qu'une étape git a échoué — c'est arrivé sur un autre dépôt.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: asset-3d-${{ inputs.nom || 'lot' }}
+          path: arena-rush/assets/models/
+          retention-days: 14
+
+      # DÉPÔT SUR LA BRANCHE — corrigé après un rejet qui a bien failli
+      # coûter quinze générations payées.
+      #
+      # `git checkout -B <branche>` repartait du HEAD courant, donc de
+      # `main` : la branche emportait TOUT l'arbre de main, y compris des
+      # fichiers de workflow modifiés. GitHub refuse qu'un jeton
+      # d'application pousse un changement de workflow :
+      #
+      #   ! [remote rejected] assets-3d -> assets-3d (refusing to allow a
+      #     GitHub App to create or update workflow ... without
+      #     `workflows` permission)
+      #
+      # On repart donc de la branche ELLE-MÊME quand elle existe : les
+      # fichiers de workflow n'y changent pas d'un commit à l'autre, et le
+      # dépôt passe. L'artefact ci-dessus reste le vrai filet — mais un
+      # filet ne doit pas servir à chaque saut.
+      # UN DÉPÔT QUI ÉCHOUE DOIT FAIRE ROUGIR LE RUN.
+      #
+      # `continue-on-error: true` a coûté un lot entier. Le 19 août, cinq
+      # pièces ont été générées — dix minutes de Meshy, crédits dépensés —
+      # puis perdues ici même, et le run s'est affiché VERT. Sans le
+      # journal, rien ne distinguait ce run d'un succès complet. Un filet
+      # (l'artefact) justifie qu'on ne PERDE pas le travail ; il ne
+      # justifie pas qu'on ne SACHE pas que le dépôt a raté.
+      - name: Déposer l'asset sur la branche
+        if: always()
+        run: |
+          BRANCHE="${{ inputs.branche || 'assets-3d' }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p /tmp/modeles
+          cp -a arena-rush/assets/models/. /tmp/modeles/ || true
+          # `-f` N'EST PAS UNE PRÉCAUTION, C'EST LA CORRECTION.
+          #
+          # Sans lui, git refuse de changer de branche quand des fichiers
+          # SUIVIS ont été modifiés — et c'est exactement le cas dès qu'une
+          # génération réutilise le nom d'un modèle existant, ce qui est la
+          # bonne façon de remplacer une pièce sans toucher au code. Les
+          # modèles viennent d'être copiés dans /tmp/modeles juste au-dessus
+          # et sont recopiés juste en dessous : il n'y a rien à perdre en
+          # écrasant l'arbre de travail, et tout à perdre en abandonnant.
+          if git fetch origin "$BRANCHE"; then
+            git checkout -f -B "$BRANCHE" "origin/$BRANCHE"
+          else
+            echo "::warning::Branche $BRANCHE absente — création depuis HEAD."
+            git checkout -f -B "$BRANCHE"
+          fi
+          mkdir -p arena-rush/assets/models
+          cp -a /tmp/modeles/. arena-rush/assets/models/
+          git add arena-rush/assets/models/
+          git commit -m "Assets 3D générés (${{ github.event_name }})" || {
+            echo "::warning::Aucun changement à commiter."; exit 0; }
+          git push -u origin "$BRANCHE"

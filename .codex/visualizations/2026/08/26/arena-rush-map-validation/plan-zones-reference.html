@@ -1,0 +1,46 @@
+<div id="arena-reference-map">
+  <div class="viz-controls">
+    <label class="form-check"><input class="form-check-input" id="arm-zones" type="checkbox" checked><span class="form-check-label">Zones</span></label>
+    <label class="form-check"><input class="form-check-input" id="arm-routes" type="checkbox" checked><span class="form-check-label">Passages</span></label>
+    <label class="form-check"><input class="form-check-input" id="arm-cover" type="checkbox" checked><span class="form-check-label">Abris et écrans</span></label>
+    <label class="form-check"><input class="form-check-input" id="arm-spawns" type="checkbox" checked><span class="form-check-label">Spawns</span></label>
+  </div>
+  <div class="arm-stage">
+    <img src="/map-arene-pirate-v8.png" alt="Maquette de référence de l’arène pirate">
+    <svg viewBox="0 0 1536 1065" role="img" aria-label="Relevé des zones et circulations superposé à la maquette">
+      <defs><marker id="arm-arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0 0L0 6L8 3Z"/></marker></defs>
+      <g id="arm-zone-layer">
+        <path class="arm-zone q1" d="M180 255Q285 155 650 175L730 270Q660 405 490 475L225 500Q155 405 180 255Z"/><text x="420" y="245">A — ÉPAVE</text>
+        <path class="arm-zone q2" d="M760 185Q1120 150 1340 270L1320 500L1040 505Q875 430 735 300Z"/><text x="1080" y="245">B — TRÉSORS</text>
+        <path class="arm-zone q3" d="M170 520Q320 455 515 510Q610 600 735 760L710 930Q360 950 180 790Z"/><text x="410" y="745">C — DOCKS</text>
+        <path class="arm-zone q4" d="M825 505Q1050 440 1340 520L1350 800Q1120 950 765 920L750 760Q790 620 825 505Z"/><text x="1090" y="745">D — ROCHERS</text>
+        <ellipse class="arm-zone center" cx="765" cy="545" rx="245" ry="205"/><text x="765" y="550">CENTRE OUVERT</text>
+      </g>
+      <g id="arm-route-layer" class="arm-routes">
+        <path d="M205 205Q760 70 1325 215Q1480 530 1325 855Q760 1030 205 855Q55 530 205 205Z"/><text x="765" y="990">Boucle périphérique</text>
+        <path d="M280 300Q760 145 1255 310Q1370 530 1240 760Q760 930 270 750Q155 530 280 300Z"/><text x="765" y="875">Boucle des quartiers</text>
+        <ellipse cx="765" cy="545" rx="330" ry="270"/><text x="765" y="835">Rotation centrale</text>
+        <path class="arm-link" d="M765 145L765 330 M765 760L765 930 M205 530L465 530 M1060 530L1330 530"/>
+        <path class="arm-link secondary" d="M370 260L555 390 M1160 260L975 390 M370 810L555 690 M1160 810L975 690"/>
+      </g>
+      <g id="arm-cover-layer" class="arm-covers">
+        <path d="M275 300Q400 220 590 250 M300 390Q440 315 620 340 M920 270L1030 315L1130 285 M920 370L1035 420L1180 355 M275 620Q410 560 555 650 M315 775Q500 700 650 825 M920 600Q1030 535 1185 600 M860 720Q1010 635 1220 740"/>
+        <g class="arm-hide"><circle cx="475" cy="330" r="24"/><circle cx="1040" cy="350" r="24"/><circle cx="470" cy="705" r="24"/><circle cx="1045" cy="700" r="24"/></g>
+        <text x="475" y="332">↔</text><text x="1040" y="352">↔</text><text x="470" y="707">↔</text><text x="1045" y="702">↔</text>
+      </g>
+      <g id="arm-spawn-layer" class="arm-spawns">
+        <g transform="translate(465 185)"><circle r="25"/><text>1</text></g><g transform="translate(1060 185)"><circle r="25"/><text>2</text></g>
+        <g transform="translate(1305 395)"><circle r="25"/><text>3</text></g><g transform="translate(1325 650)"><circle r="25"/><text>4</text></g>
+        <g transform="translate(1080 890)"><circle r="25"/><text>5</text></g><g transform="translate(430 915)"><circle r="25"/><text>6</text></g>
+        <g transform="translate(250 825)"><circle r="25"/><text>7</text></g><g transform="translate(170 645)"><circle r="25"/><text>8</text></g>
+        <g transform="translate(185 395)"><circle r="25"/><text>9</text></g><g transform="translate(765 150)"><circle r="25"/><text>10</text></g>
+      </g>
+    </svg>
+  </div>
+</div>
+<style>
+#arena-reference-map{color:var(--foreground)}#arena-reference-map .viz-controls{margin-bottom:8px}.arm-stage{position:relative;width:100%;overflow:hidden}.arm-stage img{display:block;width:100%;height:auto;opacity:.42}.arm-stage svg{position:absolute;inset:0;width:100%;height:100%}.arm-stage text{fill:var(--foreground);font-family:system-ui,sans-serif;font-weight:500;text-anchor:middle;paint-order:stroke;stroke:var(--background);stroke-width:5}.arm-zone{stroke-width:5;fill-opacity:.16}.q1{fill:var(--viz-series-1);stroke:var(--viz-series-1)}.q2{fill:var(--viz-series-2);stroke:var(--viz-series-2)}.q3{fill:var(--viz-series-3);stroke:var(--viz-series-3)}.q4{fill:var(--viz-series-4);stroke:var(--viz-series-4)}.center{fill:var(--viz-series-5);stroke:var(--viz-series-5);stroke-dasharray:12 8}.arm-routes path,.arm-routes ellipse{fill:none;stroke:var(--viz-series-5);stroke-width:9;stroke-linecap:round}.arm-routes .arm-link{stroke:var(--viz-series-2);marker-end:url(#arm-arrow)}.arm-routes .secondary{stroke-width:6;stroke-dasharray:12 10}.arm-routes marker path{fill:var(--viz-series-2)}.arm-covers>path{fill:none;stroke:var(--foreground);stroke-width:13;stroke-linecap:round;stroke-linejoin:round}.arm-hide circle{fill:var(--accent);stroke:var(--foreground);stroke-width:4}.arm-spawns circle{fill:var(--primary);stroke:var(--primary-foreground);stroke-width:4}.arm-spawns text{fill:var(--primary-foreground);stroke:none;dominant-baseline:central}.arm-covers text{dominant-baseline:central;stroke:none}@media(max-width:520px){.arm-stage svg text:not(.arm-spawns text){display:none}}
+</style>
+<script>
+(()=>{const r=document.getElementById('arena-reference-map');for(const [c,l] of [['arm-zones','arm-zone-layer'],['arm-routes','arm-route-layer'],['arm-cover','arm-cover-layer'],['arm-spawns','arm-spawn-layer']]){const i=r.querySelector('#'+c),g=r.querySelector('#'+l);i.addEventListener('change',()=>g.style.display=i.checked?'':'none')}})();
+</script>

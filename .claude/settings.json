@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(C:/Users/camille/AppData/Local/Temp/claude/c--Users-camille-Games/3a3eafa0-4c03-4aed-9bc2-74892dcdea40/scratchpad/godot/Godot_v4.3-stable_win64_console.exe --headless --path . --quit-after 2)"
+    ]
+  }
+}

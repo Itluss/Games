@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="-110 -110 220 220">
+  <defs>
+    <style>
+      .wall{fill:none;stroke:#20252b;stroke-width:1.8;stroke-linejoin:round}
+      .thin{fill:none;stroke:#69727c;stroke-width:.65;stroke-linejoin:round}
+      .high{fill:none;stroke:#20252b;stroke-width:1.2;stroke-dasharray:3 2}
+      .zone{fill:none;stroke:#69727c;stroke-width:.8;stroke-dasharray:4 3}
+      .spawn{fill:#fff;stroke:#20252b;stroke-width:1}
+      .loot{fill:none;stroke:#20252b;stroke-width:.8}
+      .label{font-family:Arial,sans-serif;font-size:4px;fill:#20252b;text-anchor:middle}
+      .small{font-family:Arial,sans-serif;font-size:2.8px;fill:#20252b;text-anchor:middle}
+      .note{font-family:Arial,sans-serif;font-size:3px;fill:#20252b}
+    </style>
+  </defs>
+  <rect x="-110" y="-110" width="220" height="220" fill="#faf9f5"/>
+
+  <!-- 10 m construction grid -->
+  <g class="thin" opacity=".22">
+    <path d="M-100-100V100 M-90-100V100 M-80-100V100 M-70-100V100 M-60-100V100 M-50-100V100 M-40-100V100 M-30-100V100 M-20-100V100 M-10-100V100 M0-100V100 M10-100V100 M20-100V100 M30-100V100 M40-100V100 M50-100V100 M60-100V100 M70-100V100 M80-100V100 M90-100V100 M100-100V100"/>
+    <path d="M-100-100H100 M-100-90H100 M-100-80H100 M-100-70H100 M-100-60H100 M-100-50H100 M-100-40H100 M-100-30H100 M-100-20H100 M-100-10H100 M-100 0H100 M-100 10H100 M-100 20H100 M-100 30H100 M-100 40H100 M-100 50H100 M-100 60H100 M-100 70H100 M-100 80H100 M-100 90H100 M-100 100H100"/>
+  </g>
+
+  <!-- Arena boundary: 180 m playable diameter -->
+  <circle class="wall" cx="0" cy="0" r="95"/>
+  <circle class="wall" cx="0" cy="0" r="90"/>
+  <circle class="zone" cx="0" cy="0" r="53"/>
+
+  <!-- Central core and rotation ring -->
+  <circle class="wall" cx="0" cy="0" r="17"/>
+  <circle class="thin" cx="0" cy="0" r="29"/>
+  <circle class="wall" cx="0" cy="0" r="38"/>
+  <circle class="wall" cx="0" cy="0" r="43"/>
+  <circle class="loot" cx="0" cy="0" r="4"/>
+  <path class="wall" d="M-6-43V-17H6V-43 M17-6H43V6H17 M-6 17V43H6V17 M-43-6H-17V6H-43"/>
+
+  <!-- North / Sanctuary -->
+  <path class="wall" d="M-43-88H43 M-43-88L-37-50H-14L-10-43 M43-88L37-50H14L10-43"/>
+  <path class="high" d="M-30-78H-8V-59H-30Z M8-78H30V-59H8Z"/>
+  <path class="thin" d="M-37-50L-28-43 M37-50L28-43 M-14-50V-43 M14-50V-43"/>
+  <rect class="wall" x="-7" y="-77" width="14" height="20"/>
+
+  <!-- East / Forge -->
+  <path class="wall" d="M88-43V43 M88-43L50-37V-14L43-10 M88 43L50 37V14L43 10"/>
+  <path class="wall" d="M57-31H78V-21H64V-8H78V4H57 M57 31H78V21H64V8H78"/>
+  <path class="thin" d="M50-37L43-28 M50 37L43 28 M50-14H43 M50 14H43"/>
+
+  <!-- South / Barracks -->
+  <path class="wall" d="M-43 88H43 M-43 88L-37 50H-14L-10 43 M43 88L37 50H14L10 43"/>
+  <path class="wall" d="M-31 58H-12V69H-31Z M12 58H31V69H12Z M-9 72H9V84H-9Z"/>
+  <path class="thin" d="M-37 50L-28 43 M37 50L28 43 M-14 50V43 M14 50V43"/>
+
+  <!-- West / Rift -->
+  <path class="wall" d="M-88-43V43 M-88-43L-50-37V-14L-43-10 M-88 43L-50 37V14L-43 10"/>
+  <circle class="high" cx="-68" cy="-23" r="10"/>
+  <circle class="high" cx="-68" cy="23" r="10"/>
+  <path class="thin" d="M-68-13V13 M-50-37L-43-28 M-50 37L-43 28 M-50-14H-43 M-50 14H-43"/>
+
+  <!-- Inter-sector flank routes -->
+  <path class="thin" d="M-37-50Q-50-50-50-37 M37-50Q50-50 50-37 M50 37Q50 50 37 50 M-50 37Q-50 50-37 50"/>
+
+  <!-- Cover blocks -->
+  <g class="wall">
+    <path d="M-33-34H-23V-29H-33Z M23-34H33V-29H23Z M-33 29H-23V34H-33Z M23 29H33V34H23Z"/>
+    <path d="M-55-13H-45V-8H-55Z M45-13H55V-8H45Z M-55 8H-45V13H-55Z M45 8H55V13H45Z"/>
+    <path d="M-13-55H-8V-45H-13Z M8-55H13V-45H8Z M-13 45H-8V55H-13Z M8 45H13V55H8Z"/>
+  </g>
+
+  <!-- Spawn pads: exactly 12 -->
+  <g>
+    <circle class="spawn" cx="-26" cy="-84" r="4"/><text class="small" x="-26" y="-83">S1</text>
+    <circle class="spawn" cx="0" cy="-86" r="4"/><text class="small" x="0" y="-85">S2</text>
+    <circle class="spawn" cx="26" cy="-84" r="4"/><text class="small" x="26" y="-83">S3</text>
+    <circle class="spawn" cx="84" cy="-26" r="4"/><text class="small" x="84" y="-25">S4</text>
+    <circle class="spawn" cx="86" cy="0" r="4"/><text class="small" x="86" y="1">S5</text>
+    <circle class="spawn" cx="84" cy="26" r="4"/><text class="small" x="84" y="27">S6</text>
+    <circle class="spawn" cx="26" cy="84" r="4"/><text class="small" x="26" y="85">S7</text>
+    <circle class="spawn" cx="0" cy="86" r="4"/><text class="small" x="0" y="87">S8</text>
+    <circle class="spawn" cx="-26" cy="84" r="4"/><text class="small" x="-26" y="85">S9</text>
+    <circle class="spawn" cx="-84" cy="26" r="4"/><text class="small" x="-84" y="27">S10</text>
+    <circle class="spawn" cx="-86" cy="0" r="4"/><text class="small" x="-86" y="1">S11</text>
+    <circle class="spawn" cx="-84" cy="-26" r="4"/><text class="small" x="-84" y="-25">S12</text>
+  </g>
+
+  <!-- Loot sockets: abstract diamonds only -->
+  <g class="loot">
+    <path d="M0-50l3 3-3 3-3-3Z M50 0l3 3-3 3-3-3Z M0 50l3 3-3 3-3-3Z M-50 0l3 3-3 3-3-3Z"/>
+    <path d="M-24-48l2 2-2 2-2-2Z M24-48l2 2-2 2-2-2Z M48-24l2 2-2 2-2-2Z M48 24l2 2-2 2-2-2Z M24 48l2 2-2 2-2-2Z M-24 48l2 2-2 2-2-2Z M-48 24l2 2-2 2-2-2Z M-48-24l2 2-2 2-2-2Z"/>
+  </g>
+
+  <!-- Labels and scale -->
+  <text class="label" x="0" y="-63">SANCTUARY</text>
+  <text class="label" x="65" y="2">FORGE</text>
+  <text class="label" x="0" y="65">BARRACKS</text>
+  <text class="label" x="-65" y="2">RIFT</text>
+  <text class="label" x="0" y="1.5">CORE</text>
+  <path class="wall" d="M-104-92V-103L-107-98M-104-103L-101-98"/><text class="note" x="-108" y="-105">N</text>
+  <path class="wall" d="M-104 102H-54 M-104 99V105 M-94 99V105 M-84 99V105 M-74 99V105 M-64 99V105 M-54 99V105"/>
+  <text class="note" x="-104" y="108">0</text><text class="note" x="-87" y="108">20 m</text><text class="note" x="-60" y="108">50 m</text>
+  <text class="note" x="42" y="103">solid = wall / cover</text>
+  <text class="note" x="42" y="108">dashed = high ground / zone</text>
+</svg>

@@ -1,0 +1,172 @@
+# PUBLICATION WEB DU JEU — barrières en parallèle, puis export et déploiement.
+#
+# POURQUOI CE FICHIER A ÉTÉ REMIS À PLAT. Les barrières s'exécutaient à la
+# queue leu leu dans un seul travail : leur temps s'ADDITIONNAIT. À six
+# barrières, dont une de deux minutes, le cycle atteignait cinq minutes —
+# et comme chaque correction demande une publication, ces minutes se
+# payaient à chaque aller-retour.
+#
+# Elles tournent maintenant de front. Le temps d'attente n'est plus leur
+# somme mais la plus lente d'entre elles.
+#
+# La logique de jugement — compilation, exécution effective, comptage des
+# échecs — vivait recopiée dans chaque étape. Elle est désormais dans
+# `outils_dev/barriere.sh`, en un seul exemplaire.
+#
+# PRÉREQUIS CÔTÉ DÉPÔT : Settings → Pages → Source = « GitHub Actions ».
+name: Publier le jeu sur le web
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+    paths:
+      - "arena-rush/**"
+      - ".github/workflows/deploy-web.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# UNE PUBLICATION BLOQUÉE NE DOIT PAS BLOQUER LES SUIVANTES.
+#
+# `cancel-in-progress: false` est la recommandation habituelle pour un
+# déploiement : on n'interrompt pas une mise en ligne à mi-chemin. Sauf
+# qu'une barrière restée coincée quinze minutes sur une étape de quarante
+# secondes a gardé le verrou et mis toute la file derrière elle, sans
+# moyen de la débloquer. Le risque inverse est bien plus faible : l'étape
+# de déploiement elle-même dure six secondes, et la publication qui
+# annule est toujours la plus récente, donc la bonne.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.3"
+
+jobs:
+  # --- LES BARRIÈRES, TOUTES DE FRONT ------------------------------------
+  verifier:
+    runs-on: ubuntu-latest
+    strategy:
+      # UN ÉCHEC N'ARRÊTE PAS LES AUTRES. Savoir qu'une seule barrière a
+      # cédé, ou que trois ont cédé ensemble, ne demande pas le même
+      # diagnostic — et l'information ne coûte rien puisqu'elles tournent
+      # déjà en parallèle.
+      fail-fast: false
+      matrix:
+        include:
+          - nom: Commandes
+            scene: res://outils_dev/test_commandes.tscn
+            rendu: true
+          - nom: Boucle persistante
+            scene: res://outils_dev/test_arene_persistante.tscn
+            rendu: true
+          - nom: Progression
+            scene: res://outils_dev/test_progression.tscn
+            rendu: false
+          # LES SITUATIONS DE LA PRIME. Aucune d'elles ne lève
+          # d'erreur quand elle est fausse : une prime qui ne changerait
+          # pas de mains à la mort donnerait un jeu parfaitement
+          # fonctionnel et parfaitement plat.
+          - nom: La Prime
+            scene: res://outils_dev/banc_prime.tscn
+            rendu: true
+          # EN PROFIL TÉLÉPHONE. C'est la seule plateforme où le rendu
+          # lâche au-delà d'un certain nombre d'instances visibles, et donc
+          # la seule où le plafond de maillages a un sens.
+          - nom: Arène aux blocs
+            scene: res://outils_dev/banc_blocs.tscn
+            rendu: false
+          - nom: Armes
+            scene: res://outils_dev/banc_armes.tscn
+            rendu: false
+          - nom: Saut
+            scene: res://outils_dev/banc_saut.tscn
+            rendu: true
+    name: ${{ matrix.nom }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/moteur
+      - name: Vérifier
+        run: |
+          if [ "${{ matrix.rendu }}" = "true" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
+            arena-rush/outils_dev/barriere.sh "${{ matrix.scene }}" \
+              "${{ matrix.nom }}" --rendu ${{ matrix.args }}
+          else
+            arena-rush/outils_dev/barriere.sh "${{ matrix.scene }}" \
+              "${{ matrix.nom }}" ${{ matrix.args }}
+          fi
+
+  # --- LA SAUVEGARDE SURVIT-ELLE À UN REDÉMARRAGE ? ----------------------
+  #
+  # Deux processus, donc pas une simple barrière : on écrit dans l'un et on
+  # relit dans l'autre. Une progression qui ne se recharge pas est un défaut
+  # invisible en jouant — tout paraît marcher, et la perte ne se découvre
+  # qu'à la session suivante.
+  sauvegarde:
+    runs-on: ubuntu-latest
+    name: Sauvegarde
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/moteur
+      - name: Écrire puis relire
+        run: |
+          set -uo pipefail
+          ~/godot-bin/godot --headless --path arena-rush \
+            res://outils_dev/test_progression.tscn -- --ecrire 2>&1 | tee p.log || true
+          ~/godot-bin/godot --headless --path arena-rush \
+            res://outils_dev/test_progression.tscn -- --relire 2>&1 | tee -a p.log || true
+          if ! grep -q "échec(s)" p.log; then
+            echo "::error::La sauvegarde ne s'est pas testée."
+            exit 1
+          fi
+          grep -E "^\s+\[(OK|ÉCHEC)\]" p.log || true
+          if grep -qE "=== [1-9][0-9]* échec\(s\)" p.log; then
+            echo "::error::La progression ne survit pas à un redémarrage."
+            exit 1
+          fi
+          echo "Sauvegarde conforme."
+
+  # --- EXPORT ------------------------------------------------------------
+  construire:
+    needs: [verifier, sauvegarde]
+    runs-on: ubuntu-latest
+    name: Export web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/moteur
+      - name: Exporter en WebAssembly
+        run: |
+          set -euo pipefail
+          mkdir -p web
+          ~/godot-bin/godot --headless --path arena-rush --export-release "Web"
+          test -f web/index.wasm || { echo "::error::Export web absent."; exit 1; }
+          # LE NOM DES FICHIERS PORTE LA VERSION — voir `empreinte_web.sh`.
+          # Sans cela, une publication réussie n'est pas une publication
+          # VUE : `index.pck` gardant son nom, le navigateur sert l'ancien
+          # et le joueur ne voit aucun changement. C'est arrivé.
+          arena-rush/outils_dev/empreinte_web.sh web "${GITHUB_SHA:0:10}"
+          touch web/.nojekyll
+          ls -lh web/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  deployer:
+    needs: construire
+    runs-on: ubuntu-latest
+    name: Déploiement
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Afficher le lien
+        run: |
+          echo "### 🎮 Jeu publié" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
