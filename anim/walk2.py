@@ -59,7 +59,13 @@ P2 = dict(
     weapon_k=190.0, weapon_damp=0.80, weapon_rot_smooth=0.30,
     in_place=False,
     pole_R=None, pole_L=None,   # surchargent la direction de coude en port
-    grip_fwd=0.0,               # avance la prise de port (degage l'avant-bras)
+    carry_over=None,            # surcharge du port : prise basse en sortie de course
+    # Avance la prise de port. Necessaire depuis que le poignet gauche a ete
+    # rentre de 3,5 cm pour que la main de soutien tienne vraiment l'arme :
+    # l'avant-bras gauche passait alors dans le buste (-3,5 cm). A 5 cm devant,
+    # le degagement remonte a +3,2 cm et c'est l'humerus, plus l'avant-bras,
+    # qui devient l'element le plus proche du torse.
+    grip_fwd=0.05,
     grip_dz=-0.055,
     hip_drop=0.035, bob=0.045, load_dip=0.05,   # non utilises (hauteur deduite du genou)
     action_name='Marche_ArmeHaute',
@@ -276,7 +282,12 @@ def build_walk2(repeats=1):
     # ---------- 1) pose de port : elle fixe la prise, les doigts et la crosse.
     # On applique les parametres sur NOTRE instance de pose_aim : chaque script
     # charge sa propre copie du module, passer par pose_carry ecrirait ailleurs.
-    C = Cy['C']
+    # Le port peut etre surcharge : le personnage ne tient pas toujours l'arme
+    # en haut. En sortie de course il la rassemble d'abord a deux mains EN BAS,
+    # sur le cote droit, avant de la relever -- c'est P2['carry_over'] qui
+    # permet de generer cette variante avec le meme generateur de marche.
+    C = dict(Cy['C'])
+    C.update(P2.get('carry_over') or {})
     P = A['P']
     P['grip_rot'] = (Quaternion((0, 1, 0), math.radians(C['roll_deg']))
                      @ Quaternion((0, 0, 1), math.radians(C['yaw_deg']))
@@ -494,6 +505,33 @@ def build_walk2(repeats=1):
             traj.append(((pos - target).copy(), rot.copy()))
 
     P2['in_place'] = _ip
+
+    # Pose des BRAS, extraite de la boucle de cuisson. poser_corps ne fait que
+    # le bas du corps et la colonne : sans cette fonction, un appelant exterieur
+    # (le moteur de locomotion a vitesse variable) recuperait des bras au repos,
+    # c'est-a-dire en croix.
+    def poser_bras(tau, idx=None):
+        Mc = MW @ ARM.pose.bones[CHEST].matrix
+        if idx is None:
+            idx = int(round(tau * N)) % N
+        goff, gr = traj[idx % len(traj)]
+        A['P']['grip_center'] = (Mc @ grip_local) + goff
+        A['P']['grip_rot'] = gr.copy()
+        A['apply_grip_rot']()
+        XR, YR, ZR = A['hand_axes']('R', A['P']['r_palm_hint'])
+        XL, YL, ZL = A['hand_axes']('L', A['P']['l_palm_hint'])
+        A['solve_arm']('R', A['tfs'](*A['P']['r_wrist_tfs']), rpole)
+        A['solve_arm']('L', A['tfs'](*A['P']['l_wrist_tfs']), lpole)
+        set_world('CC_Base_R_Hand', A['mat3'](XR, YR, ZR), head('CC_Base_R_Hand'))
+        set_world('CC_Base_L_Hand', A['mat3'](XL, YL, ZL), head('CC_Base_L_Hand'))
+        for b, q in fingers.items():
+            pb = ARM.pose.bones[b]
+            pb.rotation_mode = 'QUATERNION'
+            pb.rotation_quaternion = q.copy()
+        U()
+        return Mc
+
+    P2['_bras'] = poser_bras
 
     # ---------- 4) cuisson
     A['reset_swivel']()

@@ -29,7 +29,12 @@ J = dict(
     cycles=3,                # duree totale, en cycles de marche
     debut=0.95,              # debut du depliement, en cycles
     duree=0.55,              # duree du depliement, en cycles (~0.6 s)
-    portee=0.585,            # distance crosse - epaules en visee (m)
+    # Distance crosse - epaules en visee. A 0.585 la cible etait hors d'atteinte
+    # du bras : le solveur bridait a 98,5 % de la longueur, chaque main restait
+    # courte le long de SA propre ligne d'epaule, et comme les epaules sont
+    # ecartees de 43 cm les deux mains s'ecartaient -- 13,5 cm entre les
+    # poignets au lieu des 8 cm de la prise. A 0.520 elles se rejoignent.
+    portee=0.520,
     # Hauteur de crosse. A 1.560 l'arme etait 8 cm AU-DESSUS de la ligne
     # d'epaule : l'avant-bras devait monter vers les mains alors que la main,
     # elle, pointe vers l'avant-bas (une crosse de pistolet est inclinee de
@@ -44,8 +49,11 @@ J = dict(
     # la seconde, l'optimum du poignet rentre le coude jusqu'au sternum -- il
     # passait meme au travers du buste pendant le depliement.
     # Le coude reste donc au niveau de l'epaule, ouvert vers l'exterieur.
-    pole_visee_D=(-0.950, -0.294, 0.104),
-    pole_visee_G=(0.897, -0.178, -0.405),
+    # Recalcules pour la portee 0.520, en evaluant DEUX images du cycle (la
+    # posture de reference et la pire pour le degagement) pour que le choix
+    # tienne sur tout le cycle et pas sur une seule pose.
+    pole_visee_D=(-0.922, -0.346, 0.173),
+    pole_visee_G=(0.877, -0.339, 0.340),
     # Retard de la reorientation du coude. La cible de la crosse part tout de
     # suite, mais tant que les mains sont encore devant la poitrine le bras est
     # replie et le coude n'a aucune raison d'avoir deja pris son orientation de
@@ -53,7 +61,30 @@ J = dict(
     # Le coude ne commence a s'ouvrir qu'apres 40 % du depliement.
     pole_retard=0.78,
     action='Marche_MiseEnJoue',
+    # --- tir
+    # Images (0 = premiere image du clip) auxquelles un coup part. Le recul est
+    # applique a la CROSSE : les bras sont resolus dessus, donc toute la chaine
+    # encaisse d'elle-meme, comme dans la realite ou c'est l'arme qui pousse
+    # l'epaule et non l'inverse.
+    tirs=(),
+    recul_arriere=0.052,     # recul de la crosse vers l arriere (m)
+    recul_haut=0.022,        # et vers le haut (m)
+    recul_cabre=17.0,        # relevement du canon (deg)
+    recul_attaque=0.022,     # constante de montee (s) : deux images
+    recul_retour=0.105,      # constante de retour (s)
+    y0=0.0,                  # decalage d'assemblage : ou commence le clip
 )
+
+
+def enveloppe(u, att, ret):
+    """forme du recul : montee quasi instantanee, retour amorti"""
+    if u < 0.0:
+        return 0.0
+    e = (1.0 - math.exp(-u / att)) * math.exp(-u / ret)
+    # normalisation : le maximum de cette forme vaut moins de 1
+    um = att * math.log(1.0 + ret / att)
+    em = (1.0 - math.exp(-um / att)) * math.exp(-um / ret)
+    return e / em if em > 1e-9 else 0.0
 
 
 def build():
@@ -146,7 +177,21 @@ def build():
         Mc = poser(tau)
         goff, gr = traj[i]
         tgt, _q = cible(i, tau, Mc)
-        A['P']['grip_center'] = tgt + goff
+        gp = tgt + goff
+        # --- recul. Il est applique a la CROSSE : les bras sont resolus dessus,
+        # donc toute la chaine encaisse d'elle-meme, comme dans la realite ou
+        # c'est l'arme qui repousse l'epaule et non l'inverse.
+        rec = 0.0
+        for ft in J['tirs']:
+            rec += enveloppe((i - ft) / float(fps), J['recul_attaque'], J['recul_retour'])
+        if rec > 1e-4:
+            # En coordonnees MONDE : l'axe Y de l'os de buste pointe vers le
+            # HAUT le long de la colonne, s'en servir envoyait le recul en
+            # l'air (+9,5 cm) au lieu de vers l'arriere.
+            gp = gp + Vector((0.0, J['recul_arriere'] * rec, J['recul_haut'] * rec))
+            gr = (Quaternion(Vector((1.0, 0.0, 0.0)),
+                             math.radians(-J['recul_cabre'] * rec)) @ gr).normalized()
+        A['P']['grip_center'] = gp
         A['P']['grip_rot'] = gr.copy()
         A['apply_grip_rot']()
         XR, YR, ZR = A['hand_axes']('R', A['P']['r_palm_hint'])

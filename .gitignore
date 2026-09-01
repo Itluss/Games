@@ -1,0 +1,15 @@
+# Rien qui puisse contenir un secret ne doit entrer dans le depot.
+.env
+.env.*
+*.key
+secrets.json
+
+# Sorties de build et caches
+__pycache__/
+*.pyc
+arena-rush/.godot/
+arena-rush/_out/
+
+# Sauvegardes automatiques de Blender : regenerees a chaque enregistrement
+*.blend1
+*.blend2

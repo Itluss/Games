@@ -36,6 +36,20 @@ def _torse_idx(obj):
     return keep
 
 
+def boite_torse():
+    """boite englobante des sommets du torse, en monde"""
+    dg = bpy.context.evaluated_depsgraph_get()
+    src = bpy.data.objects['output_unwrapped']
+    keep = _torse_idx(src)
+    ev = src.evaluated_get(dg)
+    me = ev.to_mesh(); m = ev.matrix_world
+    pts = [m @ me.vertices[i].co for i in keep]
+    lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    ev.to_mesh_clear()
+    return lo, hi
+
+
 def bvh_torse():
     dg = bpy.context.evaluated_depsgraph_get()
     src = bpy.data.objects['output_unwrapped']
@@ -51,7 +65,7 @@ def bvh_torse():
     return bvh
 
 
-def degagement(bvh, P0, P1, n=16, t0=0.0):
+def degagement(bvh, P0, P1, n=16, t0=0.0, boite=None):
     """distance signee minimale du segment [P0,P1] a la surface du torse.
        t0 saute le debut du segment : la tete de l'humerus est anatomiquement
        DANS le volume de l'epaule, la compter donnerait toujours du negatif."""
@@ -77,6 +91,16 @@ def degagement(bvh, P0, P1, n=16, t0=0.0):
             w = 1.0 / (d2 + 1e-4)
             vote += w * (1.0 if v.dot(nrm2) >= 0.0 else -1.0)
         if vote < 0.0:
+            # Garde-fou : un point situe HORS de la boite englobante du torse ne
+            # peut pas etre dedans, quoi que disent les normales. Sans cela un
+            # bras tendu loin devant, dont la face de torse la plus proche est
+            # un flanc vu par la tranche, etait declare a -12 cm dans le buste.
+            if boite is not None:
+                lo, hi = boite
+                if (P.x < lo.x or P.x > hi.x or P.y < lo.y or P.y > hi.y
+                        or P.z < lo.z or P.z > hi.z):
+                    mini = min(mini, d)
+                    continue
             d = -d
         mini = min(mini, d)
     return mini
@@ -92,12 +116,13 @@ def controler(action, images, verbose=False):
         scn.frame_set(f)
         bpy.context.view_layer.update()
         bvh = bvh_torse()
+        bte = boite_torse()
         for s in ('R', 'L'):
             S = MW @ arm.pose.bones['CC_Base_%s_Upperarm' % s].head
             E = MW @ arm.pose.bones['CC_Base_%s_Forearm' % s].head
             W = MW @ arm.pose.bones['CC_Base_%s_Hand' % s].head
             for P0, P1, t0, lab in ((S, E, 0.55, 'humerus'), (E, W, 0.0, 'avant-bras')):
-                d = degagement(bvh, P0, P1, t0=t0)
+                d = degagement(bvh, P0, P1, t0=t0, boite=bte)
                 if d < pire[0]:
                     pire = (d, f, '%s %s' % (s, lab))
         if verbose and f % 10 == 0:

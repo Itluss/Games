@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "projet": "POC port maritime",
+  "unite": "metre",
+  "cree": "2026-09-01T14:23:20",
+  "note": "Rempli par scripts/meshy/generate_port_assets.py. Un asset n'est marque 'telecharge' que si son GLB existe sur disque et porte la signature glTF.",
+  "assets": {}
+}

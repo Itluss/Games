@@ -2,8 +2,11 @@
 import base64, os, json
 
 SP = os.path.dirname(os.path.abspath(__file__))
-ANGLES = [('profil', 'Profil'), ('troisquarts', 'Trois quarts'), ('face', 'Face'),
-          ('dos', 'Dos'), ('misenjoue', 'Mise en joue')]
+ANGLES = [('cinematique', 'CINEMATIQUE'), ('profil', 'Profil'), ('troisquarts', 'Trois quarts'), ('face', 'Face'),
+          ('dos', 'Dos'), ('misenjoue', 'Mise en joue'),
+          ('viseeprofil', 'Marche en visee'), ('viseeface', 'Visee de face'),
+          ('courseprofil', 'Course'), ('coursetroisquarts', 'Course 3/4'),
+          ('coursetravers', 'Course - camera fixe')]
 
 data = {}
 for key, _ in ANGLES:
@@ -107,8 +110,8 @@ h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em;text-wrap:balan
 
 BODY = '''<div class="wrap">
   <header>
-    <h1>Marche tactique et mise en joue</h1>
-    <span class="sub mono">30 fps &middot; camera d&rsquo;accompagnement &middot; poignets redresses</span>
+    <h1>Cinematique : marche, course, mise en joue, tir</h1>
+    <span class="sub mono">30 fps &middot; 9,5 s &middot; une seule action continue</span>
   </header>
 
   <div class="tabs" role="tablist" aria-label="Angle de vue">__TABS__</div>
@@ -133,27 +136,26 @@ BODY = '''<div class="wrap">
   </div>
 
   <dl class="specs">
-    <div class="spec"><dt>Poignets en visee</dt><dd>16 <small>deg (43 avant)</small></dd></div>
-    <div class="spec"><dt>Pivot en fin d&rsquo;appui</dt><dd>0,0 <small>mm de derive</small></dd></div>
-    <div class="spec"><dt>Genou en poussee</dt><dd>0 <small>inversion</small></dd></div>
-    <div class="spec"><dt>Coudes en visee</dt><dd>162 <small>deg, sous l&rsquo;epaule</small></dd></div>
+    <div class="spec"><dt>Duree</dt><dd>9,5 <small>s &middot; 286 images</small></dd></div>
+    <div class="spec"><dt>Vitesse</dt><dd>1,0 &rarr; 3,6 &rarr; 1,0 <small>m/s</small></dd></div>
+    <div class="spec"><dt>A-coup maximal</dt><dd>0,17 <small>m/s par image</small></dd></div>
+    <div class="spec"><dt>Canon au relevage</dt><dd>&minus;22 &rarr; +82 <small>deg</small></dd></div>
   </dl>
 
   <section class="checks">
     <h2>Ce qui rend la marche souple, et les controles</h2>
     <ul>
-      <li><b>Les poignets etaient casses en visee : 43&deg; a droite, 40&deg; a gauche.</b> Trois causes empilees, trouvees en mesurant l&rsquo;angle avant-bras / main image par image plutot qu&rsquo;en deplacant les coudes au jugé.</li>
-      <li><b>Le ressort de l&rsquo;arme courait derriere une cible qui avance.</b> Il tournait sur le personnage en deplacement, a 1 m/s : il accumulait donc un retard permanent de <b>8 cm</b> au lieu de ne repondre qu&rsquo;aux accelerations. L&rsquo;arme etait plaquee contre la poitrine et la phase de port ne coincidait meme plus avec l&rsquo;animation de marche. Elle y correspond aujourd&rsquo;hui a <b>0,0 mm</b>.</li>
-      <li><b>L&rsquo;arme visait 8 cm au-dessus de la ligne d&rsquo;epaule.</b> L&rsquo;avant-bras devait monter vers les mains alors que la main, elle, pointe vers l&rsquo;avant-bas &mdash; une crosse de pistolet est inclinee de 16&deg;. Les deux directions se contrariaient et le poignet encaissait tout l&rsquo;ecart. Hauteur ramenee a <b>1,43 m</b>, hauteur de poitrine de la cible.</li>
-      <li><b>La direction du coude est desormais calculee, pas choisie.</b> Sur le cercle de rotation du coude on retient la position la plus BASSE qui garde le poignet sous 16&deg; <em>et</em> l&rsquo;humerus a plus de 2 cm du torse. Sans cette seconde contrainte l&rsquo;optimum du poignet rentre le coude jusqu&rsquo;au sternum &mdash; il traversait meme le buste au milieu du depliement.</li>
-      <li>Poignets en visee : <b>14 a 18&deg;</b> des deux cotes, contre 39 a 50&deg;. Coudes <b>2 a 5 cm sous l&rsquo;epaule</b>, flechis a <b>162&deg;</b>, jamais verrouilles.</li>
-      <li><b>La jambe arriere tremblait avant de decoller.</b> La distance hanche&ndash;cheville se rallongeait de <b>6,3 mm</b> sur la derniere image d&rsquo;appui : la cheville ne faisait que monter, alors que le pied roule sur le coussinet et qu&rsquo;elle doit decrire un arc autour de lui &mdash; monter <em>et</em> avancer. Elle avance maintenant de <b>4,0 cm</b>, autour d&rsquo;un point de contact qui ne bouge pas d&rsquo;un <b>dixieme de millimetre</b>.</li>
-      <li>La poussee accelere desormais jusqu&rsquo;au decollement au lieu de s&rsquo;essouffler : le genou passe de <b>5&deg; a 59&deg;</b> sans une seule inversion. La seule inflexion restante, 2,6&deg; a l&rsquo;attaque du talon, est la flexion d&rsquo;amortissement.</li>
-      <li>Proportions d&rsquo;origine : etirement d&rsquo;os maximal <b>0,08 %</b>, <b>aucun</b> os dont l&rsquo;echelle differe de 1. Degagement bras / torse <b>+1,7 cm</b>, plus aucune valeur negative.</li>
+      <li><b>Le raccord qui manquait : la prise basse.</b> On ne passe pas d&rsquo;une arme au poing en courant a une arme haute a deux mains d&rsquo;un seul coup. Le personnage ralentit, sa main gauche vient saisir l&rsquo;arme <em>sur le cote droit, canon toujours vers le bas</em> &mdash; et c&rsquo;est seulement ensuite qu&rsquo;il la releve. Techniquement, le ralentissement ne vise plus le port haut mais une <b>prise basse</b> a deux mains ; un module de relevage fait ensuite monter la crosse de la hanche a la poitrine, canon de <b>&minus;22&deg; a +82&deg;</b>, les deux mains restant solidaires.</li>
+      <li>Deroule mesure : marche arme haute &rarr; acceleration &rarr; <b>course</b> (arme dans la seule main droite, poignets ecartes de 98 cm) &rarr; ralentissement, les mains se rejoignent (98 &rarr; <b>10 cm</b>) sur une arme qui reste a <b>&minus;21&deg;</b> &rarr; <b>relevage</b> &rarr; port haut &rarr; mise en joue &rarr; <b>deux coups</b>.</li>
+      <li><b>Ce qui manquait au depart n&rsquo;etait pas un clip, c&rsquo;etait un moteur.</b> Entre marche et course il faut franchir un facteur <b>3,5 en vitesse</b> et <b>1,7 en cadence</b>. Fondre les deux cycles image par image donnait <b>2,3 cm d&rsquo;enfoncement, 17 cm de glissement en une image et des vitesses negatives</b> &mdash; un quaternion ne sait rien du sol. Les jambes sont donc <em>recalculees</em> par un planificateur d&rsquo;appuis qui retient ou chaque pied est reellement pose ; seul le haut du corps, sans contrainte de contact, est fondu.</li>
+      <li><b>Le tir.</b> Le recul est applique a la CROSSE, pas aux bras : ceux-ci etant resolus dessus, toute la chaine encaisse d&rsquo;elle-meme, comme dans la realite ou c&rsquo;est l&rsquo;arme qui repousse l&rsquo;epaule. Canon qui se cabre de <b>17&deg;</b> en une image et retombe en treize, crosse qui recule de <b>52 mm</b>, coude qui se ferme de 141 a <b>110&deg;</b>.</li>
+      <li><b>Deux bogues trouves uniquement par la mesure.</b> Les bras etaient <b>en croix</b> sur toute la premiere moitie : la fonction de pose du corps ne traite que le bas et la colonne, les bras etant resolus ailleurs. Et le raccord sortie de course sautait de <b>2,6 m/s</b> parce que je calais le decalage sur un pas de marche (3,4 cm) la ou le personnage courait a 12 cm par image.</li>
+      <li>Controles sur les 286 images : a-coup maximal <b>0,17 m/s</b>, point le plus bas <b>&minus;0,43 cm</b> sur <b>6 images</b> (2 %), etirement d&rsquo;os <b>0,17 %</b>, aucun os dont l&rsquo;echelle differe de 1.</li>
+      <li><b>Reste a faire</b> : resorber ces 6 images, et l&rsquo;arret complet &mdash; le personnage vise toujours en marchant, il ne s&rsquo;immobilise jamais.</li>
     </ul>
   </section>
 
-  <p class="note">Decor volontairement vide : fond et sol gris uni, aucun element de scene, pour ne juger que les postures. La camera avance a la vitesse du personnage ; le sol etant uni, la reprise de boucle est invisible. Les actions exportees pour le moteur sont, elles, sur place et bouclables. En <b>0,25&times;</b> : sur l&rsquo;onglet Profil, suivez la jambe arriere quand le talon se leve ; sur l&rsquo;onglet Mise en joue, regardez l&rsquo;alignement avant-bras / arme une fois les bras deployes. Espace = lecture/pause, fleches gauche et droite = image par image.</p>
+  <p class="note">Le premier onglet est la <b>cinematique complete</b> : marche, acceleration, course, freinage, marche, mise en joue, deux coups de feu &mdash; une seule action de 294 images, sans coupure ni saut de position. Les onglets suivants montrent chaque brique isolement. Le sol porte des barres tous les metres : sans repere aucune avancee n&rsquo;est perceptible, la camera suivant le personnage. Espace = lecture/pause, fleches gauche et droite = image par image.</p>
 </div>
 <script>
 const SEQ = __DATA__;

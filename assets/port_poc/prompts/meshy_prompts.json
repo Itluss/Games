@@ -1,0 +1,435 @@
+{
+  "version": 1,
+  "projet": "POC port maritime",
+  "unite": "metre",
+  "note": "Dimensions reelles approximatives, en metres (longueur, largeur, hauteur). Elles servent de reference de mise a l'echelle a l'import : Meshy ne garantit aucune echelle absolue.",
+  "socle_commun": "contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors",
+  "interdits_communs": "no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use",
+  "lots": {
+    "poc_test": "Les trois assets de validation du pipeline.",
+    "poc_core": "Les 30 assets principaux du POC.",
+    "poc_extra": "Assets supplementaires, par ordre de priorite."
+  },
+  "assets": [
+    {
+      "id": "port_barrier_jersey_01",
+      "nom": "Barriere Jersey beton standard",
+      "categorie": "barriers",
+      "lot": "poc_test",
+      "dimensions_m": {
+        "longueur": 3.0,
+        "largeur": 0.6,
+        "hauteur": 0.81
+      },
+      "prompt": "Standard precast concrete Jersey road barrier, single 3 meter section, trapezoidal profile with sloped base and flat top, cast concrete surface with visible formwork seams and small air bubbles, exposed steel lifting loop on top, light grey concrete with faint tyre scuffs along the lower slope, fine dust accumulation in the base corners, realistic concrete roughness with slight variation between faces, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_barrier_jersey_worn_01",
+      "nom": "Barriere Jersey beton usee",
+      "categorie": "barriers",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 3.0,
+        "largeur": 0.6,
+        "hauteur": 0.81
+      },
+      "prompt": "Weathered precast concrete Jersey road barrier, single 3 meter section, trapezoidal profile, aged concrete with chipped edges exposing coarse aggregate, rust streaks running down from the embedded steel lifting loops, faded and partly worn horizontal paint band, dark grime settled in the lower slope, uneven weathering stronger on one side, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_concrete_block_01",
+      "nom": "Bloc beton industriel empilable",
+      "categorie": "barriers",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 1.6,
+        "largeur": 0.8,
+        "hauteur": 0.8
+      },
+      "prompt": "Interlocking precast concrete block, rectangular Lego-style barrier block with moulded lugs on top and matching recesses underneath, rough cast concrete faces with formwork texture and small voids, two steel lifting anchors, chipped corners, grey concrete with mineral staining and dust, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_concrete_wall_l_01",
+      "nom": "Mur beton court en L",
+      "categorie": "barriers",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 2.4,
+        "largeur": 0.9,
+        "hauteur": 1.2
+      },
+      "prompt": "Short precast L-shaped concrete retaining wall element, vertical panel with horizontal foot slab, smooth formed faces with visible casting seams and tie-rod holes, light grey concrete, dirt and gravel dust along the foot, minor edge chipping, realistic concrete roughness, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_barrier_plastic_01",
+      "nom": "Barriere plastique de chantier",
+      "categorie": "barriers",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 2.0,
+        "largeur": 0.5,
+        "hauteur": 1.0
+      },
+      "prompt": "Water-fillable plastic road safety barrier, injection moulded high density polyethylene, interlocking end connectors, moulded ribs and fill cap on top, bright safety orange and white plastic, matte slightly chalky surface from sun exposure, scuffs and dust film, realistic plastic roughness, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_fence_mesh_temp_01",
+      "nom": "Grille metallique temporaire",
+      "categorie": "barriers",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 3.5,
+        "largeur": 0.05,
+        "hauteur": 2.0
+      },
+      "prompt": "Temporary construction site mesh fence panel, galvanised steel tubular frame with welded wire mesh infill, sitting in two moulded concrete feet, bright zinc galvanised finish with dull patches, small rust spots at weld points, slightly bent mesh in one corner, thin realistic wire geometry, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_barrier_pedestrian_01",
+      "nom": "Barriere metallique pietonne",
+      "categorie": "barriers",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 2.0,
+        "largeur": 0.4,
+        "hauteur": 1.1
+      },
+      "prompt": "Steel pedestrian crowd control barrier, tubular frame with vertical bars and folding feet, hot dip galvanised steel with matte grey finish, hooking loops at one end, scratched paint on the top rail, light rust at the foot welds, slight deformation from handling, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_pallets_stack_01",
+      "nom": "Palettes industrielles empilees",
+      "categorie": "cargo",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 1.2,
+        "largeur": 0.8,
+        "hauteur": 1.2
+      },
+      "prompt": "Stack of about eight standard EUR wooden pallets, softwood boards with visible saw grain and nail heads, rounded worn edges, mixed board tones from grey weathering to fresh timber, dirt and scuffs on the bottom pallets, slightly irregular stacking, realistic wood roughness, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_pallet_boxes_01",
+      "nom": "Palette avec caisses industrielles",
+      "categorie": "cargo",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 1.2,
+        "largeur": 0.8,
+        "hauteur": 1.4
+      },
+      "prompt": "Wooden EUR pallet loaded with stacked corrugated cardboard boxes wrapped in transparent stretch film, boxes slightly uneven and softly deformed, plain unprinted brown cardboard, film with realistic wrinkles and specular highlights, dust on the top surfaces, worn pallet underneath, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_pallet_tarp_01",
+      "nom": "Palette sous bache industrielle",
+      "categorie": "cargo",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 1.2,
+        "largeur": 0.8,
+        "hauteur": 1.3
+      },
+      "prompt": "Wooden pallet load covered by a heavy industrial PVC tarpaulin, olive green coated fabric with realistic folds and sagging between the load edges, metal eyelets and black tie-down straps with ratchet buckles, faded fabric with dirt streaks and water stains, matte vinyl roughness, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_wooden_crates_01",
+      "nom": "Caisses bois de transport",
+      "categorie": "cargo",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 1.2,
+        "largeur": 1.0,
+        "hauteur": 1.0
+      },
+      "prompt": "Group of industrial plywood shipping crates, braced with softwood battens and diagonal corner reinforcement, exposed screw and staple heads, plain untreated plywood with visible grain and edge delamination, scuffed corners, dust and handling marks, one crate slightly offset, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_pallet_sacks_01",
+      "nom": "Sacs de materiau sur palette",
+      "categorie": "cargo",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 1.2,
+        "largeur": 0.8,
+        "hauteur": 1.1
+      },
+      "prompt": "Wooden pallet stacked with heavy woven polypropylene bulk sacks of aggregate, soft irregular sagging shapes conforming to each other, off-white and beige woven fabric with visible weave texture, dusty surfaces, one torn corner spilling fine grey powder, worn pallet base, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_container_20ft_blue_01",
+      "nom": "Container maritime 20 pieds bleu",
+      "categorie": "containers",
+      "lot": "poc_test",
+      "dimensions_m": {
+        "longueur": 6.06,
+        "largeur": 2.44,
+        "hauteur": 2.59
+      },
+      "prompt": "Standard ISO 20-foot shipping container, generic unbranded, exact real-world proportions and door construction, corrugated painted steel panels, realistic locking bars with cams and hinges, corner castings, forklift pockets, deep marine blue paint, subtle scratches and naturally distributed edge wear, very light localised oxidation at the door frame and lower rail, realistic painted metal roughness, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_container_20ft_red_01",
+      "nom": "Container maritime 20 pieds rouge",
+      "categorie": "containers",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 6.06,
+        "largeur": 2.44,
+        "hauteur": 2.59
+      },
+      "prompt": "Standard ISO 20-foot shipping container, generic unbranded, corrugated painted steel panels, full set of locking bars, hinges and corner castings, oxide red paint faded unevenly by sun exposure, chalky weathered finish on the roof, rust blooms along the bottom rail and around the door hinges, dents in two corrugation valleys, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_container_20ft_green_01",
+      "nom": "Container maritime 20 pieds vert",
+      "categorie": "containers",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 6.06,
+        "largeur": 2.44,
+        "hauteur": 2.59
+      },
+      "prompt": "Standard ISO 20-foot shipping container, generic unbranded, corrugated painted steel panels, locking bars and corner castings, dark industrial green paint with patchy repainted areas in a slightly different shade, scratches revealing primer, light surface rust along welds, dust film settled on horizontal surfaces, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_container_reefer_white_01",
+      "nom": "Container frigorifique blanc",
+      "categorie": "containers",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 6.06,
+        "largeur": 2.44,
+        "hauteur": 2.59
+      },
+      "prompt": "Refrigerated ISO 20-foot reefer shipping container, generic unbranded, smooth ribbed white painted steel side panels, integrated refrigeration unit at one end with protective grille, ventilation louvres, control panel recess and power cable socket, stainless steel fittings, off-white paint with grey grime streaks below the unit, light rust at the base rail, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_ibc_tank_01",
+      "nom": "Cuve IBC sur palette",
+      "categorie": "cargo",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 1.2,
+        "largeur": 1.0,
+        "hauteur": 1.16
+      },
+      "prompt": "Industrial IBC intermediate bulk container, translucent white polyethylene tank inside a galvanised steel tubular cage, moulded on a steel pallet base, bottom discharge valve with cap and top filling lid, faint residue staining inside the tank, dusty cage with light rust at the weld joints, realistic translucent plastic and galvanised metal, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_steel_drums_01",
+      "nom": "Futs metalliques industriels",
+      "categorie": "cargo",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 1.3,
+        "largeur": 0.7,
+        "hauteur": 0.88
+      },
+      "prompt": "Group of three 200 litre steel industrial drums, standard rolling hoops and top bung fittings, painted steel in industrial blue, paint scuffed down to bare metal on the rolling hoops, rust rings at the base rims, dents in the upper body, dust and dried liquid streaks running down one side, realistic painted metal roughness variation, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_cable_reel_01",
+      "nom": "Bobine industrielle de cable",
+      "categorie": "cargo",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 2.0,
+        "largeur": 2.0,
+        "hauteur": 1.2
+      },
+      "prompt": "Large industrial cable drum, heavy timber construction with radial plank flanges bolted to a central wooden core, wound with thick black electrical cable, weathered grey timber with splintered edges and rusted bolt heads, cable with realistic rubber sheen and slight sag, dust and mud on the lower flange, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_bollard_01",
+      "nom": "Bollard d amarrage de quai",
+      "categorie": "props",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 0.5,
+        "largeur": 0.5,
+        "hauteur": 0.7
+      },
+      "prompt": "Cast iron quayside mooring bollard, heavy mushroom head on a flanged base plate with four large anchor bolts set into concrete, thick layered paint in weathered yellow flaking away to reveal rusted cast iron underneath, polished bare metal on the head where mooring lines have rubbed, salt and grime in the base flange, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_handrail_01",
+      "nom": "Garde-corps metallique industriel",
+      "categorie": "structures",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 2.0,
+        "largeur": 0.05,
+        "hauteur": 1.1
+      },
+      "prompt": "Industrial steel guardrail section, tubular top rail and mid rail with vertical posts and welded base plates, kick plate along the bottom, safety yellow painted steel with chipped paint at the corners and handling marks, rust starting at the weld seams and bolt holes, matte worn paint roughness, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_stairs_steel_01",
+      "nom": "Escalier metallique exterieur",
+      "categorie": "structures",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 2.5,
+        "largeur": 1.0,
+        "hauteur": 2.5
+      },
+      "prompt": "External industrial steel staircase, single straight flight with about ten open grating treads, steel stringers, tubular handrail on both sides and a small top landing, hot dip galvanised finish with dull grey patina, rust at the bolted connections, worn shiny metal on the tread nosings, realistic grating geometry, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_control_cabin_01",
+      "nom": "Poste de controle portuaire",
+      "categorie": "structures",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 2.5,
+        "largeur": 2.5,
+        "hauteur": 3.0
+      },
+      "prompt": "Small prefabricated port gate control cabin, single room modular building with large glazed windows on two sides, sheet metal wall panels with visible fixing screws, shallow flat roof with drip edge, one steel door with a step, small wall mounted air conditioning unit, white and blue painted panels with grime streaks below the windows and rust at the panel joints, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_watch_tower_01",
+      "nom": "Tour d observation portuaire",
+      "categorie": "structures",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 3.0,
+        "largeur": 3.0,
+        "hauteur": 5.5
+      },
+      "prompt": "Small elevated port observation post, glazed cabin raised on a steel frame structure with an external staircase and railed platform, sheet metal cladding, flat roof with a short antenna mast, galvanised steel legs, white and blue painted panels with weathering streaks, rust at the leg base plates, realistic industrial construction, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_van_white_01",
+      "nom": "Fourgon utilitaire blanc",
+      "categorie": "vehicles",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 5.9,
+        "largeur": 2.0,
+        "hauteur": 2.6
+      },
+      "prompt": "Generic modern European panel van, medium wheelbase high roof commercial van body, plain white paint, unmarked flat side panels, black plastic bumpers and mirrors, steel wheels with plain hub caps, realistic glass with slight tint, road dust along the lower body and around the wheel arches, light stone chips on the front, no badges, generic anonymous front grille design, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_pickup_01",
+      "nom": "Pick-up utilitaire",
+      "categorie": "vehicles",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 5.3,
+        "largeur": 1.9,
+        "hauteur": 1.8
+      },
+      "prompt": "Generic modern double cab pickup truck, plain silver grey paint, open cargo bed with plastic bed liner, black plastic bumpers, wheel arch trims and side steps, all terrain tyres on plain steel wheels, dusty lower body and mud spray behind the wheels, scratches on the tailgate top edge, anonymous generic grille, no badges, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_flatbed_truck_01",
+      "nom": "Petit camion plateau industriel",
+      "categorie": "vehicles",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 7.5,
+        "largeur": 2.4,
+        "hauteur": 3.0
+      },
+      "prompt": "Small generic European flatbed lorry, two axle chassis cab with a flat steel deck and folding aluminium drop sides, plain white cab with black bumper, steel wheels, timber deck boards worn and stained, tie-down hooks along the deck edge, road grime on the chassis and mudguards, anonymous generic cab front, no badges, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_forklift_01",
+      "nom": "Chariot elevateur portuaire",
+      "categorie": "machinery",
+      "lot": "poc_test",
+      "dimensions_m": {
+        "longueur": 3.6,
+        "largeur": 1.3,
+        "hauteur": 2.2
+      },
+      "prompt": "Industrial counterbalance forklift truck, three tonne class diesel yard forklift, vertical duplex mast with chains and hydraulic cylinders, two steel forks, overhead protective cage, open operator seat with steering wheel and control levers, heavy counterweight at the rear, solid rubber tyres, safety yellow paintwork with chipped edges and grease stains, hydraulic oil residue on the mast rails, dusty worn appearance, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_terminal_tractor_01",
+      "nom": "Tracteur de terminal",
+      "categorie": "machinery",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 4.5,
+        "largeur": 2.4,
+        "hauteur": 2.8
+      },
+      "prompt": "Port terminal tractor yard truck, short wheelbase shunting tractor with a tall narrow cab, single rear axle with dual wheels, flat rear deck carrying a lifting fifth wheel coupling, access ladder and handrails, amber beacon on the cab roof, white and grey paintwork with scuffs on the deck and rust at the chassis welds, anonymous unbranded cab, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_light_generator_01",
+      "nom": "Groupe electrogene avec projecteurs",
+      "categorie": "machinery",
+      "lot": "poc_core",
+      "dimensions_m": {
+        "longueur": 3.2,
+        "largeur": 1.6,
+        "hauteur": 2.4
+      },
+      "prompt": "Mobile lighting tower generator on a small two wheel road trailer, boxy sheet metal enclosure with hinged access doors and louvred vents, telescopic mast stowed horizontally carrying four rectangular floodlight heads, stabiliser outriggers, drawbar with jockey wheel, safety yellow painted body with scratched panels, exhaust soot marks and road dust, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_reach_stacker_01",
+      "nom": "Reach stacker",
+      "categorie": "machinery",
+      "lot": "poc_extra",
+      "dimensions_m": {
+        "longueur": 11.0,
+        "largeur": 4.2,
+        "hauteur": 4.9
+      },
+      "prompt": "Container handling reach stacker, heavy four wheel yard machine with a long telescopic boom and a container spreader attachment at the tip, elevated glazed cab offset to one side, very large ribbed tyres, hydraulic cylinders and hose routing along the boom, red and dark grey paintwork with heavy chipping on the boom edges, grease and dust, unbranded anonymous machine, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_container_trailer_01",
+      "nom": "Semi-remorque porte-container",
+      "categorie": "vehicles",
+      "lot": "poc_extra",
+      "dimensions_m": {
+        "longueur": 12.2,
+        "largeur": 2.5,
+        "hauteur": 1.5
+      },
+      "prompt": "Skeletal container semi-trailer chassis, long steel frame with twist locks for a 40 foot container, three axle bogie with dual wheels, landing legs, mudguards, rear underrun bar with lights, plain grey painted steel with rust streaks and road grime, no container loaded, unbranded, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_workshop_building_01",
+      "nom": "Petit atelier industriel portuaire",
+      "categorie": "structures",
+      "lot": "poc_extra",
+      "dimensions_m": {
+        "longueur": 12.0,
+        "largeur": 8.0,
+        "hauteur": 5.0
+      },
+      "prompt": "Small single storey industrial port workshop building, rectangular structure with profiled sheet metal walls, one large roller shutter door and a personnel door, shallow pitched roof with rainwater gutter, small high windows, white upper panels over a blue painted lower band, dirt streaks below the gutter, rust at the shutter guides, plain concrete plinth, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_flood_light_mast_01",
+      "nom": "Grand projecteur sur mat",
+      "categorie": "props",
+      "lot": "poc_extra",
+      "dimensions_m": {
+        "longueur": 1.2,
+        "largeur": 1.2,
+        "hauteur": 9.0
+      },
+      "prompt": "Tall industrial floodlight mast, galvanised steel tapered pole on a bolted base plate, crossarm at the top carrying four rectangular floodlight heads angled downwards, cable routing clipped along the pole, dull galvanised finish with white efflorescence and rust at the base bolts, weathered aluminium light housings, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    },
+    {
+      "id": "port_concrete_planter_01",
+      "nom": "Jardiniere beton",
+      "categorie": "props",
+      "lot": "poc_extra",
+      "dimensions_m": {
+        "longueur": 1.2,
+        "largeur": 0.6,
+        "hauteur": 0.6
+      },
+      "prompt": "Rectangular precast concrete planter box, heavy walls with exposed aggregate finish, slightly tapered sides, filled with soil and low mediterranean shrubs, water staining down the outer faces, moss in the lower corners, chipped top edge, realistic concrete and foliage, contemporary European Mediterranean commercial seaport equipment, exact real-world proportions, photorealistic physically based materials, realistic manufacturing details, subtle natural wear, slight dirt accumulation, realistic roughness variation, authentic industrial construction, functional believable geometry, neutral daylight appearance, natural saturated realistic colors, no logos, no company names, no brand markings, no invented text, no lettering, no stylization, no cartoon proportions, no fantasy details, no game-art exaggeration, no military fortification, isolated single object, clean topology suitable for realtime game use"
+    }
+  ]
+}

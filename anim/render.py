@@ -15,6 +15,19 @@ VUES = {
     'face':        (( 0.00, -5.00, 1.05), 0.95),
     'dos':         (( 0.00,  5.00, 1.05), 0.95),
     'misenjoue':   ((-3.70, -3.20, 1.25), 1.00),
+    'viseeprofil': ((-5.00,  0.00, 1.05), 0.95),
+    'viseeface':   (( 0.00, -5.00, 1.05), 0.95),
+    'courseprofil':      ((-4.60, 0.00, 1.02), 0.92),
+    'coursetroisquarts': ((-3.40, 3.10, 1.15), 0.95),
+    'cinematique':       ((-4.20, 2.60, 1.20), 0.98),
+}
+
+# Vues a camera FIXE : le personnage traverse le cadre. C'est le seul moyen de
+# juger l'avancee reelle -- une camera qui suit exactement le bassin place le
+# personnage au centre a chaque image, et la course parait sur place quel que
+# soit le deplacement.
+VUES_FIXES = {
+    'coursetravers': dict(pos=(-6.60, -5.00, 1.25), cible=(0.0, -5.00, 0.95), lens=42.0),
 }
 
 
@@ -23,6 +36,31 @@ def viser(cam, pos, cible):
     d = (cible - pos)
     cam.rotation_mode = 'QUATERNION'
     cam.rotation_quaternion = d.to_track_quat('-Z', 'Y')
+
+
+def rendre_fixe(vue, action, images):
+    scn = bpy.context.scene
+    arm = bpy.data.objects['Armature']
+    cam = bpy.data.objects['Camera']
+    if cam.animation_data:
+        cam.animation_data_clear()
+    cfg = VUES_FIXES[vue]
+    cam.data.lens = cfg['lens']
+    scn.camera = cam
+    scn.render.resolution_x = 640
+    scn.render.resolution_y = 380
+    scn.render.image_settings.file_format = 'WEBP'
+    scn.render.image_settings.quality = 82
+    arm.animation_data.action = bpy.data.actions[action]
+    viser(cam, Vector(cfg['pos']), Vector(cfg['cible']))
+    dossier = os.path.join(SP, vue)
+    if not os.path.isdir(dossier):
+        os.makedirs(dossier)
+    for i in range(images):
+        scn.frame_set(i + 1)
+        scn.render.filepath = os.path.join(dossier, 'f%04d' % (i + 1))
+        bpy.ops.render.render(write_still=True)
+    return dossier
 
 
 def rendre(vue, action, images):

@@ -18,7 +18,13 @@ P = dict(
     r_palm_hint = (0.97, 0.24, 0.0),
     r_pole = (-0.32, 0.18, -0.93),
     # main gauche
-    l_wrist_tfs = (-2.5, -5.0, 6.0),
+    # Poignet gauche. A 6.0 la main de soutien etait 6 cm trop a l'exterieur :
+    # ses doigts s'allongeaient vers la crosse sans que la paume vienne au
+    # contact, et pas un seul sommet de la main gauche ne touchait l'arme
+    # (distance mediane 81 mm). Elle serrait le vide a cote du pistolet.
+    # A 2.5 la paume recouvre la main droite : 59 sommets au contact de l'arme,
+    # poignets a 8 cm l'un de l'autre au lieu de 11.
+    l_wrist_tfs = (-2.5, -5.0, 2.5),
     l_palm_hint = (-0.97, 0.24, 0.0),
     l_pole = (0.32, 0.18, -0.93),
     clavicle_deg = 9.0,
